@@ -1,0 +1,29 @@
+NeuroVue Benson/Wang 2015 atlas regeneration — v2 KD-tree fill
+================================================================
+Sampling: 11 depths × (4× face-barycentric expansion)
+GM mask: MNI152 intensity 25–95, opened+closed
+KD-tree radius: 3.0 mm
+
+benson14_polar_angle.nii.gz:
+  expected: 0–180° per hemisphere (Benson 2014)
+  produced range: -0.00–179.98
+  produced mean: 86.07
+  non-zero voxels: 380,341
+
+benson14_eccentricity.nii.gz:
+  expected: 0–90° visual angle (Benson 2014)
+  produced range: 0.00–88.93
+  produced mean: 11.29
+  non-zero voxels: 380,341
+
+benson14_visual_areas.nii.gz:
+  expected: 12 labels: 1..12 = V1/V2/V3/hV4/VO1/VO2/LO1/LO2/TO1/TO2/V3b/V3a (Benson 2014)
+  produced labels (n=voxels): {1: 74478, 2: 72655, 3: 51273, 4: 23151, 5: 22185, 6: 20216, 7: 15442, 8: 16239, 9: 14233, 10: 11987, 11: 13771, 12: 40054}
+  total non-zero voxels: 375,684
+
+wang2015_maxprob.nii.gz:
+  expected: 25 labels (Kastner Lab Wang 2015 max-prob)
+  produced labels (n=voxels): {1: 24466, 2: 24693, 3: 26354, 4: 17694, 5: 14200, 6: 15273, 7: 10926, 8: 6665, 9: 7816, 10: 5677, 11: 11327, 12: 3332, 13: 11716, 14: 8178, 15: 9659, 16: 8128, 17: 15961, 18: 23375, 19: 15530, 20: 12021, 21: 9740, 22: 4885, 23: 1754, 24: 8335, 25: 11721}
+  total non-zero voxels: 309,426
+
+wang2015_prob.nii.gz: gaussian-smoothed binary mask of Wang max-prob

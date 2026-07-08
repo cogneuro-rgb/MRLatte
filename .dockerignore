@@ -1,0 +1,39 @@
+# Keep the build context small and reproducible. Without this, the ~2.8 GB of
+# scratch neuroimaging data and node_modules would be sent to the Docker daemon.
+
+.git
+**/node_modules
+frontend/build
+frontend/dist-electron
+**/__pycache__
+**/*.pyc
+
+# Local agent / tooling state
+.claude
+.playwright-mcp
+
+# Scratch neuroimaging data & generated outputs
+DTI
+Lesion_Resliced_MNI_108_patients
+output_*
+backend/lesion_store
+
+# Scratch screenshots & one-off artifacts
+longitudinal-*.png
+step-base.jpeg
+*.nvws.json
+
+# Dev-only frontend env (prod build uses the Dockerfile ENV / .env.production)
+frontend/.env
+frontend/.env.local
+frontend/.env.development*
+
+# Secrets — never bake dev credentials into the image
+backend/.env
+.env
+
+# Dev virtual environment (deps are installed fresh from requirements.txt)
+backend/.venv
+
+# Plans / docs not needed in the image
+*.md

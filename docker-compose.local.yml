@@ -1,0 +1,31 @@
+# Local-only stack — no Caddy, no domain, no TLS.
+# Access the app at http://localhost:8001 after starting.
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: neurovue
+      STATIC_DIR: /app/frontend/build
+      LESION_DIR: /data/lesions
+      ATLAS_DIR: /app/frontend/build/atlases
+    ports:
+      - "8001:8001"
+    volumes:
+      - lesions_data:/data/lesions
+
+volumes:
+  mongo_data:
+  lesions_data:

@@ -1,0 +1,5 @@
+# Caddy auto-provisions a Let's Encrypt TLS cert for $DOMAIN and reverse-proxies
+# everything to the app container, which serves both the React build and /api.
+{$DOMAIN} {
+	reverse_proxy app:8001
+}

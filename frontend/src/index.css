@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: #050505;
+    color: #f4f4f5;
+    font-family:
+        "IBM Plex Sans",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+code,
+.font-mono {
+    font-family:
+        "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas,
+        "Courier New", monospace;
+}
+
+::selection {
+    background: #f4f4f5;
+    color: #050505;
+}
+
+/* Custom scrollbar for sidebar */
+.thin-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 0;
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+}
+
+@layer base {
+    :root {
+        --background: 0 0% 2%;
+        --foreground: 0 0% 96%;
+        --card: 0 0% 7%;
+        --card-foreground: 0 0% 96%;
+        --popover: 0 0% 7%;
+        --popover-foreground: 0 0% 96%;
+        --primary: 0 0% 96%;
+        --primary-foreground: 0 0% 4%;
+        --secondary: 0 0% 11%;
+        --secondary-foreground: 0 0% 96%;
+        --muted: 0 0% 11%;
+        --muted-foreground: 0 0% 55%;
+        --accent: 0 0% 11%;
+        --accent-foreground: 0 0% 96%;
+        --destructive: 4 100% 59%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 4% 15%;
+        --input: 240 4% 15%;
+        --ring: 0 0% 83%;
+        --radius: 0;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+}
+
+/* Niivue canvas should fill its parent */
+canvas.niivue-canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    background: #000;
+}
+
+/* Polar disc pulse for active retinotopy */
+@keyframes disc-glow {
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 1px #27272a,
+            0 0 24px -8px rgba(255, 255, 255, 0.1);
+    }
+    50% {
+        box-shadow:
+            0 0 0 1px #3f3f46,
+            0 0 32px -6px rgba(255, 255, 255, 0.2);
+    }
+}
+.disc-active {
+    animation: disc-glow 3s ease-in-out infinite;
+}

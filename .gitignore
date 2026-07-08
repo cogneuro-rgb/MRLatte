@@ -1,0 +1,44 @@
+# === Dependencies ===
+node_modules/
+frontend/node_modules/
+
+# === Build output & caches ===
+frontend/build/
+frontend/dist-electron/
+dist/
+build/downloads/
+__pycache__/
+*.pyc
+
+# === Local env / secrets (never commit real secrets) ===
+.env
+.env.*
+backend/.env
+frontend/.env
+!.env.example
+!frontend/.env.production
+
+# === Patient-derived data — never publish ===
+backend/dicom_results/
+backend/lnm_results/
+backend/roi_results/
+backend/summary_results/
+backend/lesion_store/
+backend/tract_results/
+
+# === Large raw source data (not needed to run the app) ===
+DTI/
+HCP1065/
+HCP824/
+IIT_bundles/
+IIT_bundles_256/
+Lesion_Resliced_MNI_108_patients/
+
+# Large runtime binaries are version-controlled via Git LFS (see .gitattributes):
+#   backend/tracts/S35_1mm.trk   (whole-brain tractogram)
+#   DaLnm/lnm_bundle_d100.npz    (lesion-network-mapping connectome bundle)
+
+# === OS / editor cruft ===
+.DS_Store
+Thumbs.db
+*.log

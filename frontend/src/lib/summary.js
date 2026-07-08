@@ -1,0 +1,52 @@
+// One-Click Summary client. Kicks off a backend pipeline (tract dissection +
+// DA-LNM + retinotopy check + brainsprite/glass rendering) that packages a ZIP
+// report, then exposes status polling and result URLs. Mirrors lnm.js /
+// tractDissection.js conventions.
+
+const apiBase = process.env.REACT_APP_BACKEND_URL || "";
+
+export async function summaryAvailable() {
+  try {
+    const r = await fetch(`${apiBase}/api/summary/available`);
+    if (!r.ok) return { ok: false, reason: `HTTP ${r.status}` };
+    return await r.json(); // { ok, reason?, dissect?, lnm? }
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  }
+}
+
+/**
+ * Start a summary job.
+ * @param {File} lesionFile  lesion NIfTI (.nii/.nii.gz)
+ * @param {object} payload  { name, stages:{overlap,dissect,retino,lnm},
+ *   atlases:[id], overlapModel, discPngs:{polar,vfmap} }
+ * @returns {Promise<{ job_id: string }>}
+ */
+export async function runSummary(lesionFile, payload = {}) {
+  const fd = new FormData();
+  fd.append("file", lesionFile, lesionFile.name);
+  fd.append("payload", JSON.stringify(payload));
+  const r = await fetch(`${apiBase}/api/summary/run`, { method: "POST", body: fd });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+/** Poll a job's status. Returns { stage, message, progress, done, error, files? }. */
+export async function summaryStatus(jobId) {
+  const r = await fetch(`${apiBase}/api/summary/status/${jobId}`);
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+export function summaryResultUrl(relPath) {
+  // relPath is an absolute API path like /api/summary/result/{id}/summary.zip
+  return `${apiBase}${relPath}`;
+}
