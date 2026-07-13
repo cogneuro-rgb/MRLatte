@@ -187,6 +187,13 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       // inside the template's posterior edge (y≈-110); a thicker slab projected
       // the posterior tract onto the empty edge slice. The 3D render is unaffected.
       meshThicknessOn2D: 5,
+      // In the 3D render, draw tract/mesh streamlines *through* the volume so they
+      // stay visible at any base-volume opacity. NiiVue's default (meshXRay: 0)
+      // hides meshes behind an opaque brain — that's why tracts only appeared when
+      // the brain was at 0% opacity. Any value > 0 enables an extra see-through
+      // mesh pass in the 3D render only (2D slices use meshThicknessOn2D above);
+      // ~0.5 keeps tracts clearly visible while retaining some depth cue. Tunable.
+      meshXRay: 0.5,
       isResizeCanvas: false,   // manual ResizeObserver handles this; NiiVue's own handler races with it
       colorbarHeight: 0,
       clipPlaneColor: [0, 0, 0, 0],
@@ -665,34 +672,41 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     clearAllOverlays: async () => {
       const nv = nvRef.current;
       if (!nv) return;
-      const baseId = baseRef.current?.id || nv.volumes[0]?.name || "mni152";
-      const baseUrl = baseRef.current?.url || nv.volumes[0]?.url;
-      // 1. Remove ALL meshes (incl. tracts and inflated brain)
+      // 1. Remove ALL meshes (tracts, etc.). These render in the 3D view, so a
+      //    stale mesh is one way "everything" appears to persist in the render.
       for (const mesh of [...nv.meshes]) {
         try { nv.removeMesh(mesh); } catch (_e) {}
       }
       meshMap.current.clear();
-      // 2. Clear drawing
+      // 2. Clear any pen drawing (also composited into the 3D render). Use
+      //    closeDrawing() — it reallocates the GPU draw texture to empty, nulls
+      //    the bitmap, and redraws unconditionally. The soft
+      //    drawBitmap.fill(0) + refreshDrawing() path left the drawn lesion
+      //    behind in the 3D render, so tear the drawing texture down fully here.
+      //    If drawing is still active, hand back a fresh empty canvas so the pen
+      //    keeps working (closeDrawing nulls the bitmap).
       try {
-        nv.drawClearAllUndoBitmaps();
-        if (nv.drawBitmap) nv.drawBitmap.fill(0);
-        nv.refreshDrawing(true);
+        nv.closeDrawing();
+        if (nv.opts?.drawingEnabled) nv.createEmptyDrawing();
       } catch (_e) {}
-      // 3. Reload only the base volume to wipe overlay GL textures
+      // 3. Remove every overlay volume, keeping only the base (volumes[0]).
+      //    Removing them in place — instead of reloading the base from a URL that
+      //    may be a stale blob: (which threw, silently left overlays behind, and
+      //    is why the 3D render kept showing them) — deterministically drops the
+      //    overlay textures from BOTH the 2D slices and the 3D volume render.
       try {
-        await nv.loadVolumes([{ url: baseUrl, colormap: "gray", opacity: 1.0 }]);
-        if (nv.volumes[0]) {
-          try { nv.volumes[0].name = baseId; } catch (_e) {}
+        for (const v of nv.volumes.slice(1)) {
+          try { nv.removeVolume(v); } catch (_e) {}
         }
-        volumeMap.current.clear();
-        hiddenLabelLayers.current = {};
-        if (nv.volumes[0]) volumeMap.current.set(nv.volumes[0].name, nv.volumes[0]);
-      } catch (_e) {
-        // Fallback per-volume removal
-        const toRemove = nv.volumes.slice(1).map((v) => v);
-        for (const v of toRemove) { try { nv.removeVolume(v); } catch (_e2) {} }
-      }
-      // 4. Full GL refresh
+        // Restore the base to a clean, fully-visible state.
+        if (nv.volumes[0]) {
+          try { nv.setOpacity(0, 1); nv.volumes[0].opacity = 1; } catch (_e) {}
+        }
+      } catch (_e) {}
+      volumeMap.current.clear();
+      hiddenLabelLayers.current = {};
+      if (nv.volumes[0]) volumeMap.current.set(nv.volumes[0].name, nv.volumes[0]);
+      // 4. Rebuild GPU textures (2D slices + 3D volume render) and redraw.
       try {
         nv.updateGLVolume();
         nv.drawScene();
@@ -1349,14 +1363,17 @@ const NiivueViewer = forwardRef(function NiivueViewer(
         return false;
       }
     },
-    // Return the gzipped NIfTI bytes of the current drawing without triggering a
-    // download. NiiVue's saveImage returns the Uint8Array when filename is empty;
-    // used to upload the lesion to the server.
+    // Return the GZIPPED NIfTI bytes of the current drawing without triggering a
+    // download. saveImage({filename:""}) returns UNcompressed bytes — NiiVue only
+    // gzips when the filename ends in .gz — yet every caller labels the result
+    // .nii.gz, so nibabel later rejects it ("not a gzip file"). Compress here via
+    // saveToUint8Array with a .gz name (same path as saveImage internally, minus
+    // the download and with gzip on). Used to upload the lesion to the server.
     getDrawingBytes: async () => {
       const nv = nvRef.current;
-      if (!nv) return null;
+      if (!nv?.drawBitmap || !nv.volumes?.[0]) return null;
       try {
-        const bytes = await nv.saveImage({ filename: "", isSaveDrawing: true });
+        const bytes = await nv.volumes[0].saveToUint8Array("drawing.nii.gz", nv.drawBitmap);
         return bytes instanceof Uint8Array ? bytes : null;
       } catch (err) {
         toast.error("Failed to read drawing", { description: err?.message });

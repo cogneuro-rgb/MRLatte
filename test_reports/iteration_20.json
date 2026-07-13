@@ -1,0 +1,28 @@
+{
+  "summary": "Retest of two fixes — BOTH FIXES VERIFIED ON THE LIVE PREVIEW URL. (1) visfAtlas: toggling [data-testid='toggle-visfAtlas'] now correctly auto-navigates the crosshair to the occipital-temporal area (~MNI 0,-73,1) and the categorical 33-ROI overlay is CLEARLY visible on all four panes (coronal/axial/sagittal + 3D render). Distinct categorical colours (red/green/blue/yellow/dark) appear directly over the crosshair instead of in an empty slice. The 'visfAtlas · Maastricht Functional loaded' toast fires. As specified, [data-testid='colorbar-stack'] does NOT include a visfAtlas entry (categorical labels, by spec). (2) InflatedBrainViewer Polar Angle Interactive 3D now RENDERS CORRECTLY — opening 'VERIFY ATLAS' → clicking [data-testid='toggle-interactive-polar_angle'] produces an inflated brain mesh with polar-angle red→yellow→green→cyan→blue colours visible on the occipital pole. The 220ms+rAF pre-attach delay + explicit WebGL2 context probe successfully restored Niivue shader linking. The new error overlay [data-testid='inflated-brain-error-polar_angle'] was NOT triggered (its innerText was null) because rendering succeeded. No 'Shader failed to link' messages appeared in console. (3) Sanity check: [data-testid='toggle-benson_polar_angle'] still works (MNI gray background, polar colours on cortex, 'Polar Angle (0–360°) loaded' toast, colorbar stack populated). No regression.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Niivue console", "issues": ["Non-blocking warning: 'niivue-warn padding colormap: indices expected end with 255 not 33' fires ~8x when visfAtlas label-colormap is set. Niivue still renders the discrete labels correctly, but the warning is noisy. Optional cleanup: pad VISFATLAS_COLORMAP.I to end at 255 (e.g. push a sentinel row 33→255 or extend with trailing zero-alpha entries up to I=255) to silence the warning."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL (low priority): Silence the niivue 'padding colormap: indices expected end with 255 not 33' warning by padding VISFATLAS_COLORMAP.I to terminate at 255 with transparent (A=0) trailing rows. Rendering already works, this is cosmetic console hygiene only.",
+    "OPTIONAL: AtlasValidationPanel DialogContent still emits the 'Missing Description or aria-describedby' Radix a11y warning from iteration_19. Add a <DialogDescription> to suppress it."
+  ],
+  "critical_code_review_comments": [
+    "InflatedBrainViewer.jsx — the 220ms + rAF + explicit WebGL2 context probe sequence is a good defensive pattern. The fallback error overlay [data-testid='inflated-brain-error-<overlay>'] is correctly wired and would surface a useful message if the context were exhausted. Verified the readPixels black-frame heuristic at t=600ms does NOT false-trigger on a successful render.",
+    "visfAtlasColormap.js — I=[0..33] now correctly drives setColormapLabel; the trailing niivue padding warning is cosmetic. VISFATLAS_NAV_MM=[0.2,-72.9,1.1] is well-chosen — crosshair lands directly inside the bilateral ROI cluster.",
+    "Dashboard.jsx handleAtlasToggle — calling viewer.setCrosshairMM(...VISFATLAS_NAV_MM) after load is the right UX so users immediately see the categorical overlay; consider doing the same for other heavily-localised atlases (e.g. ALE peak maps) in the future."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "3/3 retest cases PASS — visfAtlas auto-nav + render OK, InflatedBrainViewer polar_angle renders OK, benson_polar_angle no regression"},
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Both fixes from iteration_19 are confirmed working on https://lesion-mapper.preview.emergentagent.com. Screenshots captured at /app/.screenshots/visfatlas_after_toggle.png, /app/.screenshots/inflated_polar.png, /app/.screenshots/benson_polar_angle.png. The visfAtlas overlay produces a noisy but harmless niivue warning ('padding colormap: indices expected end with 255 not 33') — rendering is correct. InflatedBrainViewer's error overlay [data-testid='inflated-brain-error-polar_angle'] correctly stays hidden during successful renders; its innerText was null. No Shader-failed-to-link console messages observed in this run.",
+  "rca of the issue": "Resolved. (1) visfAtlas: previous LUT I-array used 0..255 positions which prevented setColormapLabel from binding label indices to data values; regenerated colormap with I=[0..33] (actual data values) + auto-navigation to VISFATLAS_NAV_MM ensures the ROIs land under the crosshair instead of in an empty slice. (2) InflatedBrainViewer: the original race condition where Niivue grabbed a 0-sized WebGL2 context during Radix dialog open animation caused shader-link failure; the 220ms+rAF pre-attach delay plus explicit WebGL2 context probe (with preserveDrawingBuffer, powerPreference='high-performance', failIfMajorPerformanceCaveat=false) gives the canvas real backing dimensions before Niivue initialises, restoring shader compilation. Graceful-degradation overlay is present as a safety net but did not need to trigger."
+}

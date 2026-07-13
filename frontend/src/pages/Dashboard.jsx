@@ -1195,7 +1195,7 @@ export default function Dashboard() {
             <Brain size={16} className="text-white" />
           </div>
           <div className="flex-1">
-            <div className="text-[15px] font-semibold tracking-tight leading-none">NeuroVue</div>
+            <div className="text-[15px] font-semibold tracking-tight leading-none">MRLatte</div>
             <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 mt-1">
               base · lesion · roi · activation · atlas · tracts
             </div>

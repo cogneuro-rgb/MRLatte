@@ -1,44 +1,126 @@
-# === Dependencies ===
-node_modules/
-frontend/node_modules/
 
-# === Build output & caches ===
-frontend/build/
-frontend/dist-electron/
-dist/
-build/downloads/
-__pycache__/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+# Archive files and large assets
+# Build caches
+# Dependencies
+# Deployment
+# Development tools
+# Electron build outputs
+# Environment and credential files
+# GitHub Copilot workspace
+# IDE and editors
+# Logs and debug files
+# Memory
+# Next.js
+# Obsidian workspace files
+# Production builds
+# Python
+# System files
+# Testing
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+**/*.zip
+*.deb
+*.dylib
+*.env
+*.key
+*.pack
+*.pem
 *.pyc
-
-# === Local env / secrets (never commit real secrets) ===
+*.tsbuildinfo
+*credentials.json*
+*token.json*
+.DS_Store
+.ac
+.cache/
+.chainlit
+.credentials
 .env
 .env.*
-backend/.env
-frontend/.env
+.idea/
+.ipynb_checkpoints/
+.obsidian/
+.pnp.js
+.pnpm-debug.log*
+.venv/
+.vercel
+.vscode/
+.yarn/*
+.yarn/install-state.gz
+/.next/
+/.pnp
+/build/downloads/
+/coverage
+/out/
+Untitled*.md
+Untitled.base
+Untitled.canvas
+__pycache__/
+chainlit.md
+copilot/
+credentials.json
+dist/
+dump.rdb
+frontend/dist-electron/
+frontend/node_modules/.cache/
+memory/test_credentials.md
+next-env.d.ts
+node_modules/
+npm-debug.log*
+nul
+venv/
+yarn-debug.log*
+yarn-error.log*
+
+# Scratch neuroimaging data & generated outputs (do not commit)
+DTI/
+Lesion_Resliced_MNI_108_patients/
+output_*/
+IIT_bundles_256/
+__MACOSX/
+
+# Scratch screenshots & one-off scripts
+longitudinal-*.png
+step-base.jpeg
+Single_patient_visual_field_deficit.v*.py
+
+# Local agent / tooling state
+.claude/
+.playwright-mcp/
+
+# Deployment: ignore real env + build/runtime artifacts, keep templates tracked
+frontend/build/
+backend/lesion_store/
+caddy_data/
+caddy_config/
 !.env.example
 !frontend/.env.production
 
-# === Patient-derived data — never publish ===
+# Tract dissection: large tractogram files and generated results.
+# NOTE: S35_1mm.trk (~673 MB) is NOT committed on purpose — GitHub rejects files
+# >100 MB. Keep it on the build machine at backend/tracts/S35_1mm.trk; the offline
+# bundle build (build/assemble-bundle.ps1) copies it into the installer from there.
+backend/tracts/*.trk
+backend/tracts/*.tck
+backend/tract_results/
+
+# Large tract-atlas source data (only built artifacts are committed)
+HCP1065/
+HCP824/
+IIT_bundles/
+
+# Patient-derived compute outputs — NEVER publish (privacy). These hold results
+# generated from patient scans and must not go to any remote.
 backend/dicom_results/
 backend/lnm_results/
 backend/roi_results/
 backend/summary_results/
-backend/lesion_store/
-backend/tract_results/
 
-# === Large raw source data (not needed to run the app) ===
-DTI/
-HCP1065/
-HCP824/
-IIT_bundles/
-IIT_bundles_256/
-Lesion_Resliced_MNI_108_patients/
-
-# Large runtime binaries are version-controlled via Git LFS (see .gitattributes):
-#   backend/tracts/S35_1mm.trk   (whole-brain tractogram)
-#   DaLnm/lnm_bundle_d100.npz    (lesion-network-mapping connectome bundle)
-
-# === OS / editor cruft ===
-.DS_Store
-Thumbs.db
-*.log
+# 131 MB — exceeds GitHub's 100 MB per-file limit. Kept on the build machine;
+# build/assemble-bundle.ps1 pulls it into the installer. (LFS-tracked separately
+# in the clean release repo.)
+DaLnm/lnm_bundle_d100.npz

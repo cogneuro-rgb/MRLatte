@@ -1,0 +1,35 @@
+{
+  "summary": "Diagnostic-only run for two reported issues. RESULT: (1) visfAtlas overlay DOES render correctly on the main canvas — confirmed visually in the post-toggle screenshot (red+green ROIs visible on coronal, axial, sagittal AND 3D render panes, plus 'visfAtlas — Maastricht Functional loaded' toast). No setColormapLabel warning fired. Pixel-sampling at 4 fixed points only caught colored pixels in the render pane, but the full screenshot clearly shows ROIs in ALL panes — the user's report of 'visfAtlas does not show up at all' is NOT reproducible on the preview URL. (2) Atlas Validation Panel → Interactive 3D for polar_angle IS BROKEN — canvas stays solid black. Root cause is a Niivue WebGL shader linking failure when a SECOND Niivue instance is created inside the modal (see console: 'Vertex shader compilation error: null / Fragment shader compilation error: null / niivue-error null / Shader failed to link'). Canvas attrs are correct (1322x418), all GII/inflated mesh URLs return HTTP 200, so it is NOT a sizing or network issue.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "InflatedBrainViewer", "issue": "Canvas renders entirely black (0/10000 non-black pixels). Niivue shader compile + link fails on the second Niivue instance: 'Vertex shader compilation error: null', 'Fragment shader compilation error: null', 'Shader failed to link, see console for log'. Also logs 'niivue-info firefox renderer: null' and 'niivue-info debug_renderer_info unavailable' for this second instance, suggesting WebGL context exhaustion / shared-context issue between the main NiivueViewer (already holding a WebGL2 context) and the modal's new Niivue.", "selector": "[data-testid='inflated-brain-polar_angle'] canvas", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Atlas Validation → Interactive 3D", "issue": "Mesh data loads (HTTP 200 on /atlases/fsaverage_lh_inflated.gii.gz, fsaverage_rh_inflated.gii.gz, lh.benson14_polar_angle.gii, rh.benson14_polar_angle.gii) but no draw occurs because Niivue init throws before loadMeshes. Caught only by InflatedBrainViewer's try/catch warn — no user-visible error toast.", "affected_selectors": ["[data-testid='inflated-brain-polar_angle']", "[data-testid='toggle-interactive-polar_angle']"]}
+    ],
+    "design_issues": [
+      {"screen": "Atlas Validation modal — Polar Angle Interactive 3D", "issues": ["Black canvas with broken-image icon at top-left, only legend gradient + 'drag to rotate · scroll to zoom' hint visible — no fallback / error UI when shader linking fails."]},
+      {"screen": "DialogContent", "issues": ["a11y warning: 'Missing Description or aria-describedby={undefined} for DialogContent' (low priority)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix InflatedBrainViewer shader-link failure. Likely a multi-WebGL-context conflict — when the modal opens, a 2nd Niivue is instantiated while the main NiivueViewer's WebGL2 context is still live. Options: (a) reuse the main nvRef instead of creating a new Niivue and call setSliceType(RENDER)+loadMeshes on it temporarily; (b) explicitly suspend/release the main viewer's GL context while the modal is open; (c) ensure the modal canvas gets its own preserveDrawingBuffer + powerPreference WebGL2 attrs and verify with gl.getError(); (d) inspect actual gl.getShaderInfoLog / gl.getProgramInfoLog (Niivue currently logs them as `null` because of how the error object is stringified).",
+    "Re-verify visfAtlas with the user — the live preview clearly shows ROIs rendering after toggle. Possibly the user is seeing a stale cache OR a different deployment. Suggest they hard-reload the preview and confirm the visfAtlas-loaded toast appears.",
+    "Add a visible error state inside InflatedBrainViewer when nv.attachToCanvas/loadMeshes throws (currently only console.warn — user sees blank black canvas with no clue why).",
+    "Add `aria-describedby`/DialogDescription to AtlasValidationPanel DialogContent."
+  ],
+  "critical_code_review_comments": [
+    "InflatedBrainViewer.jsx creates a brand-new Niivue per mount. This concurrently uses a WebGL2 context separate from the main NiivueViewer — browsers cap WebGL contexts (~16) and the second context can degrade to limited mode. Recommend reusing the main nv instance or aggressively releasing the InflatedBrainViewer GL context on cleanup (already attempting WEBGL_lose_context — good).",
+    "NiivueViewer.jsx: setColormapLabel is wrapped in try/catch with a console.warn — verified NOT firing for visfAtlas (the layer renders correctly with discrete labels).",
+    "InflatedBrainViewer.jsx logs only `console.warn('InflatedBrainViewer load failed:', err)` — main user-visible feedback is missing. Should show an error overlay in the modal."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "1/2 issues reproduced — visfAtlas works, InflatedBrainViewer is broken"},
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "visfAtlas IS rendering on /. Use the data-testid='toggle-visfAtlas' click and look at the FULL viewport screenshot (not pixel-sampling 4 narrow patches) — the red+green ROIs appear in all panes including the 3D render. Toast 'visfAtlas — Maastricht Functional loaded' fires. InflatedBrainViewer for polar_angle remains BLACK due to 'Shader failed to link' from a second Niivue instance — see /tmp/inflated_brain.png screenshot. Console error sequence to look for: 'Vertex shader compilation error: null' followed by 'Shader failed to link, see console for log'.",
+  "rca of the issue": "Issue 1 (visfAtlas): NOT REPRODUCIBLE — overlay renders correctly on all 4 panes after toggle. No console errors. /atlases/visfAtlas_maxprob.nii.gz returns 200 (177KB). setColormapLabel does NOT warn. Likely user-side cache/stale-build. Issue 2 (InflatedBrainViewer): REPRODUCIBLE. The InflatedBrainViewer instantiates a SECOND Niivue (separate WebGL2 context) when the modal's Interactive 3D toggle is clicked. Niivue's shader compile returns null infoLog and the program fails to link ('Shader failed to link, see console for log'). All mesh GII files fetch successfully (HTTP 200). Canvas DOM has correct width/height attributes (1322x418). Pixel sample inside the inflated-brain canvas returns 0 colored, 0 non-black pixels. Mitigation: rework InflatedBrainViewer to either (a) reuse the main NiivueViewer's nv instance, or (b) defer creating its own niivue until the main viewer's GL context is released; or (c) verify actual shader infoLog via gl.getShaderInfoLog and surface root reason."
+}

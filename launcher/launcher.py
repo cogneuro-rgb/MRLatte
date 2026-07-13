@@ -215,6 +215,8 @@ def start_backend() -> None:
     # --- static site + atlases (same-origin serving) ---
     env["STATIC_DIR"] = str(static_dir)
     env["ATLAS_DIR"] = str(static_dir / "atlases")
+    # Bundled nilearn atlas cache -> LNM region-labelling runs fully offline.
+    env["NILEARN_DATA"] = str(APP_DIR / "nilearn_data")
     # --- persistent user data (under %LOCALAPPDATA%, survives re-install) ---
     env["LESION_DIR"] = str(LESION_DIR)
     # --- ephemeral compute outputs (under the data root, also user-writable) ---

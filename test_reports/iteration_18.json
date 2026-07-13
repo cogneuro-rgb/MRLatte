@@ -1,0 +1,32 @@
+{
+  "summary": "RETEST PASS — Polar Angle (0-360 deg) red flood bug is FIXED. Both proposed fixes (A[0]=A[1]=0 in polar_angle_360 LUT registration + ignoreZeroVoxels:true on benson_polar_angle config) are now in place and verified to work across all four panes. visfAtlas regression check also passes — no negative impact from the polar fixes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "polar_angle_no_red_flood": "PASS — After toggling Polar Angle (0-360 deg), pixel-sampling of the WebGL framebuffer shows: coronal pane red=0.0%, sagittal red=0.2%, 3D-render red=0.4%, axial red=0.5%. All four panes show MNI152 gray base anatomy as background (gray% = 11.6-32.0%, dark% = 60-86%). No flooding. Visual screenshot confirms coronal pane shows pure MNI152 anatomy (no overlay since no cortex is in the coronal slice plane at default crosshair), sagittal shows polar-angle colored cortex only on occipital tip, axial shows full bilateral polar gradients (LH red/yellow/green/blue, RH blue/teal/cyan/red), 3D-render shows polar-angle painted only on cortical surface of occipital lobe.",
+    "polar_angle_both_hemispheres_still_colored": "PASS — Axial slice shows LH (right side of image) red->yellow->green->blue and RH (left side of image) blue->teal->cyan->magenta gradients exactly as required. The 0-360 merged volume still covers both hemispheres correctly.",
+    "polar_angle_colorbar": "PASS — colorbar-benson_polar_angle is rendered with min=1.00, max=360.00 and the polar circular gradient visible vertically.",
+    "polar_angle_disc_legend": "PASS — UVM/RHM/LVM/LHM polar wheel legend renders below the layer card.",
+    "visfAtlas_no_regression": "PASS — toggle-visfAtlas loads cleanly; 3D render shows red (FFA/lateral) and green (superior) ROIs aligned to cortex; sagittal shows red ROI patch; axial shows red+green ROIs on occipital/inferior-temporal cortex. Background remains BLACK on coronal pane (no flood). No console errors.",
+    "console_health": "PASS — no JS errors during full retest flow."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix at NiivueViewer.jsx line 110 (A.push(i <= 1 ? 0 : 255)) is the canonical niivue pattern for transparent-below-threshold colormaps. Documentation comment at lines 104-109 is clear and explains the WHY for future maintainers.",
+    "Belt-and-suspenders ignoreZeroVoxels:true on atlasConfig.js line 50 is wired through the addOverlayFromUrl path correctly (line 285-290) — it sets vol.ignoreZeroVoxels and calls updateGLVolume to rebuild the GL texture, which is necessary because niivue caches this flag in the GL render path.",
+    "Consider extracting the polar_angle_360 stops table to atlasConfig.js so users could later customise the LUT without touching the viewer component."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "5/5 — polar no-flood, both-hemispheres colored, colorbar, polar disc legend, visfAtlas no-regression — ALL PASS"},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Polar Angle 0-360 overlay is now fully working. The LUT now has transparent first two entries (A[0]=A[1]=0) which lets niivue's cal_min behavior + trilinear interpolation produce the correct transparent below-threshold band. Combined with ignoreZeroVoxels=true on the volume, background voxels (value=0) and interpolated fractional voxels (between cortex value>=1 and background value=0) all render transparent, allowing the MNI152 base anatomy to show through on all four panes (axial, coronal, sagittal, 3D render). Test method: load dashboard, expand Retinotopy, click [data-testid=toggle-benson_polar_angle], wait 8s, take screenshot. Pixel-sample the four canvas quadrants and verify red% < 5% in all four quadrants. visfAtlas remains regression-free.",
+  "rca of the issue": "Bug already resolved. Original RCA from iteration_17: LUT[0].A was hard-coded to 255 in the polar_angle_360 colormap synthesis, so values below cal_min (background + interpolated fractional voxels) were rendered as LUT[0]=red instead of transparent. Fix verified: NiivueViewer.jsx line 110 now sets A=0 for i<=1, and atlasConfig.js line 50 sets ignoreZeroVoxels:true on benson_polar_angle. Combined, these eliminate the red flood while preserving bilateral cortex coloring."
+}

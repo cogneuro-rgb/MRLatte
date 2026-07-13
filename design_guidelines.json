@@ -1,0 +1,79 @@
+{
+  "theme_and_archetype": {
+    "theme": "dark",
+    "archetype": "Archetype 4 (Swiss & High-Contrast) - Dark Variant",
+    "reasoning": "A neuroimaging dashboard requires absolute precision, lack of distraction, and high contrast for medical imagery. Pure black backgrounds prevent glare and make volumetric renders pop."
+  },
+  "typography": {
+    "fonts": {
+      "heading": "IBM Plex Sans",
+      "body": "JetBrains Mono",
+      "fallback": "sans-serif"
+    },
+    "rules": {
+      "h1": "text-2xl font-semibold tracking-tight",
+      "h2": "text-lg font-medium tracking-tight",
+      "h3": "text-base font-medium",
+      "body": "text-sm leading-relaxed",
+      "labels": "text-xs uppercase tracking-[0.2em] font-medium text-zinc-500"
+    }
+  },
+  "colors": {
+    "background": "#050505",
+    "surface": "#111111",
+    "surface_hover": "#1C1C1C",
+    "border": "#27272A",
+    "text": {
+      "primary": "#F4F4F5",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "brand": {
+      "primary": "#FFFFFF",
+      "primary_foreground": "#000000"
+    },
+    "functional": {
+      "lesion_red": "#FF3B30",
+      "retinotopy_gradient": "conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)"
+    }
+  },
+  "layout_and_spacing": {
+    "strategy": "MODE B: THE CONTROL ROOM GRID",
+    "structure": "Full-viewport height (100vh) application layout. No page scrolling, only panel scrolling.",
+    "grid_configuration": "flex h-screen w-full overflow-hidden bg-[#050505] text-[#F4F4F5]",
+    "sidebar": "w-80 or w-96 flex-shrink-0 border-r border-[#27272A] bg-[#111111] flex flex-col overflow-y-auto p-6 gap-6",
+    "main_canvas": "flex-1 bg-[#000000] relative",
+    "spacing_scale": "dense (p-4 for panels, gap-4 for items)"
+  },
+  "components": {
+    "panels": "Square corners (rounded-none), 1px solid border-[#27272A], bg-[#111111].",
+    "buttons": {
+      "primary": "rounded-none bg-white text-black hover:bg-zinc-200 px-4 py-2 text-sm font-semibold transition-colors w-full flex items-center justify-center gap-2",
+      "secondary": "rounded-none bg-transparent border border-[#27272A] text-white hover:bg-[#1C1C1C] px-4 py-2 text-sm transition-colors w-full flex items-center justify-center gap-2",
+      "danger": "rounded-none bg-[#FF3B30]/10 border border-[#FF3B30]/30 text-[#FF3B30] hover:bg-[#FF3B30]/20 transition-colors"
+    },
+    "sliders": "Tailwind accent-white or shadcn/ui slider styled with sharp edges and white thumb/track.",
+    "toggles": "Sharp, minimal visual footprint. Use standard shadcn switches but remove rounding if possible, or use a custom checkbox-like toggle.",
+    "color_wheel": "A circular div (w-32 h-32 rounded-full mx-auto my-4 border-4 border-[#111111] shadow-[0_0_0_1px_#27272A]) using standard CSS `conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)`. Add an inner dark circle to create a ring effect or keep as a solid disc.",
+    "file_upload": "Styled as a dashed border dropzone area or a clean button. border-dashed border-[#27272A] hover:border-white transition-colors p-4 flex flex-col items-center justify-center gap-2"
+  },
+  "visual_enhancers": {
+    "surfaces": "GRID BORDERS (The Technical Look). Expose the skeleton, 1px borders everywhere. No shadows. Absolute flatness.",
+    "motion": "Minimal. Instant feedback on hover states (color shifts). No bouncy animations."
+  },
+  "instructions_to_main_agent": [
+    "Install `@NeuroVue/NeuroVue` and use it within a React `useEffect` to attach to a standard HTML `<canvas>` element.",
+    "Configure NeuroVue to show a multi-planar view (axial, coronal, sagittal) + 3D view (using NeuroVue layout options).",
+    "The NeuroVue canvas wrapper must be flex-1 and take up 100% width and height of the right-hand panel.",
+    "Implement a 'Load MNI152' default state (use standard NIfTI URLs or NeuroVue's built-in fetchable volumes if available).",
+    "Create a sidebar component for 'Layer Management' on the left side.",
+    "For each overlay (Wang 2015, Benson 2014, Lesion Mask), create a cohesive control block. Each block should have: Layer Name, Visibility Toggle, and Opacity Slider.",
+    "The Lesion layer requires an HTML file upload input (accepting .nii.gz or .mgz). When loaded, it MUST overlay in red on the current view.",
+    "Implement a global 'Clip Plane' slider for the 3D view. NeuroVue exposes APIs for clipping planes (e.g., `nv.setClipPlane()`).",
+    "Include the Polar angle color disc visually in the sidebar when the Retinotopy layer is active, describing the color mapping.",
+    "Ensure all interactive elements have descriptive `data-testid` attributes (e.g., data-testid='upload-lesion-button', data-testid='opacity-slider-lesion').",
+    "Use Phosphor Icons or lucide-react for UI iconography (e.g., Eye/EyeClosed for visibility, Upload for file input).",
+    "Ensure the fonts (IBM Plex Sans, JetBrains Mono) are imported via Google Fonts in the HTML or global CSS."
+  ],
+  "image_urls": []
+}

@@ -2,7 +2,11 @@ import React, { useState } from "react";
 import { Pencil, Eraser, Save, Trash2, Undo2, Expand, Shrink, Waves } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
-import { uploadLesion } from "@/lib/lesions";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { uploadLesion, saveLesionLocally } from "@/lib/lesions";
 
 /**
  * DrawingPanel - MRIcroGL-style lesion drawing controls.
@@ -18,6 +22,8 @@ export const DrawingPanel = ({ viewerRef, baseName }) => {
   const [opacity, setOpacity] = useState(0.8);
   const [showCrosshair, setShowCrosshair] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [lesionName, setLesionName] = useState("");
 
   const applyDraw = (t = tool) => {
     viewerRef.current?.setClickToSegment?.(false);
@@ -66,25 +72,41 @@ export const DrawingPanel = ({ viewerRef, baseName }) => {
     if (ok) toast.success(`${op[0].toUpperCase()}${op.slice(1)} applied`, { description: "Undo to revert" });
   };
 
+  // Confirm handler for the "name this lesion" modal. Uses an in-app dialog
+  // rather than window.prompt() because Electron's Chromium does not support
+  // prompt() (it returns null), which silently aborted the whole save on desktop.
+  const submitName = () => {
+    const trimmed = lesionName.trim();
+    if (!trimmed) return; // keep the dialog open until a name is entered
+    setNameOpen(false);
+    doSave(trimmed);
+  };
+
   // Save the drawn lesion to BOTH the local machine (download) and the server.
-  // Prompts for a name that identifies/organises the lesion server-side.
-  const handleSave = async () => {
-    const name = window.prompt("Name this lesion (case / patient):");
-    if (!name || !name.trim()) return; // cancelled or empty → abort
-    const trimmed = name.trim();
+  const doSave = async (trimmed) => {
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const slug = trimmed.replace(/[^a-z0-9_-]/gi, "_").replace(/^[._]+|[._]+$/g, "") || "lesion";
 
     setSaving(true);
     try {
-      // 1) Local download (unchanged behaviour).
-      const ok = await viewerRef.current?.saveDrawing(`lesion_${slug}_${ts}.nii.gz`);
-      if (!ok) return; // saveDrawing already surfaced an error toast
+      // 1) Local save (native dialog on desktop, browser download on web).
+      let res;
+      try {
+        res = await saveLesionLocally(viewerRef, `lesion_${slug}_${ts}.nii.gz`);
+      } catch (e) {
+        toast.error("Could not save lesion file", { description: e?.message });
+        return;
+      }
+      if (!res.ok) {
+        if (res.canceled) toast.info("Lesion save cancelled");
+        else if (res.empty) toast.warning("Nothing drawn to save");
+        return; // web error path already surfaced its own toast
+      }
 
       // 2) Server upload of the same drawing bytes.
       const bytes = await viewerRef.current?.getDrawingBytes();
       if (!bytes) {
-        toast.warning("Lesion downloaded, but could not read bytes to upload");
+        toast.warning("Lesion saved locally, but could not read bytes to upload");
         return;
       }
       try {
@@ -269,7 +291,7 @@ export const DrawingPanel = ({ viewerRef, baseName }) => {
               Clear
             </button>
             <button
-              onClick={handleSave}
+              onClick={() => { setLesionName(""); setNameOpen(true); }}
               disabled={saving}
               className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-white text-black border-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="drawing-save"
@@ -284,6 +306,47 @@ export const DrawingPanel = ({ viewerRef, baseName }) => {
           </div>
         </>
       )}
+
+      {/* Name-this-lesion modal (replaces window.prompt, which is unsupported in Electron). */}
+      <Dialog open={nameOpen} onOpenChange={setNameOpen}>
+        <DialogContent className="max-w-[380px] bg-[#0a0a0a] border border-[#27272A] text-zinc-200">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-medium tracking-wide flex items-center gap-2">
+              <Save size={14} className="text-zinc-400" /> Name this lesion
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-zinc-500">
+              Identifies the case/patient on the server and in the downloaded filename.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); submitName(); }}>
+            <Input
+              autoFocus
+              value={lesionName}
+              onChange={(e) => setLesionName(e.target.value)}
+              placeholder="e.g. Patient 012 — left MCA"
+              className="bg-transparent border-[#27272A] text-zinc-200 placeholder:text-zinc-600"
+              data-testid="lesion-name-input"
+            />
+            <DialogFooter className="mt-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setNameOpen(false)}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!lesionName.trim()}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-white text-black border-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="lesion-name-confirm"
+              >
+                Save
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

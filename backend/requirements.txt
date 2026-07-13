@@ -31,5 +31,5 @@ scipy>=1.11.0
 nilearn>=0.10.0
 matplotlib>=3.7.0
 neuropythy>=0.12.0
-dipy>=1.8.0  # data-prep only: scripts/build_wm_retinotopy_maps.py streamline densification
+dipy>=1.8.0  # runtime: tract dissection workers (dissect_worker.py, dissect_between_worker.py) + server.py; also scripts/build_wm_retinotopy_maps.py
 dcm2niix>=1.0.20220505  # DICOM import: bundles the dcm2niix binary + puts it on PATH (Scripts/)

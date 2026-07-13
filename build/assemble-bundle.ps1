@@ -132,6 +132,30 @@ $reqFile = Join-Path $RepoRoot "backend\requirements-frozen.txt"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed (exit $LASTEXITCODE)" }
 Write-Ok "dependencies installed"
 
+# --- 2b. Pre-fetch nilearn atlases so LNM region-labelling works FULLY offline -
+# lnm_backend.py calls datasets.fetch_atlas_harvard_oxford() + fetch_atlas_yeo_2011(),
+# which download on first use. We pre-fetch them here (build machine has internet)
+# into the bundle's nilearn_data\ and point NILEARN_DATA at it at runtime, so the
+# offline target machine never touches the network.
+Write-Step "2b/6  Pre-fetching nilearn atlases (Harvard-Oxford + Yeo-2011) for offline LNM"
+$nilearnData = Join-Path $BundleDir "nilearn_data"
+New-Item -ItemType Directory -Force -Path $nilearnData | Out-Null
+$env:NILEARN_DATA = $nilearnData   # inherited by the child python via os.environ
+try {
+    # NOTE: pass data_dir=<bundle> explicitly. Relying on the NILEARN_DATA env var
+    # alone is NOT enough: nilearn checks ALL candidate dirs (incl. ~/nilearn_data)
+    # and, if the atlas already exists in the build machine's home dir, it silently
+    # SKIPS the copy and leaves the bundle dir empty. data_dir forces population of
+    # the bundle folder (downloading into it if absent).
+    & "$pyDir\python.exe" -c "from nilearn import datasets; d=r'$nilearnData'; datasets.fetch_atlas_harvard_oxford('cort-maxprob-thr25-2mm', data_dir=d); datasets.fetch_atlas_harvard_oxford('sub-maxprob-thr25-2mm', data_dir=d); datasets.fetch_atlas_yeo_2011(data_dir=d); print('atlases cached')"
+    if ($LASTEXITCODE -ne 0) { throw "atlas pre-fetch exited $LASTEXITCODE" }
+    Write-Ok "nilearn atlases cached - LNM labelling runs offline"
+} catch {
+    Write-Warn2 "Could not pre-fetch nilearn atlases: $_"
+    Write-Warn2 "LNM region-labelling will need internet on first use. Re-run this"
+    Write-Warn2 "script on an internet-connected machine to enable offline LNM."
+}
+
 # --- 3. Frontend build --------------------------------------------------------
 $feBuild = Join-Path $RepoRoot "frontend\build"
 if ($SkipFrontendBuild -and (Test-Path $feBuild)) {

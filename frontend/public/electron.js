@@ -14,7 +14,7 @@
 //   set NEUROVUE_RES_DIR=<repo>\dist\NeuroVue && npx electron .
 // which points resourcesDir() at an assemble-bundle.ps1 output folder.
 
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -132,7 +132,7 @@ async function startMongo() {
     throw new Error(
       "The database did not start in time.\n" +
         "On older PCs this can mean the CPU lacks AVX support.\n" +
-        "See logs\\mongod.log in your NeuroVue data folder."
+        "See logs\\mongod.log in the app data folder."
     );
   }
 }
@@ -155,6 +155,9 @@ async function startBackend() {
     DB_NAME: "neurovue",
     STATIC_DIR: staticDir,
     ATLAS_DIR: path.join(staticDir, "atlases"),
+    // Bundled nilearn atlas cache so LNM region-labelling runs fully offline
+    // (fetch_atlas_harvard_oxford / fetch_atlas_yeo_2011 otherwise download).
+    NILEARN_DATA: path.join(res, "nilearn_data"),
     LESION_DIR: path.join(dd, "lesions"),
     TRACT_RESULTS_DIR: path.join(dd, "tract_results"),
     ROI_RESULTS_DIR: path.join(dd, "roi_results"),
@@ -192,13 +195,13 @@ async function startBackend() {
     windowsHide: true,
   });
   backendProc.on("exit", (code) => {
-    if (!shuttingDown) onServiceCrash("NeuroVue backend", code);
+    if (!shuttingDown) onServiceCrash("MRLatte backend", code);
   });
   const ok = await waitFor(() => checkHttp(HEALTH_URL), BACKEND_START_TIMEOUT_MS);
   if (!ok) {
     throw new Error(
-      "The NeuroVue application did not respond in time.\n" +
-        "See logs\\backend.log in your NeuroVue data folder."
+      "The MRLatte application did not respond in time.\n" +
+        "See logs\\backend.log in the app data folder."
     );
   }
 }
@@ -230,9 +233,9 @@ function onServiceCrash(name, code) {
   if (shuttingDown) return;
   shuttingDown = true;
   dialog.showErrorBox(
-    "NeuroVue stopped",
+    "MRLatte stopped",
     `${name} exited unexpectedly (code ${code}).\n` +
-      "NeuroVue will now close. Check the logs in your NeuroVue data folder."
+      "MRLatte will now close. Check the logs in the app data folder."
   );
   killTree(backendProc);
   killTree(mongoProc);
@@ -246,7 +249,7 @@ function registerIpc() {
   ipcMain.handle("neurovue:saveWorkspace", async (_e, json) => {
     const r = await dialog.showSaveDialog(mainWindow, {
       defaultPath: "workspace.nvws.json",
-      filters: [{ name: "NeuroVue Workspace", extensions: ["json"] }],
+      filters: [{ name: "MRLatte Workspace", extensions: ["json"] }],
     });
     if (r.canceled || !r.filePath) return { canceled: true };
     await fs.promises.writeFile(r.filePath, json, "utf8");
@@ -256,7 +259,7 @@ function registerIpc() {
   ipcMain.handle("neurovue:openWorkspace", async () => {
     const r = await dialog.showOpenDialog(mainWindow, {
       properties: ["openFile"],
-      filters: [{ name: "NeuroVue Workspace", extensions: ["json"] }],
+      filters: [{ name: "MRLatte Workspace", extensions: ["json"] }],
     });
     if (r.canceled || !r.filePaths[0]) return { canceled: true };
     const json = await fs.promises.readFile(r.filePaths[0], "utf8");
@@ -268,6 +271,23 @@ function registerIpc() {
     if (r.canceled || !r.filePath) return { canceled: true };
     await fs.promises.writeFile(r.filePath, Buffer.from(base64, "base64"));
     return { canceled: false, filePath: r.filePath };
+  });
+
+  // Blob downloads (NiiVue saveImage / lesion save, one-click report HTML/PDF,
+  // screenshots, NIfTI export) are triggered in the renderer via an <a download>
+  // click on a blob: URL. Electron has NO default UI for these, so without this
+  // handler the click silently no-ops (this is why "save lesion" showed no dialog
+  // and wrote nothing). Intercept every download and prompt for a save location.
+  session.defaultSession.on("will-download", (event, item) => {
+    const defaultName = item.getFilename() || "download";
+    const target = dialog.showSaveDialogSync(mainWindow, {
+      defaultPath: path.join(app.getPath("downloads"), defaultName),
+    });
+    if (target) {
+      item.setSavePath(target);
+    } else {
+      item.cancel(); // user dismissed the dialog
+    }
   });
 }
 
@@ -281,7 +301,7 @@ function createMainWindow() {
     minWidth: 1200,
     minHeight: 720,
     backgroundColor: "#050505",
-    title: "NeuroVue",
+    title: "MRLatte",
     autoHideMenuBar: false,
     show: true,
     webPreferences: {
@@ -309,7 +329,7 @@ function createMainWindow() {
 const LOADING_HTML =
   "data:text/html," +
   encodeURIComponent(
-    `<!doctype html><html><head><meta charset="utf-8"><title>NeuroVue</title>
+    `<!doctype html><html><head><meta charset="utf-8"><title>MRLatte</title>
      <style>
        html,body{height:100%;margin:0;background:#050505;color:#e8e8e8;
          font-family:'Segoe UI',system-ui,sans-serif;display:flex;align-items:center;
@@ -321,7 +341,7 @@ const LOADING_HTML =
        .s{font-size:13px;color:#9ca3af}
      </style></head><body>
        <div class="ring"></div>
-       <div class="t">Starting NeuroVue…</div>
+       <div class="t">Starting MRLatte…</div>
        <div class="s">Loading the imaging engine — this can take a moment on first launch.</div>
      </body></html>`
   );
@@ -333,7 +353,7 @@ async function startPackagedApp() {
     // Guard against a stale/duplicate instance holding the ports.
     if (await checkPort(BACKEND_PORT)) {
       throw new Error(
-        `Port ${BACKEND_PORT} is already in use. NeuroVue may already be running.\n` +
+        `Port ${BACKEND_PORT} is already in use. MRLatte may already be running.\n` +
           "Close the other instance (or reboot) and try again."
       );
     }
@@ -341,7 +361,7 @@ async function startPackagedApp() {
     await startBackend();
     if (mainWindow) await mainWindow.loadURL(APP_URL);
   } catch (err) {
-    dialog.showErrorBox("NeuroVue could not start", String(err && err.message ? err.message : err));
+    dialog.showErrorBox("MRLatte could not start", String(err && err.message ? err.message : err));
     stopServices();
     app.quit();
   }
@@ -377,12 +397,12 @@ function buildMenu() {
       label: "Help",
       submenu: [
         {
-          label: "About NeuroVue",
+          label: "About MRLatte",
           click: () => {
             dialog.showMessageBox(mainWindow, {
               type: "info",
-              title: "About NeuroVue",
-              message: "NeuroVue",
+              title: "About MRLatte",
+              message: "MRLatte",
               detail:
                 "Desktop neuroimaging visualization dashboard.\n" +
                 "Niivue WebGL viewer · MNI152 · Wang 2015 · Benson 2014 · " +

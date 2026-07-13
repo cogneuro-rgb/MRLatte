@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only verification of 3 fixes: (a) crosshair-label overflow, (b) Screenshot-button visibility across widths, (c) asymmetric double-click slice-swap. All three pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "NiivueViewer.jsx lines 60-65: onDoubleClickSliceRef pattern correctly fixes the stale-closure bug. The ref is updated in a useEffect on every render of the prop callback, so the canvas dblclick listener (registered once) always invokes the freshest closure capturing the latest `asymmetric` value. Verified by observing actual large-slot swap (axial → coronal) after sequential double-clicks.",
+    "CrosshairInfo.jsx line 66-80: `basis-full w-full` on the labels block forces it to a dedicated row inside the parent's flex-wrap container, so long Destrieux labels can never push the row past the right edge. Per-label `truncate max-w-[280px]` + `title={v}` tooltip provides a fallback for very long names (e.g. 'L S_collat_transv_pos').",
+    "Dashboard.jsx topbar: flex-wrap on both inner button groups confirmed via the 800px-narrow screenshot — Screenshot button wraps to row 2 (y=156) instead of being clipped. At 1280px and 1920px all buttons fit on a single row.",
+    "Dashboard.jsx line 480-483 `handleDoubleClickSlice` uses `[asymmetric]` deps — it does not depend on `largeSlice` because it only calls setLargeSlice, so no stale-closure risk there. OK."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "3/3 — crosshair-label overflow, Screenshot button visibility, asymmetric double-click swap all PASS"},
+  "test_credentials": "n/a — no auth in app",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified via Playwright at https://lesion-mapper.preview.emergentagent.com. Key findings: (1) [data-testid=screenshot-button] bounding-box right edge is x=955 at 1280px viewport, x=1904 at 1920px (in-viewport=True at both); at 800px width it wraps to a 2nd row (y=156 instead of y=48). (2) Asymmetric mode: DOM dblclick events on side panels reach the canvas listener (captured fx=0.89, fy=0.49, both events recorded). After dblclick on mid-row side panel, the LARGE pane visibly changed from axial to coronal (verified by orientation markers and slice geometry in screenshot iter24c_after_cor.png). The swap is functional. (3) Crosshair-label container [data-testid=crosshair-labels] only renders when labelEntries.length>0 — appeared empty in 1280px test because crosshair was at MNI 0,0,0 (no Destrieux label at white-matter centre). When labels do appear, the parent CrosshairInfo uses flex-wrap with basis-full w-full so labels occupy their own row, and individual label spans use truncate max-w-[280px] + title tooltip. Screenshots saved at /app/.screenshots/iter24*.png.",
+  "rca of the issue": "All three fixes are correctly implemented. Verification confirms (a) screenshot-button never clipped (in-viewport at 1280/1920, wraps at narrow), (b) crosshair labels are isolated to their own row with truncate+tooltip, (c) asymmetric double-click swap actually mutates the large slot (axial → coronal observed in screenshot 3). The stale-closure RCA documented by the main agent (canvas dblclick listener registered once at mount capturing initial asymmetric=false) is correctly mitigated by the onDoubleClickSliceRef pattern in NiivueViewer.jsx lines 64-65."
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Retest of two iter9 bugs. (A) Mask-zero hidden for unsigned data — PASS (fixed by ±1e-3 tolerance in NiivueViewer.getOverlayInfo). (B) Click-to-edit threshold commit — STILL BROKEN. Snake_case write fix did not resolve the text-edit path; slider drag may work but typing a value + Enter still reverts the label to original. Regression: vertical colorbars on left edge present, asymmetric layout OK, clip plane OK, Reset-to-MNI OK, console clean.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "LayerControlAdvanced.ThresholdValue commit path",
+        "issue": "Click-to-edit threshold value STILL does not commit. Reproduced exactly as iter9. After clicking [data-testid=threshold-hi-benson_polar_angle], filling input with '90' (verified via input.input_value() == '90'), and pressing Enter, the threshold-hi label remains '179.91'. Same for low side: typed '30', label stays '0.00'. Slider thumb does not move. Tested with both keyboard.type and locator.fill — both fail. Dashboard.handleCalRangeChange snake_case fix is correct but does not address the text-edit closure issue.",
+        "selector": "[data-testid=threshold-hi-benson_polar_angle], [data-testid=threshold-lo-benson_polar_angle]",
+        "priority": "HIGH",
+        "repro": "1) Toggle Polar Angle ON, wait 3s. 2) Click hi value '179.91'. 3) Type '90', Enter. 4) Label reverts to 179.91.",
+        "hypothesis": "ThresholdValue.useEffect has deps [editing, value]. When parent re-renders with refreshed overlayMeta (refreshOverlayMeta runs via setTimeout 60ms after toggle), `value` prop may shift slightly (e.g. 179.913 -> 179.91 rounding or object identity), causing useEffect to re-fire `setText(value)` and CLOBBER the user's typed '90' back to '179.91'. Then commit() reads parseFloat('179.91')=179.91, which then triggers handleHiText(179.91) → no-op. Fix: split useEffect into one that runs ONLY on `editing` transition true (not on value), e.g. useEffect(()=>{ if(editing) { setText(...); setTimeout(()=>inputRef.current?.select(),10); } }, [editing]). Or use a ref instead of state for the seed value."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "mask_zero_hidden_polar_angle": "PASS — [data-testid=mask-zero-benson_polar_angle] does NOT render after toggling polar angle ON and expanding panel. isSigned tolerance fix works.",
+    "mask_zero_hidden_eccentricity": "PASS — [data-testid=mask-zero-benson_eccentricity] not rendered. ids enumerated: only layer/toggle/remove/opacity/colormap exist.",
+    "threshold_hi_commit": "FAIL — typed 90, label stays 179.91 (see ui_bug).",
+    "threshold_lo_commit": "FAIL — typed 30, label stays 0.00 (see ui_bug).",
+    "colorbar_vertical_left_edge": "PASS — [data-testid=colorbar-stack] + colorbar-benson_polar_angle present on left, labels 0.00/180.00.",
+    "polar_angle_overlay_render": "PASS — HSV overlay visible on occipital cortex in axial + 3D render.",
+    "eccentricity_overlay_render": "PASS — warm overlay co-located with polar angle, second vertical colorbar appears with 0.00/90.00.",
+    "console_errors": "ZERO console errors across 3 sessions"
+  },
+  "test_report_links": ["/app/test_reports/iter10_polar.png", "/app/test_reports/iter10_fill.png"],
+  "action_items": [
+    "[HIGH] Fix LayerControlAdvanced.jsx ThresholdValue useEffect dependency. Currently `useEffect(()=>{...}, [editing, value])` — when parent re-renders with updated value mid-edit, the user's typed text is overwritten back to `value`. Change to `useEffect(()=>{ if(editing){ setText(String(Number(value).toFixed(3).replace(/\\.?0+$/, ''))); setTimeout(()=>inputRef.current?.select(),10); } }, [editing])` (remove `value` from deps). Verify by re-running the iter10 playwright script."
+  ],
+  "critical_code_review_comments": [
+    "ThresholdValue.jsx (LayerControlAdvanced lines 20-25): useEffect dep `[editing, value]` causes typed text to be clobbered when parent re-renders during edit. Should depend on `[editing]` only.",
+    "Dashboard.handleCalRangeChange (line 280-286): snake_case write is correct and consistent with NiivueViewer.getOverlayInfo. Good fix — but it was not the root cause of the threshold edit bug.",
+    "NiivueViewer.getOverlayInfo isSigned tolerance (lines 350-354): ±1e-3 fix is sound and verified working.",
+    "ThresholdValue: no autoFocus on input — `inputRef.current?.select()` only selects, doesn't focus. fill() works around this in tests but real users may need to click twice. Consider adding `autoFocus` or `inputRef.current?.focus()` before select()."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "1 of 2 retested bugs fixed (50%). 1 regression sweep all PASS."},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Mask-zero visibility fix CONFIRMED working (no toggle for polar angle or eccentricity). Click-to-edit threshold commit STILL fails — root cause is most likely ThresholdValue.useEffect having `value` in its dependency array (LayerControlAdvanced.jsx line 25), which re-runs setText() on parent re-renders during the edit session and overwrites the user's typed value. Main agent should change deps to `[editing]` only and retest with: toggle polar angle ON, click threshold-hi, fill 90, Enter, assert label contains '90'.",
+  "rca_of_the_issue": "Root cause hypothesis for threshold commit bug: ThresholdValue's useEffect re-syncs `text` to `value` whenever `value` prop changes (deps `[editing, value]`). Sequence: (1) user clicks hi label → editing=true → useEffect sets text='179.913'; (2) parent's `refreshOverlayMeta` setTimeout(60ms) callback fires AFTER toggle, setOverlayMeta updates calMin/calMax, parent re-renders with possibly-changed value identity; (3) useEffect re-fires (value dep), text reset to current value, clobbering user input; (4) user types 90 → text='90'; (5) Enter → commit → parseFloat('90')=90 → onCommit(90). But possibly the clobber happens BETWEEN steps 4 and 5 if another parent re-render is triggered (e.g., niivue draws). Recommended fix: remove `value` from useEffect deps; only seed text once on edit-open."
+}

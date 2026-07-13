@@ -1,9 +1,10 @@
 # Runtime-only dependency set for the OFFLINE installer's embedded-Python backend.
 #
-# This is backend/requirements.txt minus:
-#   - dev-only tooling: pytest, black, isort, flake8, mypy
-#   - dipy: used ONLY by scripts/build_wm_retinotopy_maps.py (data-prep), never
-#     imported by server.py or any worker at runtime.
+# This is backend/requirements.txt minus dev-only tooling (pytest, black, isort,
+# flake8, mypy). Everything imported at runtime is included, including dipy, which
+# the tract-dissection workers (dissect_worker.py, dissect_between_worker.py) and
+# server.py import. (A previous version wrongly dropped dipy as "data-prep only",
+# which broke tract dissection + the one-click report in the offline build.)
 #
 # Installed into the embeddable Python via:
 #   py -3.11 -m pip install --target MyApp_Files\python\site-packages -r requirements-frozen.txt
@@ -37,4 +38,5 @@ scipy>=1.11.0
 nilearn>=0.10.0
 matplotlib>=3.7.0
 neuropythy>=0.12.0
+dipy>=1.8.0
 dcm2niix>=1.0.20220505

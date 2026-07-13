@@ -23,11 +23,18 @@ Output: one JSON line on stdout; traceback to stderr on failure.
 """
 import base64
 import json
+import os
 import shutil
 import sys
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Ensure this worker's own directory is importable when spawned under the isolated
+# embeddable Python (safe_path=True) used by the offline bundle, which does not
+# auto-add the script directory to sys.path. Defensive: keeps any sibling-module
+# import working the same as under a normal dev interpreter.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 # Optic-radiation / posterior-thalamic-radiation label matcher (visual pathway).

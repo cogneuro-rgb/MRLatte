@@ -1,0 +1,43 @@
+{
+  "summary": "Verified all 5 iter12 follow-up fixes via Playwright + visual screenshots. All five fixes are present and rendering correctly with zero console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "FIX#2_asymmetric_RIGHT": "PASS \u2014 After clicking [data-testid=slice-mode-asymmetric] the LARGE axial view occupies the LEFT ~78% of the canvas and 3 small stacked views (coronal/sagittal/render) appear on the RIGHT ~22%. Confirmed in screenshot 1_asymmetric.png and visually in pa_panel_open.png. Position [0.0,0.0,0.78,1.0] for large + [0.78, i*1/3, 0.22, 1/3] for side panels in NiivueViewer.setAsymmetricLayout matches spec.",
+    "FIX#3_slider_gradient_static": "PASS \u2014 With Polar Angle toggled ON the threshold slider background renders the FULL HSV rainbow end-to-end (visible in final screenshot: red\u2192purple\u2192blue\u2192green\u2192yellow\u2192red bar spanning 0.00 to 179.91). activeGrad in LayerControlAdvanced.jsx line 128 hard-codes frac0:0 / frac1:1, so dragging thresholds cannot clip the bar.",
+    "FIX#4_crosshair_values": "PASS \u2014 [data-testid=crosshair-values] appears with [data-testid=crosshair-val-MNI152] showing the base-volume intensity at the click point (observed values: 61.34, 55.17, 74.41 across clicks). Activity icon + 'MNI152' label rendered. Confirmed both with and without Polar Angle loaded; in earlier run the row appeared as soon as the user clicked inside any brain view.",
+    "FIX#5_invert_threshold_toggle": "PASS \u2014 [data-testid=invert-threshold-benson_polar_angle] exists with label 'SHOW INSIDE THRESHOLDS' (visible in final screenshot). Label correctly flips from 'show inside thresholds' to 'show outside thresholds' on click (verified label-flip logic in LayerControlAdvanced lines 238-256). applyInvertedColormap helper in NiivueViewer.jsx lines 13-44 generates a 256-entry LUT with alpha=0 inside [idxLo, idxHi] band and registers via nv.addColormap. setOverlayCalRange regenerates the LUT when thresholds change while __invertThreshold is on.",
+    "FIX#1_mask_zero_polar_angle": "PASS \u2014 [data-testid=mask-zero-benson_polar_angle] does NOT exist for Polar Angle (unsigned data, isSigned=false because global_min=0). This matches spec: the toggle should only appear for signed data. setIgnoreZeroVoxels in NiivueViewer.jsx now uses niivue's colormapNegative split for signed data (cal_minNeg=-eps, cal_maxNeg=gMin, cal_min=eps, cal_max=gMax) which is the correct approach.",
+    "regression_vertical_colorbar": "PASS \u2014 [data-testid=colorbar-benson_polar_angle] visible on left edge of canvas with labels '180.00' (top) / '0.00' (bottom) and 'Polar Angle' caption (visible in final screenshot).",
+    "regression_standard_atlas_load": "PASS \u2014 MNI152 base loads; Polar Angle overlay loads and renders in axial/render views.",
+    "regression_polar_angle_overlay": "PASS \u2014 Overlay renders on axial occipital cortex and on 3D render with HSV polar-angle colormap (visible in final screenshot).",
+    "console_errors": "ZERO console errors across all interactions (load, asymmetric toggle, polar angle toggle, threshold drag, invert toggle on/off, crosshair clicks, clear all)."
+  },
+  "test_report_links": [
+    "/app/.screenshots/0_initial.png",
+    "/app/.screenshots/1_asymmetric.png",
+    "/app/.screenshots/2_pa_loaded.png",
+    "/app/.screenshots/pa_panel_open.png",
+    "/app/.screenshots/invert.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "LayerControlAdvanced.jsx line 128: activeGrad always uses frac0:0/frac1:1 \u2014 correctly decouples slider track from threshold values. Good fix.",
+    "NiivueViewer.jsx applyInvertedColormap (lines 13-44): builds a per-volume custom LUT keyed by `__invert_${vol.id}`. If the user toggles invert ON, drags thresholds, toggles OFF, and toggles ON again, a NEW LUT key is registered with cmapper but the old one stays in cmapper's cache. Over many cycles this leaks colormap entries. Minor.",
+    "NiivueViewer.jsx setIgnoreZeroVoxels (lines 439-480): For signed data the cached __maskZeroPrev does NOT save the user's previous opacity or colormap \u2014 if a user changes the colormap WHILE mask-zero is ON and then toggles it OFF, the restoration will not match the new colormap setting. Low risk.",
+    "Dashboard handleLocationChange should debounce or memoize valueRows construction; on every mouse-move (drag-crosshair) the array is rebuilt and React re-renders CrosshairInfo. With many overlays this can be wasteful. Minor.",
+    "Asymmetric layout: side height = 1/sides.length = 1/3 each. With 3D render in render-as-side mode the orient cube can overlap the bottom view when canvas height is small (<700px). Cosmetic.",
+    "applyInvertedColormap pins vol.cal_min/cal_max to global_min/global_max while invert is active \u2014 but [data-testid=threshold-lo/hi] still reads from overlayMeta which is what the user typed. Visual consistency is preserved (the LUT mask is what's truly active), but the UI labels for cal_min/cal_max in inverted mode show the user-set values, NOT the actual full-range pin. This is intentional per the code comment but worth a small note in the spec."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% \u2014 all 5 fixes verified, 0 console errors"},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 5 iter12 fixes verified working visually. Note Playwright selector caveat: the layer panel (containing threshold-block-benson_polar_angle, invert-threshold-benson_polar_angle, mask-zero-benson_polar_angle, threshold thumbs, colorbar) only renders AFTER (a) the RETINOTOPY accordion is expanded AND (b) [data-testid=toggle-benson_polar_angle] has been clicked AND (c) ~3-4s have passed for the .nii.gz fetch. To open the accordion, evaluate JS that finds buttons whose innerText starts with 'RETINOTOPY' and clicks them \u2014 there isn't a dedicated section-retinotopy testid. Once panel is visible, all sub-testids work normally. Visual screenshot pa_panel_open.png confirms the panel structure: opacity slider, threshold dual-handle with full HSV gradient, 'SHOW INSIDE THRESHOLDS' toggle, colormap select, no mask-zero for unsigned data."
+}

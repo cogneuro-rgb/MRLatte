@@ -24,7 +24,7 @@ export function base64ToFile(b64, name, type = "application/octet-stream") {
   return new File([bytes], name, { type });
 }
 
-const isDesktop = () =>
+export const isDesktop = () =>
   typeof window !== "undefined" && window.neurovue?.isDesktop === true;
 
 /** Persist a workspace object. Native dialog in Electron, blob download in web. */

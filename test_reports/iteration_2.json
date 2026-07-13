@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 2 testing complete. Backend 8/8 pytest passed (api root + 5 new atlas files including wang2015_prob/maxprob + verification that old wang2015_visual_rois was removed). Frontend Playwright comprehensive run: all 7 sidebar sections present (Base, Retinotopy, Atlases, Activation, Lesion, ROIs, Drawing) and collapsible; all 4 retinotopy layer toggles work (Polar, Eccen, Visual Areas, Wang2015_prob); all 5 slice modes switch correctly; clip plane, crosshair toggle, screenshot, polar disc, eccen bar render; uploaders for atlas/activation/lesion/roi all present (hidden file inputs wrapped by visible drop-zone labels); DrawingPanel exposes pen-pen/rect/ellipse, pen-value-1..6, draw-opacity-slider, drawing-undo/clear/save; drawing-save triggers download of lesion_<ts>.nii.gz; crosshair-info shows live MNI+VOX coords updating on canvas clicks; crosshair-labels correctly display 'Wang ROI: V3d' + 'Visual Area: V3' (and V2d/V2 at adjacent voxel) when Wang_prob + Visual Areas both enabled — confirms hidden wang2015_maxprob label layer integration. Visual check confirms cerebellum exclusion in 3D render (overlay above tentorium).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Rapid sequential retinotopy toggle (4 layers in <2s)", "issue": "Occasionally one toggle's state does not register, leaving badge at 3 instead of 4. With ~3s spacing between clicks it is 100% reliable (verified visually). Likely a niivue addVolumeFromUrl race during overlapping fetches. Single-user pace is fine.", "affected_selectors": ["[data-testid='active-count']", "[data-testid^='toggle-']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_neurovue.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional polish: serialize addOverlayFromUrl calls or guard handleAtlasToggle with an in-flight flag to make rapid clicks deterministic.",
+    "Optional polish: data-testid on FileUploader is on the hidden <input>; if future tests want a clickable element, prefer the *-label variant (already exposed)."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.jsx is 580 lines — still under 700 but increasing per iteration; consider extracting the user-layer section blocks (atlases/activation/lesion/roi) into a single <UserLayerSection type=...> component since they share identical structure.",
+    "handleAtlasToggle / handleUserToggle are not wrapped in useCallback, so LayerControl receives new references each render — fine for current size but consider memoisation if performance becomes a concern.",
+    "addOverlayFromUrl is awaited but the visible state setOverlayState happens only on success; if it fails silently nothing surfaces beyond console — consider showing toast.error on null return.",
+    "FileUploader hides the <input data-testid={testId}> via CSS .hidden; functional but cannot be Playwright .is_visible()-asserted. set_input_files works correctly.",
+    "CrosshairInfo concatenates labels in the same span (`Wang ROIV3d`) with no space between label name and value — readable in monospace+border styling but could be improved with a small gap."
+  ],
+  "updated_files": ["/app/backend/tests/test_neurovue.py"],
+  "success_rate": {"backend": "100%", "frontend": "~98% (50/51 with 1 flaky)"},
+  "test_credentials": "n/a — no auth",
+  "seed_data_creation": "/tmp/test_lesion.nii.gz regenerated as small cube mask via nibabel.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 2 fully validated. New atlas files at /atlases/wang2015_prob.nii.gz + wang2015_maxprob.nii.gz; old wang2015_visual_rois.nii.gz successfully removed. The label-at-crosshair feature reads data.values[].name from niivue onLocationChange and matches 'wang2015_maxprob' / 'benson_visual_areas' to WANG_LABELS/VAREA_LABELS. To exercise it, enable both 'toggle-wang2015_prob' and 'toggle-benson_visual_areas', then click in axial slice at canvas fractional positions around (0.25-0.30, 0.85-0.95) → MNI ~(-30,-90,7) to land on V2/V3. Drawing tests pass; saveDrawing() downloads .nii.gz. Note FileUploader data-testid is on hidden <input>; check existence with locator().count() rather than is_visible(); use *-label suffix for visible drop-zone."
+}

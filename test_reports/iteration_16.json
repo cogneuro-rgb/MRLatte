@@ -1,0 +1,32 @@
+{
+  "summary": "RETEST PASS — visfAtlas crosshair label + crosshair value both work. After expanding ATLASES and toggling visfAtlas, the 33-ROI multi-hue render appears (red + green ROIs visible in occipital/temporal axial slice and on 3D render — regression check OK). Clicking into the visible red ROI in the axial slice (dx=0.32, dy=0.91) yields: (1) [data-testid=crosshair-labels] EXISTS with two spans — label key 'visfAtlas' + value 'lh_v1v_retinotopic'; (2) [data-testid=crosshair-val-visfAtlas] EXISTS with value '15.00' (integer 1..33 — value 15 corresponds to 'lh_v1v_retinotopic' per visfAtlas_labels.json). Canon() URL-basename canonicalisation works ('visfAtlas_maxprob' → 'visfAtlas'), the dict-shape labels JSON parser works, and shortLayerName('visfAtlas') → 'visfAtlas' produces the expected testid. FIX#5 polar_angle regression also PASS: [data-testid=crosshair-val-PolarAng] = '93.85' at occipital voxel (within 0-180 range), and [data-testid=crosshair-labels] is correctly NOT rendered for the continuous polar_angle layer when no categorical atlas is active. No 'data is not iterable' TypeError. No 'padding colormap' niivue warning (I array now ends at 255).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "visfAtlas_multi_hue_render_regression": "PASS — colored ROIs visible in axial bottom-left pane (red patches around occipital v1v_retinotopic + green patch lower-occipital) and on 3D render (red FFA/visual-area cluster + green superior patch). Categorical render via vol.setColormapLabel works.",
+    "visfAtlas_crosshair_val": "PASS — [data-testid=crosshair-val-visfAtlas] = '15.00' at clicked colored ROI voxel (dx=0.32, dy=0.91). 15 ∈ 1..33 ✓. Canon() correctly maps URL basename 'visfAtlas_maxprob' → layer id 'visfAtlas', so the testid is `crosshair-val-visfAtlas` (not the truncated `crosshair-val-visfAtlas_ma…` previously observed).",
+    "visfAtlas_crosshair_labels": "PASS — outerHTML shows <span>visfAtlas</span><span>lh_v1v_retinotopic</span>. Dict-shape JSON parser (Object.entries branch in loadAtlasLabels) populates atlasLabelsRef.current['visfAtlas'] correctly. Label value 'lh_v1v_retinotopic' matches the spec's expected region-name format.",
+    "FIX#5_polar_angle_crosshair_val": "PASS — [data-testid=crosshair-val-PolarAng] = '93.85' at occipital cortex (dx=0.30, dy=0.92). Value is in 0-180 range as expected.",
+    "FIX#5_polar_angle_no_label_pollution": "PASS — [data-testid=crosshair-labels] does NOT render for the polar_angle continuous overlay (lbl_count=0). Spec confirmed: only categorical atlases populate labels.",
+    "console_health": "Clean. No 'data is not iterable' TypeError on visfAtlas toggle. No 'padding colormap: indices expected end with 255 not 34' warning (I array now ends at 255). Only a benign WebGL GPU stall info-level warning."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/frontend/src/pages/Dashboard.jsx canon() helper (lines ~109-120): the URL-basename → layer-id mapping is implemented as a series of String.includes() checks. This works for the current set of overlays but is implicit/duplicated knowledge — the canonical mapping really belongs in atlasConfig.js (e.g. a per-layer `urlBasename` field or a single derived `aliases:[]` map) so future atlases don't silently break crosshair lookups. Low priority — not a regression.",
+    "/app/frontend/src/pages/Dashboard.jsx loadAtlasLabels() (lines ~196-215): now handles both array-of-objects and dict shapes. Consider also handling the third common shape — array-of-strings keyed by index — for forward compat. Optional.",
+    "shortLayerName() ~line 882 still uses a 12-char truncation fallback. As more atlases are added, prefer an explicit map entry per layer to prevent silent testid collisions/truncation. Reminder, not a current bug."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "5/5 sub-criteria PASS — multi-hue render, crosshair-val-visfAtlas non-zero integer 1..33, crosshair-labels with region name, PolarAng value 0..180, no label pollution from polar_angle."},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter16 fully PASSES the visfAtlas + polar_angle retest. canon() URL-basename mapping and the dict-shape labels JSON parser both work end-to-end. To reproduce: expand ATLASES (click the 'ATLASES' header text), click [data-testid=toggle-visfAtlas], wait ~5s for the .nii.gz to load, then click the canvas at dx=0.32, dy=0.91 (this lands on the visible red ROI in the axial bottom-left pane → MNI ~ (-6.5, -77.2, 7.1), VOX (94,46,107)). Expected DOM state: crosshair-val-visfAtlas='15.00', crosshair-labels innerText='visfAtlaslh_v1v_retinotopic'. For PolarAng regression: toggle off visfAtlas, expand RETINOTOPY, click [data-testid=toggle-benson_polar_angle], wait ~5s, click dx=0.30, dy=0.92 → crosshair-val-PolarAng='93.85', crosshair-labels not rendered.",
+  "rca of the issue": "No issue — fixes verified. (1) Dict-shape JSON parser in loadAtlasLabels now correctly populates atlasLabelsRef.current['visfAtlas'] from {\"1\":\"lh_mFus_faces\",...} files. (2) canon() in handleLocationChange remaps niivue's URL-basename ('visfAtlas_maxprob') back to the layer id ('visfAtlas') BEFORE the testid is generated, so the crosshair value row is rendered with testid `crosshair-val-visfAtlas` as the spec requires (not the previously-observed truncated `crosshair-val-visfAtlas_ma…`). (3) shortLayerName map now contains 'visfAtlas' → 'visfAtlas'. (4) Colormap I array padding to 255 silences the niivue warning."
+}

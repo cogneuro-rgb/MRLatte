@@ -15,8 +15,17 @@ Usage: python lnm_worker.py <config_json_path>
 Output: one JSON line on stdout; traceback to stderr on failure.
 """
 import json
+import os
 import sys
 from pathlib import Path
+
+# The offline bundle runs this worker under the embeddable Python interpreter,
+# which is isolated (sys.flags.safe_path=True) and does NOT auto-add this script's
+# own directory to sys.path. Without this, `from lnm_backend import …` (in main)
+# fails with ModuleNotFoundError even though lnm_backend.py sits right beside this
+# file. A normal dev interpreter adds the script dir automatically, so this only
+# bit the packaged app.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():

@@ -2,6 +2,8 @@
 // download) and to the backend via this helper, which POSTs the gzipped NIfTI
 // bytes to /api/lesions. Mirrors the fetch/error pattern in dicom.js.
 
+import { isDesktop, fileToBase64 } from "@/lib/workspace";
+
 const apiBase = process.env.REACT_APP_BACKEND_URL || "";
 
 /**
@@ -28,6 +30,33 @@ export async function uploadLesion(data, name, base) {
     throw new Error(detail);
   }
   return r.json();
+}
+
+/**
+ * Save the current NiiVue drawing to a local file, using the best mechanism for
+ * the runtime.
+ *
+ * Desktop (Electron): route through the native Save dialog via
+ * window.neurovue.saveFile. NiiVue's saveImage triggers a browser `<a download>`
+ * click on a blob: URL, which silently no-ops in packaged Electron (no default
+ * download UI) — so the desktop path must use the IPC bridge instead.
+ * Web: preserve the existing NiiVue blob-download behaviour exactly.
+ *
+ * @param {object} viewerRef  ref to NiivueViewer imperative handle
+ * @param {string} filename   suggested download filename (e.g. lesion_*.nii.gz)
+ * @returns {Promise<{ok:boolean, canceled?:boolean, empty?:boolean}>}
+ */
+export async function saveLesionLocally(viewerRef, filename) {
+  if (isDesktop() && window.neurovue?.saveFile) {
+    const bytes = await viewerRef?.current?.getDrawingBytes?.();
+    if (!bytes) return { ok: false, empty: true }; // no drawing / read failed
+    const b64 = await fileToBase64(new Blob([bytes]));
+    const r = await window.neurovue.saveFile(filename, "application/gzip", b64);
+    return r?.canceled ? { ok: false, canceled: true } : { ok: true };
+  }
+  // Web: unchanged NiiVue download (surfaces its own error toast on failure).
+  const ok = await viewerRef?.current?.saveDrawing?.(filename);
+  return { ok: !!ok };
 }
 
 /**

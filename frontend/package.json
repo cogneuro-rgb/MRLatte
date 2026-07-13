@@ -2,8 +2,8 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "NeuroVue — neuroimaging visualization dashboard",
-  "author": "NeuroVue",
+  "description": "MRLatte — neuroimaging visualization dashboard",
+  "author": "MRLatte",
   "homepage": "./",
   "main": "public/electron.js",
   "dependencies": {
@@ -107,8 +107,8 @@
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
   "build": {
     "appId": "com.neurovue.desktop",
-    "productName": "NeuroVue",
-    "copyright": "© NeuroVue",
+    "productName": "MRLatte",
+    "copyright": "© MRLatte",
     "directories": {
       "output": "dist-electron",
       "buildResources": "electron/build-resources"
@@ -125,7 +125,8 @@
       { "from": "../dist/NeuroVue/dcm2niix", "to": "dcm2niix" },
       { "from": "../dist/NeuroVue/scripts", "to": "scripts" },
       { "from": "../dist/NeuroVue/data", "to": "data" },
-      { "from": "../dist/NeuroVue/frontend_build", "to": "frontend_build" }
+      { "from": "../dist/NeuroVue/frontend_build", "to": "frontend_build" },
+      { "from": "../dist/NeuroVue/nilearn_data", "to": "nilearn_data" }
     ],
     "asar": true,
     "win": {
@@ -138,7 +139,7 @@
         }
       ],
       "icon": "electron/build-resources/icon.ico",
-      "artifactName": "NeuroVue-Setup-${version}-${arch}.${ext}",
+      "artifactName": "MRLatte-Setup-${version}-${arch}.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -147,7 +148,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "NeuroVue",
+      "shortcutName": "MRLatte",
       "installerIcon": "electron/build-resources/icon.ico",
       "uninstallerIcon": "electron/build-resources/icon.ico"
     },

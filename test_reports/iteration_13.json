@@ -1,0 +1,50 @@
+{
+  "summary": "Verified iter16 batch (5 fixes). FIX#1/#2/#3/#5 PASS. FIX#4 visfAtlas: atlas loads + crosshair-info column appears, but the registered categorical 'visfAtlas' colormap is NOT applied — overlay falls back to 'gray' so all ROIs render the same color instead of distinct hues. Race condition between async fetch of visfAtlas_colormap.json and overlay attach.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "NiivueViewer.jsx visfAtlas colormap registration", "issue": "Custom categorical 'visfAtlas' cmap registered via fetch().then(addColormap) — but when the user toggles visfAtlas overlay before the fetch resolves (or the overlay is attached before the cmap exists), niivue falls back to the 'gray' colormap. The COLORMAP dropdown in the visfAtlas layer panel shows 'gray', and the brain renders all 33 ROIs as a single monochromatic blue blob instead of 33 distinct categorical colors as required by spec.", "selector": "[data-testid=toggle-visfAtlas]", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "visfAtlas categorical colormap", "issue": "Race: fetch('/atlases/visfAtlas_colormap.json').then(cm => nv.addColormap('visfAtlas', cm)) at niivue init may not finish before user toggles the atlas. Need to (a) await the fetch before drawScene/overlay attach, OR (b) re-call setColormap after overlay loads, OR (c) bundle the cmap statically like buildPolarAngleCmap() in InflatedBrainViewer.", "affected_selectors": ["[data-testid=toggle-visfAtlas]"]}
+    ],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "FIX#1_verify_atlas_neutral_styling": "PASS — [data-testid=open-atlas-validation] class contains 'bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500', identical baseline to [data-testid=clear-all-overlays]. No emerald/green highlight. Screenshot 00_topbar.png confirms zinc neutral match with Clear All / Crosshair / Screenshot buttons.",
+    "FIX#2_interactive_inflated_polar_angle": "PASS — Click [data-testid=toggle-interactive-polar_angle] in Verify Atlas modal. Static plots replaced by [data-testid=inflated-brain-polar_angle] canvas. Inflated brain mesh visible with occipital cortex colored blue→red→yellow→green→cyan (matches custom polar_angle LUT). Legend 'POLAR ANGLE (BENSON) 0° ──── 180°' visible bottom-right. 'drag to rotate · scroll to zoom' caption visible bottom-left. Mouse drag rotated the brain (canvas dataURL hash changed from 978023710 → -1255356843). Toggle button label flipped 'Interactive 3D' → 'STATIC PLOTS'. Toggling back removed the inflated viewer (cleanup OK).",
+    "FIX#2_interactive_inflated_eccentricity": "PASS — [data-testid=toggle-interactive-eccentricity] swaps to [data-testid=inflated-brain-eccentricity], warm cmap (red→yellow→white), legend '0° ── 90°'. Drag rotation also changes canvas pixels.",
+    "FIX#2_interactive_inflated_visual_areas": "PASS — [data-testid=inflated-brain-visual_areas] renders with actc cmap and legend '1 ── 12'. No load errors.",
+    "FIX#3_main_3d_render_rotatable": "PASS — Click [data-testid=slice-mode-render]. Main canvas dataURL hash changed (1631226616 → -731286711) after press-drag, AND orientation cube rotated visibly from front-AL view to side GS-RA view (confirmed in 05_main_render_rotated.png).",
+    "FIX#4_visfAtlas_partial": "PARTIAL — [data-testid=toggle-visfAtlas] PRESENT in ATLASES accordion (label 'visfAtlas · Maastricht Functional · Rosenke et al. 2020 · 33 ROIs across higher visual cortex'). Click loads overlay successfully, toast 'visfAtlas · Maastricht Functional loaded' shown. The [data-testid=crosshair-values] now includes a 'VISFATLAS' column showing voxel value (observed value=0 at clicked occipital pole — likely a true unlabeled voxel). HOWEVER the layer panel's COLORMAP dropdown reads 'gray' not 'visfAtlas', and the rendered overlay is monochromatic light blue across all 33 ROIs rather than 33 distinct categorical colors. The async fetch + addColormap pattern in NiivueViewer.jsx lines 109-112 loses the race against the overlay attach. Spec requires colored ROIs.",
+    "FIX#5_polar_angle_custom_lut": "PASS — Toggle [data-testid=toggle-benson_polar_angle] loads the overlay. The [data-testid=colorbar-benson_polar_angle] linear-gradient CSS reads: 'rgb(0,0,255) 0% → rgb(255,0,0) ~25% → rgb(255,237,0) ~50% → rgb(9,255,0) ~74% → rgb(0,128,255) 100%' — exact 5-stop custom 'polar_angle' LUT (blue→red→yellow→green→cyan), NOT HSV/rainbow. Brain overlay in axial+coronal+sagittal+3D-render shows the custom bowtie pattern in the same hues. Toast 'Polar Angle loaded' shown. See pa_main_loaded.png.",
+    "console_errors": "ZERO console errors across all 5 fix tests. Only 2 React DialogContent aria-describedby warnings (cosmetic, present in iter12 too)."
+  },
+  "test_report_links": [
+    "/app/.screenshots/00_topbar.png",
+    "/app/.screenshots/01_inflated_pa.png",
+    "/app/.screenshots/03_inflated_ecc.png",
+    "/app/.screenshots/04_inflated_va.png",
+    "/app/.screenshots/05_main_render_rotated.png",
+    "/app/.screenshots/visfAtlas_loaded.png",
+    "/app/.screenshots/visfAtlas_clicked.png",
+    "/app/.screenshots/pa_main_loaded.png"
+  ],
+  "action_items": [
+    "FIX#4 ROOT CAUSE: In /app/frontend/src/components/NiivueViewer.jsx lines ~109-112, the fetch('/atlases/visfAtlas_colormap.json').then(cm => nv.addColormap('visfAtlas', cm)) registers the cmap asynchronously. When user clicks toggle-visfAtlas before the fetch completes, niivue attaches the overlay with colormap='visfAtlas' but the name isn't registered yet — it silently falls back to 'gray'. RECOMMENDED FIX: either (a) bundle the cmap inline at module load (same pattern used by buildPolarAngleCmap in InflatedBrainViewer.jsx) so it's available synchronously, (b) await the fetch in the init promise and ensure addColormap runs before any user-initiated overlay add, or (c) after each overlay add, if colormap===visfAtlas, re-issue nv.setColormap(volId, 'visfAtlas') once the registered map is confirmed present and call nv.updateGLVolume()/drawScene(). Option (a) is simplest given the cmap JSON is only ~2.3KB."
+  ],
+  "critical_code_review_comments": [
+    "InflatedBrainViewer.jsx cleanup (lines 98-101): The useEffect cleanup sets cancelled=true and nullifies nvRef but does NOT call nv.gl?.getExtension('WEBGL_lose_context')?.loseContext() or remove the canvas event listeners. Each toggle of Interactive 3D creates a new Niivue instance bound to a fresh canvas — over many toggles this leaks WebGL contexts. Most browsers cap at ~16 active contexts before refusing new ones.",
+    "InflatedBrainViewer.jsx line 89-90: if (cancelled) return BEFORE loadMeshes — good. But there's no equivalent check AFTER loadMeshes completes / before drawScene. If the user toggles fast, drawScene can be called on a disposed nv.",
+    "NiivueViewer.jsx visfAtlas cmap (lines 109-112): No error logging on fetch failure beyond catch swallow. Recommend a console.warn so future debug catches the race.",
+    "atlasConfig.js line 146 ('colormap: visfAtlas'): Pairs with the async registration above — if the cmap name is unknown to niivue at overlay-add time, niivue silently falls back to default rather than warning. Consider validating cmap availability in the layer add path."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend only)", "frontend": "4/5 PASS, 1/5 PARTIAL (visfAtlas atlas loads but categorical colormap not applied)"},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes FIX#4 (visfAtlas colormap race), retest by: (1) expand ATLASES sidebar, (2) click [data-testid=toggle-visfAtlas], wait 5s, (3) verify the 33 ROIs render in DISTINCT colors (not all blue), and the layer panel's colormap dropdown shows 'visfAtlas' not 'gray', (4) click into colored ROI in axial occipital cortex (try dx=0.28,dy=0.78 of canvas), verify [data-testid=crosshair-values] VISFATLAS column shows a name like 'lh_v1v_retinotopic'. PRESERVED: InflatedBrainViewer rotation testing pattern via canvas.toDataURL hash comparison works reliably for both modal mini-viewer and main 3D render. visfAtlas_colormap.json has R/G/B arrays of length 34 (entries 0..33). FIX#1,2,3,5 fully verified — no need to retest unless main agent touches those files.",
+  "rca of the issue": "FIX#4 visfAtlas: NiivueViewer.jsx registers the custom categorical 'visfAtlas' colormap via an unawaited fetch promise inside the niivue init effect. The user can toggle the atlas before the fetch resolves; niivue accepts the overlay with colormap='visfAtlas' but since the name isn't yet registered in cmapper, it silently falls back to the default ('gray'). Reproduction: load page → immediately expand ATLASES (within ~1s of page load) → click toggle-visfAtlas → COLORMAP dropdown shows 'gray', overlay renders as a single hue. Mitigation: bundle the cmap inline (like buildPolarAngleCmap() in InflatedBrainViewer) so registration is synchronous; alternative is to await the fetch in the init sequence."
+}

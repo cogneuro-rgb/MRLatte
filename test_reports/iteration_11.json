@@ -1,0 +1,32 @@
+{
+  "summary": "Retest of click-to-edit threshold commit. The iter10 deps fix (useEffect deps -> [editing]) was necessary but NOT sufficient — the real root cause was that LayerControlAdvanced was calling onCalRangeChange(lo, hi) without the layer.id first arg, while Dashboard.handleCalRangeChange expects (id, cal_min, cal_max). I applied a 2-line fix to pass layer.id and re-tested. All three scenarios now PASS: hi=90 -> label 90.00 and slider thumb moves to ~50%; lo=30 -> label 30.00, thumb at ~17%; crossing lo=95 with state (30,90) -> auto-sorts to (90, 95). Vertical colorbar regression PASS — labels update to 95.00/90.00 after the edits. Zero console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "threshold_hi_commit": "PASS — typed 90, label becomes '90.00', slider thumb aria-valuenow ~100/200 (= 50%, matches 90/180).",
+    "threshold_lo_commit": "PASS — typed 30, label becomes '30.00', slider thumb aria-valuenow ~33/200 (matches 30/180).",
+    "threshold_crossing_autosort": "PASS — state was (30, 90); user typed lo=95 + Enter; final state (90, 95) — values auto-sorted so lo is the smaller. No errors.",
+    "colorbar_label_propagation": "PASS — [data-testid=colorbar-benson_polar_angle] inner text shows '95.00 / 90.00 / Polar Angle' after edits, confirming overlayMeta drives the vertical colorbar.",
+    "console_errors": "ZERO console errors across the session."
+  },
+  "test_report_links": ["/app/test_reports/iter11_fixed.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ROOT CAUSE (now fixed): LayerControlAdvanced.handleSliderChange / handleLoText / handleHiText called onCalRangeChange?.(lo, hi) — but the Dashboard handler is handleCalRangeChange(id, cal_min, cal_max). The id was therefore passed AS cal_min, cal_max was undefined, and setOverlayMeta wrote to key=<number> instead of the layer id. Both slider drag and text edit silently no-op'd from the user's POV. iter9 + iter10 mis-attributed this to closures/snake_case/useEffect deps.",
+    "Iter10's useEffect deps fix ([editing] only) is still a correct hardening — without it, the text would be clobbered on mid-edit re-renders. Keep both fixes.",
+    "Consider adding minStepsBetweenThumbs={1} to RangeSlider in LayerControlAdvanced.jsx line 222 — currently 0, which allows the two thumbs to collapse onto each other (degenerate threshold range).",
+    "ThresholdValue.commit() does not validate that parsed number is within [globalMin, globalMax]; a user can type e.g. -50 or 9999 and it will be passed through. Dashboard does not clamp either. Niivue may reject silently. Minor — recommend clamping inside handleLoText/handleHiText."
+  ],
+  "updated_files": ["/app/frontend/src/components/LayerControlAdvanced.jsx"],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% — all 4 retest scenarios PASS"},
+  "test_credentials": "none required",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Click-to-edit threshold flow is fully working after fix in LayerControlAdvanced.jsx: handleSliderChange, handleLoText, handleHiText now pass layer.id as first arg to onCalRangeChange. Verified via playwright: hi=90, lo=30, and crossing lo=95 (auto-sort to 90,95) all commit correctly; slider thumbs move; vertical colorbar labels propagate. No further work needed on this flow.",
+  "rca_of_the_issue": "Root cause: argument-shape mismatch. LayerControlAdvanced called `onCalRangeChange(lo, hi)` (2 args). Dashboard expected `handleCalRangeChange(id, cal_min, cal_max)` (3 args). Result: `id` got the lo value (a number), `cal_min` got the hi value, `cal_max` was undefined. `viewerRef.current.setOverlayCalRange(<number>, <number>, undefined)` failed silently in niivue, and `setOverlayMeta((p) => ({ ...p, [<number>]: { cal_min: <hi>, cal_max: undefined } }))` wrote to a nonsense numeric key — so overlayMeta['benson_polar_angle'] never updated and the display kept rendering the original values. Fix: pass `layer.id` as the first arg in handleSliderChange, handleLoText, handleHiText. Verified: labels, slider thumbs (aria-valuenow), and the vertical colorbar all now update on text-edit commit, and crossing edits auto-sort via the existing Math.min/Math.max wrapping."
+}
