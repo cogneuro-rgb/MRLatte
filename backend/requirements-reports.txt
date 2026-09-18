@@ -1,0 +1,30 @@
+# OPTIONAL report-figure stack — the `reports-figures` module in
+# modules/manifest.json (type: python-package, tier: optional).
+#
+# ~199 MB. Install ONLY if you want rendered figures:
+#   * nilearn glass-brain / mosaic PNGs and the interactive MNI viewer
+#     (backend/lnm_backend.py: static_png, mosaic_png, interactive_html),
+#   * the One-Click Summary brainsprite viewers
+#     (backend/summary_render_worker.py: _brainsprite_html).
+#
+# Nothing on the COMPUTE path needs any of this. Tract dissection, DA-LNM and
+# the retinotopy check run on numpy / nibabel / scipy / dipy / SimpleITK alone —
+# see requirements-frozen.txt. Phase 1b vendored nilearn's `resample_to_img`
+# into backend/worker_common.py and shipped the MNI152 brain mask as a file
+# (frontend/public/atlases/mni152/mni152_brain_mask.nii.gz), which is what let
+# nilearn move out of the base install.
+#
+# Both code paths that use this stack degrade with an actionable message when it
+# is absent (lnm_backend._plotting, summary_render_worker._reports_stack); the
+# UI probes it via GET /api/summary/available -> the `reports-figures` module.
+#
+#   pip install -r backend/requirements-reports.txt
+#
+# scikit-learn is deliberately NOT pinned here: it is a hard dependency of
+# nilearn and arrives with it. It was never pinned in requirements-frozen.txt
+# either — it only ever entered the base install transitively via nilearn, and
+# it leaves with it.
+
+nilearn>=0.10.0
+matplotlib>=3.7.0
+pandas>=2.2.0

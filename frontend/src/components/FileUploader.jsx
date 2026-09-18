@@ -30,10 +30,31 @@ export const FileUploader = ({
   const handleFiles = (fileList) => {
     const arr = Array.from(fileList || []);
     if (arr.length === 0) return;
-    // Multi-file / directory mode (e.g. DICOM series): defer validation to
-    // the consumer — DICOM files are often extension-less.
-    if (multiple || directory) {
+    // Directory mode (DICOM series): defer validation entirely to the
+    // consumer — DICOM files are often extension-less.
+    if (directory) {
       onFiles?.(arr);
+      return;
+    }
+    // Multi-file mode (item 95): validate each file against the same
+    // allowlist the single-file path uses, dropping invalid entries and
+    // reporting them individually rather than rejecting the whole batch —
+    // one bad file in a 5-file selection shouldn't block the other 4.
+    if (multiple) {
+      const valid = [];
+      const rejected = [];
+      for (const file of arr) {
+        const name = file.name.toLowerCase();
+        if (allowedExts.some((ext) => name.endsWith(ext))) valid.push(file);
+        else rejected.push(file.name);
+      }
+      if (rejected.length) {
+        toast.error(
+          rejected.length === 1 ? "Unsupported file format" : `${rejected.length} files skipped — unsupported format`,
+          { description: rejected.length === 1 ? `${rejected[0]} — please upload ${accept}` : `${rejected.join(", ")} — please upload ${accept}` },
+        );
+      }
+      if (valid.length) onFiles?.(valid);
       return;
     }
     const file = arr[0];
@@ -51,11 +72,11 @@ export const FileUploader = ({
   const borderColor =
     variant === "danger"
       ? dragOver
-        ? "border-[#FF3B30]"
-        : "border-[#27272A] hover:border-[#FF3B30]/60"
+        ? "border-destructive"
+        : "border-border hover:border-destructive/60"
       : dragOver
-      ? "border-white"
-      : "border-[#27272A] hover:border-zinc-500";
+      ? "border-foreground"
+      : "border-border hover:border-muted-foreground";
 
   return (
     <label
@@ -70,14 +91,14 @@ export const FileUploader = ({
         setDragOver(false);
         if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
       }}
-      className={`group flex cursor-pointer items-center gap-3 border border-dashed ${borderColor} bg-[#0a0a0a] px-3 py-3 transition-colors${disabled ? " pointer-events-none opacity-50" : ""}`}
+      className={`group flex cursor-pointer items-center gap-3 border border-dashed ${borderColor} bg-panel px-3 py-3 transition-colors${disabled ? " pointer-events-none opacity-50" : ""}`}
       data-testid={`${testId}-label`}
     >
       <div
         className={`flex h-8 w-8 flex-shrink-0 items-center justify-center border ${
           variant === "danger"
-            ? "border-[#FF3B30]/40 text-[#FF3B30]"
-            : "border-[#27272A] text-zinc-300 group-hover:border-zinc-500"
+            ? "border-destructive/40 text-destructive"
+            : "border-border text-foreground group-hover:border-muted-foreground"
         }`}
       >
         {variant === "danger" ? <Plus size={14} /> : <Upload size={14} />}
@@ -85,13 +106,13 @@ export const FileUploader = ({
       <div className="flex-1 min-w-0">
         <div
           className={`text-[12px] font-medium ${
-            variant === "danger" ? "text-[#FF3B30]" : "text-zinc-200"
+            variant === "danger" ? "text-destructive" : "text-foreground"
           }`}
         >
           {label}
         </div>
         {description && (
-          <div className="font-mono text-[10px] text-zinc-500 mt-0.5 truncate">
+          <div className="font-mono text-[10px] text-muted-foreground mt-0.5 truncate">
             {description}
           </div>
         )}

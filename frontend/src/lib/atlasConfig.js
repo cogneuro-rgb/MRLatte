@@ -3,7 +3,7 @@
 export const BASE_VOLUME = {
   id: "mni152",
   name: "MNI152 Template",
-  url: "/atlases/mni152.nii.gz",
+  url: "/atlases/mni152/mni152.nii.gz",
   colormap: "gray",
   opacity: 1.0,
   description: "MNI152 ICBM linear T1 average · 0.74mm isotropic",
@@ -13,7 +13,8 @@ export const BASE_VOLUME = {
 // ===== Wang & Benson labels (used for crosshair tooltip & legends) =====
 // Wang 2015 max-probability atlas — 25 ROIs, from Kastner Lab's
 // lh/rh.wang15_mplbl.v1_0.mgz. Exact ordering matches the labels file
-// distributed with the atlas (also written to /atlases/wang2015_labels.json).
+// distributed with the atlas (also written to
+// /atlases/wang2015/wang2015_labels.json).
 export const WANG_LABELS = {
   1: "V1v", 2: "V1d", 3: "V2v", 4: "V2d", 5: "V3v", 6: "V3d",
   7: "hV4", 8: "VO1", 9: "VO2", 10: "PHC1", 11: "PHC2",
@@ -36,7 +37,7 @@ export const RETINOTOPY_LAYERS = [
   {
     id: "benson_polar_angle",
     name: "Polar Angle (0–360°)",
-    url: "/atlases/benson14_polar_angle.nii.gz",
+    url: "/atlases/benson14/benson14_polar_angle.nii.gz",
     // Custom circular colormap (defined in NiivueViewer): red→yellow→
     // blue→cyan→red. LH cortex carries 1..180 (right visual field);
     // RH cortex carries 180..360 (left visual field).
@@ -51,7 +52,7 @@ export const RETINOTOPY_LAYERS = [
   {
     id: "benson_eccentricity",
     name: "Eccentricity",
-    url: "/atlases/benson14_eccentricity.nii.gz",
+    url: "/atlases/benson14/benson14_eccentricity.nii.gz",
     colormap: "warm",
     opacity: 0.85,
     cal_min: 0.5,
@@ -62,7 +63,7 @@ export const RETINOTOPY_LAYERS = [
   {
     id: "benson_visual_areas",
     name: "Visual Areas (Benson 2014)",
-    url: "/atlases/benson14_visual_areas.nii.gz",
+    url: "/atlases/benson14/benson14_visual_areas.nii.gz",
     colormap: "actc",
     opacity: 0.75,
     cal_min: 1,
@@ -74,7 +75,7 @@ export const RETINOTOPY_LAYERS = [
   {
     id: "wang2015_prob",
     name: "Wang 2015 ROIs · Probabilistic",
-    url: "/atlases/wang2015_prob.nii.gz",
+    url: "/atlases/wang2015/wang2015_prob.nii.gz",
     colormap: "warm",
     opacity: 0.7,
     cal_min: 0.4,
@@ -82,7 +83,7 @@ export const RETINOTOPY_LAYERS = [
     description: "11 occipital ROIs · continuous probability (0..1)",
     legendType: "prob",
     labelLayerId: "wang2015_maxprob",
-    labelLayerUrl: "/atlases/wang2015_maxprob.nii.gz",
+    labelLayerUrl: "/atlases/wang2015/wang2015_maxprob.nii.gz",
     labels: WANG_LABELS,
   },
 ];
@@ -106,7 +107,7 @@ export const WHITE_MATTER_RETINOTOPY_LAYERS = [
   {
     id: "wm_polar_angle",
     name: "WM Polar Angle (template)",
-    url: "/atlases/wm_polar_angle.nii.gz",
+    url: "/atlases/wm_retinotopy/wm_polar_angle.nii.gz",
     colormap: "polar_angle_360",
     opacity: 0.9,
     cal_min: 1,
@@ -121,7 +122,7 @@ export const WHITE_MATTER_RETINOTOPY_LAYERS = [
   {
     id: "wm_eccentricity",
     name: "WM Eccentricity (template)",
-    url: "/atlases/wm_eccentricity.nii.gz",
+    url: "/atlases/wm_retinotopy/wm_eccentricity.nii.gz",
     colormap: "warm",
     opacity: 0.85,
     cal_min: 0.5,
@@ -134,74 +135,14 @@ export const WHITE_MATTER_RETINOTOPY_LAYERS = [
   },
 ];
 
-// ===== Standard Atlases section =====
-// `labelsUrl` points to a JSON file that maps integer labels → region names.
-// Fetched lazily on toggle; used for label-at-crosshair display.
-export const STANDARD_ATLASES = [
-  {
-    id: "aal",
-    name: "AAL · Whole Brain",
-    short: "AAL",
-    url: "/atlases/aal_atlas.nii.gz",
-    labelsUrl: "/atlases/aal_labels.json",
-    colormap: "random",
-    opacity: 0.55,
-    description: "Automated Anatomical Labeling · 90 cortical/subcortical regions",
-  },
-  {
-    id: "ho_cort",
-    name: "Harvard-Oxford · Cortical",
-    short: "HO Cort",
-    url: "/atlases/harvard_oxford_cort.nii.gz",
-    labelsUrl: "/atlases/harvard_oxford_cort_labels.json",
-    colormap: "random",
-    opacity: 0.55,
-    description: "49 cortical regions · max-prob threshold 25%",
-  },
-  {
-    id: "destrieux",
-    name: "Destrieux · FreeSurfer aparc.a2009s",
-    short: "Destrieux",
-    url: "/atlases/destrieux.nii.gz",
-    labelsUrl: "/atlases/destrieux_labels.json",
-    colormap: "random",
-    opacity: 0.55,
-    description: "150 sulco-gyral cortical regions from FreeSurfer 2009 parcellation",
-  },
-  {
-    id: "juelich",
-    name: "Jülich · Cortex + White Matter",
-    short: "Jülich",
-    url: "/atlases/juelich_atlas.nii.gz",
-    labelsUrl: "/atlases/juelich_labels.json",
-    colormap: "random",
-    opacity: 0.55,
-    description: "63 cyto/myelo-architectonic regions incl. white matter tracts (IIT-style)",
-  },
-  {
-    id: "hcp1065",
-    name: "HCP1065 · Named White-Matter Tracts",
-    short: "HCP1065 Tracts",
-    url: "/atlases/HCP1065_tracts.nii.gz",
-    labelsUrl: "/atlases/HCP1065_tracts_labels.json",
-    colormap: "random",
-    opacity: 0.7,
-    description: "DSI Studio HCP1065 tractography atlas (1065-subject population, Yeh 2022) · 87 named tracts incl. SLF I–III, corticopontine/striatal/thalamic subcomponents, dentatorubrothalamic, cranial nerves CN II–VIII · MNI · smallest-tract-wins parcellation",
-  },
-  {
-    id: "visfAtlas",
-    name: "visfAtlas · Maastricht Functional",
-    short: "visfAtlas",
-    url: "/atlases/visfAtlas_maxprob.nii.gz",
-    labelsUrl: "/atlases/visfAtlas_labels.json",
-    // Use niivue's built-in `random` colormap (same pattern as AAL / HO /
-    // Destrieux) — assigns each integer label a distinct hue and treats
-    // value 0 as transparent. Our previous custom Maastricht LUT (registered
-    // via addColormap + setColormapLabel) flood-filled the brain background
-    // because niivue's label-LUT shader could not reliably hide background
-    // voxels for a non-built-in label colormap.
-    colormap: "random",
-    opacity: 0.85,
-    description: "Rosenke et al. 2020 · 33 ROIs across higher visual cortex (FFA / PPA / EBA / hMT / V1-V3 d/v retinotopic) in MNI152",
-  },
-];
+// ===== Standard atlases =====
+// The STANDARD_ATLASES array that used to live here is gone. Atlases are now
+// discovered at runtime from /api/atlases (backend/atlas_registry.py) and
+// consumed through hooks/use-atlases; a compile-time constant could not react
+// to an install, an import, an uninstall or a reorder, and this one had drifted
+// to list 6 of the 11 atlases actually on disk.
+//
+// The registry returns the same per-layer fields this file's other layer
+// configs use (id / name / short / url / labelsUrl / colormap / opacity /
+// ignoreZeroVoxels), so volumeApi.addOverlayFromUrl takes a registry
+// descriptor unchanged.

@@ -1,0 +1,23 @@
+{
+ "schemaVersion": 1,
+ "id": "juelich",
+ "aliases": [],
+ "name": "Jülich · Cortex + White Matter",
+ "short": "Jülich",
+ "description": "Cyto/myelo-architectonic regions including white-matter tracts",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "juelich.nii.gz",
+ "labels": "juelich.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "LicenseRef-FSL-Atlases",
+  "attribution": "Eickhoff et al. 2005"
+ }
+}

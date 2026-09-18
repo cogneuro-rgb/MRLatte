@@ -1,0 +1,27 @@
+{
+ "schemaVersion": 1,
+ "id": "hcp1065_tracts",
+ "aliases": [
+  "hcp1065"
+ ],
+ "name": "HCP1065 · Named White-Matter Tracts",
+ "short": "HCP1065",
+ "description": "DSI Studio HCP1065 population tractography atlas · 87 named bundles",
+ "kind": "tracts",
+ "space": "MNI152",
+ "volume": "hcp1065_tracts.nii.gz",
+ "labels": "hcp1065_tracts.labels.json",
+ "colormap": "random",
+ "opacity": 0.7,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "derivedFrom": null,
+ "tracts4d": "hcp1065_tracts.tracts4d.nii.gz",
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Yeh et al. 2022 (DSI Studio)"
+ }
+}

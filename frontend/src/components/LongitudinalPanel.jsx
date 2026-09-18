@@ -41,17 +41,17 @@ export const LongitudinalPanel = ({ onDiffLoaded }) => {
   };
 
   const pick =
-    "flex items-center gap-2 cursor-pointer border border-dashed border-[#27272A] bg-[#0a0a0a] px-3 py-2 text-[11px] text-zinc-300 hover:border-zinc-500 transition-colors";
+    "flex items-center gap-2 cursor-pointer border border-dashed border-border bg-panel px-3 py-2 text-[11px] text-foreground hover:border-muted-foreground transition-colors";
 
   return (
     <div className="space-y-3" data-testid="longitudinal-panel">
-      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">
+      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
         <GitCompareArrows size={11} /> baseline vs follow-up
       </div>
 
       {/* Backend status */}
       {backendAvailable === null && (
-        <div className="font-mono text-[10px] text-zinc-500 animate-pulse">Checking backend…</div>
+        <div className="font-mono text-[10px] text-muted-foreground animate-pulse">Checking backend…</div>
       )}
       {backendAvailable === false && (
         <div className="border border-amber-700/60 bg-amber-950/30 p-3 space-y-2" data-testid="long-backend-unavailable">
@@ -59,13 +59,13 @@ export const LongitudinalPanel = ({ onDiffLoaded }) => {
             <AlertCircle size={13} />
             <span className="font-mono text-[10px] font-medium">Backend not running</span>
           </div>
-          <div className="font-mono text-[9px] text-zinc-400 leading-relaxed">
+          <div className="font-mono text-[9px] text-muted-foreground leading-relaxed">
             Start the server to use longitudinal comparison:<br />
-            <code className="text-zinc-300">cd backend &amp;&amp; uvicorn server:app --reload --port 8001</code>
+            <code className="text-foreground">cd backend &amp;&amp; uvicorn server:app --reload --port 8001</code>
           </div>
           <button
             onClick={checkBackend}
-            className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
             data-testid="long-retry"
           >
             <RefreshCw size={11} />Retry
@@ -94,21 +94,21 @@ export const LongitudinalPanel = ({ onDiffLoaded }) => {
           <button
             onClick={run}
             disabled={busy || !baseline || !followup}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-white text-black border-white hover:bg-zinc-200 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
             data-testid="long-run"
           >
             <GitCompareArrows size={12} />{busy ? "Comparing…" : "Compare"}
           </button>
 
           {metrics && (
-            <div className="border border-[#27272A] bg-[#0a0a0a] p-3 font-mono text-[10px] text-zinc-400 space-y-1" data-testid="long-metrics">
-              <div>changed voxels: <span className="text-white">{metrics.changedVoxelPct}%</span></div>
-              <div>same grid: <span className="text-zinc-200">{metrics.sameGrid}</span></div>
-              <div>reg. metric: <span className="text-zinc-200">{metrics.registrationMetric}</span></div>
-              <div className="text-zinc-600">positive = follow-up &gt; baseline (warm overlay)</div>
+            <div className="border border-border bg-panel p-3 font-mono text-[10px] text-muted-foreground space-y-1" data-testid="long-metrics">
+              <div>changed voxels: <span className="text-foreground">{metrics.changedVoxelPct}%</span></div>
+              <div>same grid: <span className="text-foreground">{metrics.sameGrid}</span></div>
+              <div>reg. metric: <span className="text-foreground">{metrics.registrationMetric}</span></div>
+              <div className="text-subtle">positive = follow-up &gt; baseline (warm overlay)</div>
             </div>
           )}
-          <div className="font-mono text-[9px] text-zinc-600 leading-relaxed">
+          <div className="font-mono text-[9px] text-subtle leading-relaxed">
             follow-up is affine-registered to baseline (SimpleITK). diff map loads into Activation Maps.
           </div>
         </>

@@ -15,6 +15,16 @@ module.exports = {
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
+  			// Two extra background tiers (root canvas < panel < panel-hover)
+  			// and a fourth text tier (subtle, below muted-foreground) — the app's
+  			// three-level surface hierarchy and smallest uppercase labels don't
+  			// map onto shadcn's single --card tier. See index.css for values.
+  			panel: {
+  				DEFAULT: 'hsl(var(--panel))',
+  				hover: 'hsl(var(--panel-hover))',
+  				active: 'hsl(var(--panel-active))'
+  			},
+  			subtle: 'hsl(var(--subtle-foreground))',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'

@@ -1,0 +1,23 @@
+{
+ "schemaVersion": 1,
+ "id": "aal",
+ "aliases": [],
+ "name": "AAL · Whole Brain",
+ "short": "AAL",
+ "description": "Automated Anatomical Labeling · cortical and subcortical regions",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "aal.nii.gz",
+ "labels": "aal.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "LicenseRef-FSL-Atlases",
+  "attribution": "Tzourio-Mazoyer et al. 2002"
+ }
+}

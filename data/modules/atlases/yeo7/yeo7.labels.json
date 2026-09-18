@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Visual",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.0,
+    -75.0,
+    4.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Somatomotor",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.0,
+    -19.0,
+    43.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Dorsal Attention",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -45.0,
+    45.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Ventral Attention",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -2.0,
+    31.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Limbic",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.0,
+    15.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Frontoparietal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    7.0,
+    26.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Default Mode",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.0,
+    -8.0,
+    30.0
+   ]
+  }
+ ]
+}

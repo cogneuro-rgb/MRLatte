@@ -1,0 +1,652 @@
+{
+  "capturedFrom": {
+    "note": "Golden values from the JS engine, captured before the LQTpy migration (Task 0c). See README.md.",
+    "functions": [
+      "frontend/src/lib/volumeAnalysis.js:computeAtlasOverlap",
+      "frontend/src/lib/lesionReport.js:computeLesionVolume",
+      "frontend/src/lib/lesionReport.js:affineDet3 (private; cross-checked only, see affineDet3Check per fixture)"
+    ]
+  },
+  "atlases": [
+    {
+      "id": "aal",
+      "name": "AAL",
+      "source": "real",
+      "file": "data/modules/atlases/aal/aal.nii.gz",
+      "dims": [
+        91,
+        109,
+        91
+      ],
+      "matRAS": [
+        -2,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        90,
+        -126,
+        -72,
+        1
+      ],
+      "labelCount": 166
+    },
+    {
+      "id": "harvard_oxford_cort",
+      "name": "Harvard-Oxford Cortical",
+      "source": "real",
+      "file": "data/modules/atlases/harvard_oxford_cort/harvard_oxford_cort.nii.gz",
+      "dims": [
+        182,
+        218,
+        182
+      ],
+      "matRAS": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        -91,
+        -126,
+        -72,
+        1
+      ],
+      "labelCount": 48
+    },
+    {
+      "id": "synthetic_hemi",
+      "name": "Synthetic hemisphere split (x<0 / x>=0)",
+      "source": "synthetic",
+      "file": null,
+      "dims": [
+        91,
+        109,
+        91
+      ],
+      "matRAS": [
+        -2,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        90,
+        -126,
+        -72,
+        1
+      ],
+      "labelCount": 2
+    }
+  ],
+  "fixtures": {
+    "sphere_1mm": {
+      "description": "Clean 1mm binary sphere, axis-aligned, r=8mm.",
+      "grid": {
+        "dims": [
+          32,
+          32,
+          32
+        ],
+        "voxelCount": 32768
+      },
+      "lesionVolume": {
+        "voxelCount": 2109,
+        "mm3": 2109,
+        "cm3": 2.109,
+        "centroidMM": [
+          -40,
+          -20,
+          50
+        ]
+      },
+      "affineDet3Check": 1,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [
+            {
+              "label": 61,
+              "regionName": "Postcentral_L",
+              "voxelCount": 1486,
+              "percentOfLesion": 70.459934,
+              "percentOfRegion": 4.77261
+            },
+            {
+              "label": 1,
+              "regionName": "Precentral_L",
+              "voxelCount": 623,
+              "percentOfLesion": 29.540066,
+              "percentOfRegion": 2.208593
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2109,
+            "regions": 2,
+            "voxVolRatio": 0.125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [
+            {
+              "label": 7,
+              "regionName": "Precentral Gyrus",
+              "voxelCount": 1056,
+              "percentOfLesion": 50.071124,
+              "percentOfRegion": 1.507904
+            },
+            {
+              "label": 17,
+              "regionName": "Postcentral Gyrus",
+              "voxelCount": 1029,
+              "percentOfLesion": 48.790896,
+              "percentOfRegion": 1.861803
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2109,
+            "regions": 2,
+            "voxVolRatio": 1
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [
+            {
+              "label": 1,
+              "regionName": "synthetic-left (x<0)",
+              "voxelCount": 2109,
+              "percentOfLesion": 100,
+              "percentOfRegion": 0.059062
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2109,
+            "regions": 1,
+            "voxVolRatio": 0.125
+          }
+        }
+      }
+    },
+    "native_0737": {
+      "description": "Same sphere on a 0.737mm native-grid affine (this lab's real acquisition resolution).",
+      "grid": {
+        "dims": [
+          34,
+          34,
+          34
+        ],
+        "voxelCount": 39304
+      },
+      "lesionVolume": {
+        "voxelCount": 5377,
+        "mm3": 2152.496728,
+        "cm3": 2.152497,
+        "centroidMM": [
+          -40,
+          -20,
+          50
+        ]
+      },
+      "affineDet3Check": 0.400316,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [
+            {
+              "label": 61,
+              "regionName": "Postcentral_L",
+              "voxelCount": 3861,
+              "percentOfLesion": 71.80584,
+              "percentOfRegion": 4.964088
+            },
+            {
+              "label": 1,
+              "regionName": "Precentral_L",
+              "voxelCount": 1506,
+              "percentOfLesion": 28.008183,
+              "percentOfRegion": 2.137249
+            },
+            {
+              "label": 65,
+              "regionName": "Parietal_Inf_L",
+              "voxelCount": 10,
+              "percentOfLesion": 0.185977,
+              "percentOfRegion": 0.020449
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 5377,
+            "regions": 3,
+            "voxVolRatio": 0.050039444125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [
+            {
+              "label": 7,
+              "regionName": "Precentral Gyrus",
+              "voxelCount": 2697,
+              "percentOfLesion": 50.158081,
+              "percentOfRegion": 1.541676
+            },
+            {
+              "label": 17,
+              "regionName": "Postcentral Gyrus",
+              "voxelCount": 2608,
+              "percentOfLesion": 48.502883,
+              "percentOfRegion": 1.888985
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 5377,
+            "regions": 2,
+            "voxVolRatio": 0.400315553
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [
+            {
+              "label": 1,
+              "regionName": "synthetic-left (x<0)",
+              "voxelCount": 5377,
+              "percentOfLesion": 100,
+              "percentOfRegion": 0.06028
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 5377,
+            "regions": 1,
+            "voxVolRatio": 0.050039444125
+          }
+        }
+      }
+    },
+    "oblique": {
+      "description": "Same sphere on a non-axis-aligned (25deg Z, 15deg X) 1mm oblique affine.",
+      "grid": {
+        "dims": [
+          32,
+          32,
+          32
+        ],
+        "voxelCount": 32768
+      },
+      "lesionVolume": {
+        "voxelCount": 2106,
+        "mm3": 2106,
+        "cm3": 2.106,
+        "centroidMM": [
+          -40.005048,
+          -19.997242,
+          49.996806
+        ]
+      },
+      "affineDet3Check": 1,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [
+            {
+              "label": 61,
+              "regionName": "Postcentral_L",
+              "voxelCount": 1517,
+              "percentOfLesion": 72.032289,
+              "percentOfRegion": 4.872174
+            },
+            {
+              "label": 1,
+              "regionName": "Precentral_L",
+              "voxelCount": 587,
+              "percentOfLesion": 27.872745,
+              "percentOfRegion": 2.08097
+            },
+            {
+              "label": 65,
+              "regionName": "Parietal_Inf_L",
+              "voxelCount": 2,
+              "percentOfLesion": 0.094967,
+              "percentOfRegion": 0.010217
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2106,
+            "regions": 3,
+            "voxVolRatio": 0.125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [
+            {
+              "label": 7,
+              "regionName": "Precentral Gyrus",
+              "voxelCount": 1056,
+              "percentOfLesion": 50.14245,
+              "percentOfRegion": 1.507904
+            },
+            {
+              "label": 17,
+              "regionName": "Postcentral Gyrus",
+              "voxelCount": 1028,
+              "percentOfLesion": 48.812915,
+              "percentOfRegion": 1.859994
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2106,
+            "regions": 2,
+            "voxVolRatio": 1
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [
+            {
+              "label": 1,
+              "regionName": "synthetic-left (x<0)",
+              "voxelCount": 2106,
+              "percentOfLesion": 100,
+              "percentOfRegion": 0.058978
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2106,
+            "regions": 1,
+            "voxVolRatio": 0.125
+          }
+        }
+      }
+    },
+    "probabilistic": {
+      "description": "Radial-falloff probabilistic lesion, values in (0,1], including (0,0.5).",
+      "grid": {
+        "dims": [
+          22,
+          22,
+          22
+        ],
+        "voxelCount": 10648
+      },
+      "lesionVolume": {
+        "voxelCount": 2969,
+        "mm3": 2969,
+        "cm3": 2.969,
+        "centroidMM": [
+          -30,
+          -60,
+          40
+        ]
+      },
+      "affineDet3Check": 1,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [
+            {
+              "label": 65,
+              "regionName": "Parietal_Inf_L",
+              "voxelCount": 1309,
+              "percentOfLesion": 44.088919,
+              "percentOfRegion": 6.686759
+            },
+            {
+              "label": 69,
+              "regionName": "Angular_L",
+              "voxelCount": 601,
+              "percentOfLesion": 20.242506,
+              "percentOfRegion": 6.404518
+            },
+            {
+              "label": 55,
+              "regionName": "Occipital_Mid_L",
+              "voxelCount": 599,
+              "percentOfLesion": 20.175143,
+              "percentOfRegion": 2.293262
+            },
+            {
+              "label": 63,
+              "regionName": "Parietal_Sup_L",
+              "voxelCount": 431,
+              "percentOfLesion": 14.516672,
+              "percentOfRegion": 2.608959
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2969,
+            "regions": 4,
+            "voxVolRatio": 0.125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [
+            {
+              "label": 22,
+              "regionName": "Lateral Occipital Cortex, superior division",
+              "voxelCount": 1541,
+              "percentOfLesion": 51.902998,
+              "percentOfRegion": 1.970689
+            },
+            {
+              "label": 18,
+              "regionName": "Superior Parietal Lobule",
+              "voxelCount": 492,
+              "percentOfLesion": 16.571236,
+              "percentOfRegion": 2.098081
+            },
+            {
+              "label": 21,
+              "regionName": "Angular Gyrus",
+              "voxelCount": 74,
+              "percentOfLesion": 2.492422,
+              "percentOfRegion": 0.378672
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2969,
+            "regions": 3,
+            "voxVolRatio": 1
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [
+            {
+              "label": 1,
+              "regionName": "synthetic-left (x<0)",
+              "voxelCount": 2969,
+              "percentOfLesion": 100,
+              "percentOfRegion": 0.083146
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 2969,
+            "regions": 1,
+            "voxVolRatio": 0.125
+          }
+        }
+      }
+    },
+    "two_blobs_boundary": {
+      "description": "Two r=4mm binary blobs 80mm apart, straddling AAL's L/R boundary.",
+      "grid": {
+        "dims": [
+          120,
+          20,
+          20
+        ],
+        "voxelCount": 48000
+      },
+      "lesionVolume": {
+        "voxelCount": 514,
+        "mm3": 514,
+        "cm3": 0.514,
+        "centroidMM": [
+          0,
+          -20,
+          50
+        ]
+      },
+      "affineDet3Check": 1,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [
+            {
+              "label": 61,
+              "regionName": "Postcentral_L",
+              "voxelCount": 194,
+              "percentOfLesion": 37.743191,
+              "percentOfRegion": 0.623073
+            },
+            {
+              "label": 2,
+              "regionName": "Precentral_R",
+              "voxelCount": 163,
+              "percentOfLesion": 31.712062,
+              "percentOfRegion": 0.602632
+            },
+            {
+              "label": 62,
+              "regionName": "Postcentral_R",
+              "voxelCount": 94,
+              "percentOfLesion": 18.287938,
+              "percentOfRegion": 0.30735
+            },
+            {
+              "label": 1,
+              "regionName": "Precentral_L",
+              "voxelCount": 63,
+              "percentOfLesion": 12.256809,
+              "percentOfRegion": 0.223341
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 514,
+            "regions": 4,
+            "voxVolRatio": 0.125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [
+            {
+              "label": 7,
+              "regionName": "Precentral Gyrus",
+              "voxelCount": 273,
+              "percentOfLesion": 53.11284,
+              "percentOfRegion": 0.389827
+            },
+            {
+              "label": 17,
+              "regionName": "Postcentral Gyrus",
+              "voxelCount": 241,
+              "percentOfLesion": 46.88716,
+              "percentOfRegion": 0.436049
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 514,
+            "regions": 2,
+            "voxVolRatio": 1
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [
+            {
+              "label": 1,
+              "regionName": "synthetic-left (x<0)",
+              "voxelCount": 257,
+              "percentOfLesion": 50,
+              "percentOfRegion": 0.007197
+            },
+            {
+              "label": 2,
+              "regionName": "synthetic-right (x>=0)",
+              "voxelCount": 257,
+              "percentOfLesion": 50,
+              "percentOfRegion": 0.007041
+            }
+          ],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 514,
+            "regions": 2,
+            "voxVolRatio": 0.125
+          }
+        }
+      }
+    },
+    "empty": {
+      "description": "All-zero lesion (edge case: no lesion voxels).",
+      "grid": {
+        "dims": [
+          10,
+          10,
+          10
+        ],
+        "voxelCount": 1000
+      },
+      "lesionVolume": {
+        "voxelCount": 0,
+        "mm3": 0,
+        "cm3": 0,
+        "centroidMM": null
+      },
+      "affineDet3Check": 1,
+      "overlapByAtlas": {
+        "aal": {
+          "rows": [],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 0,
+            "regions": 0,
+            "voxVolRatio": 0.125
+          }
+        },
+        "harvard_oxford_cort": {
+          "rows": [],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 0,
+            "regions": 0,
+            "voxVolRatio": 1
+          }
+        },
+        "synthetic_hemi": {
+          "rows": [],
+          "stats": {
+            "sameGrid": false,
+            "totalLesion": 0,
+            "regions": 0,
+            "voxVolRatio": 0.125
+          }
+        }
+      }
+    }
+  }
+}

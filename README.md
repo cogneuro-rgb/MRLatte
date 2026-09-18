@@ -1,45 +1,130 @@
-# NeuroVue
+# MRLatte
 
-Neuroimaging visualization + clinical analysis dashboard (React + Niivue + Electron, FastAPI backend).
+Neuroimaging visualization + clinical analysis dashboard. React + NiiVue + Electron on the
+frontend, FastAPI on the backend.
 
-## Run
+## Quickstart (web, dev)
 
-- **Web:** `cd frontend && yarn install && yarn start` → http://localhost:3000
-- **Desktop:** `cd frontend && yarn electron:start` (CRA dev server + Electron together)
-- **Desktop build (Windows):** `cd frontend && yarn dist:win` → `frontend/dist-electron/`
-- **Backend (optional; needed for DICOM import + longitudinal):**
-  `cd backend && pip install -r requirements.txt && uvicorn server:app --reload --port 8001`
-  - DICOM import also needs the `dcm2niix` binary on PATH.
+Two terminals — the backend serves the API and the atlas files; the frontend dev server proxies
+to it.
 
-See `USER_GUIDE.md` for how to operate the app and how each feature works,
-`PROGRESS.md` for the implementation log, and `CHANGELOG.md` for the feature
-list. Active work is on the `feature/clinical-roadmap` branch.
+```bash
+# terminal 1 — backend
+cd backend
+pip install -r requirements.txt
+uvicorn server:app --reload --port 8001
+
+# terminal 2 — frontend (first run only: `yarn setup` instead of `yarn install`)
+cd frontend
+yarn setup
+yarn start
+```
+
+Open http://localhost:3000. `yarn setup` runs `yarn install` and then downloads the **core**
+data modules (MNI template + atlases) into `data/modules/` — without it the viewer has nothing
+to render. Subsequent runs just need `yarn start`.
+
+**Desktop instead of browser:** `cd frontend && yarn electron:start`.
+
+**DICOM import** additionally needs the `dcm2niix` binary on `PATH`.
+
+## Layout
+
+```
+backend/         FastAPI backend (server.py + worker scripts)
+frontend/        React + Electron app
+data/modules/    module root for this checkout — manifest.json (the catalogue), atlases
+                 (git-tracked), tracts/ + lnm/ slots (you supply)
+data/assets/     project images, design reference
+tools/           build scripts, launcher, CLI utilities, LNM prep docs
+deploy/          Dockerfile, docker-compose*.yml, Caddyfile
+```
+
+`data/modules/` is where large assets live for a checkout — the manifest that catalogues them
+sits inside it too, alongside the payload it describes. In an installed copy the equivalent is
+`%LOCALAPPDATA%\MRLatte\modules`; either can be overridden with `MRLATTE_MODULE_ROOT`.
+
+## Data: what ships vs. what you provide
+
+**Ships in the repo** — atlas packs (MNI152, AAL, Harvard-Oxford, Destrieux, Juelich, Benson-Wang
+retinotopy, HCP/IIT/JHU tract atlases). Viewing, DICOM import, ROI work, and retinotopy work with
+nothing extra.
+
+**You provide** — two HCP-derived assets that the WU-Minn Data Use Terms bar us from
+redistributing. Drop your own in; no install step, just restart the app:
+
+| Feature | Drop the file into | What it needs to be |
+|---|---|---|
+| Tract dissection | `data/modules/tracts/` | Any whole-brain tractogram, `.trk`, registered to MNI (not `.tck` — no reference grid) |
+| Lesion network mapping | `data/modules/lnm/` | Any DA-LNM connectome bundle, `.npz` (a GSP1000 rebuild works too) |
+
+Filenames don't matter — each folder is scanned and the first structurally valid file wins.
+
+**Managing modules from the CLI:**
+
+```bash
+node tools/scripts/modules.mjs list          # what's installed, what's missing
+node tools/scripts/modules.mjs add --core    # just the essentials (what `yarn setup` runs)
+node tools/scripts/modules.mjs add --all     # every downloadable module (not the two slots above)
+node tools/scripts/modules.mjs verify        # sha256-check everything installed
+node tools/scripts/modules.mjs remove <id>   # only removes what this tool itself installed
+```
+
+Nothing is ever downloaded automatically outside of `add`/`setup`. The in-app Module Store
+(Settings → Modules) does the same thing with a UI.
+
+## Building a Windows installer
+
+Build machine needs internet, a full Python 3.11 (`py -3.11`), Node + yarn, and **`git` on PATH**
+(`backend/requirements-frozen.txt` pins `lqtpy` via a `git+https` URL, which pip fetches by
+shelling out to git).
+
+Build output lands **outside the repo**, at `../MRLatte-build/` by default (override with
+`MRLATTE_BUILD_DIR` if you want it elsewhere).
+
+```bash
+tools/build/assemble-bundle.ps1          # core bundle: app + backend + embedded Python + atlases
+tools/build/assemble-bundle.ps1 -Full    # also stages the two optional Python stacks (below)
+
+cd frontend
+yarn dist:win         # NSIS installer — core payload (app, backend, embedded Python, dcm2niix, atlases)
+yarn dist:win:full    # NSIS installer with both optional stacks bundled (needs -Full above first)
+```
+
+The choice between core and full is made at **build time** — an in-installer component picker was
+attempted (NSIS custom page toggling Report figures / Validation) but electron-builder's NSIS
+template includes the same `installer.nsh` at two different points in the script, one of them before
+its own page flow is finalized, which made a custom page unreliable in practice. Rather than ship
+something half-working, that idea was dropped: `dist:win` is core-only, `dist:win:full` bundles
+everything, and there is no in-between at install time.
+
+| Component | Size | In `dist:win` | In `dist:win:full` |
+|---|---|---|---|
+| Atlas packs | 18 MB | yes | yes |
+| Report figures (nilearn, matplotlib, pandas) | 165 MB | no | yes |
+| Validation toolchain (neuropythy) | 33 MB | no | yes |
+
+Installed the core build but want Report figures or Validation later? Add them from the in-app
+Module Store, or via `pip install -r backend/requirements-reports.txt` /
+`requirements-validation.txt` — no reinstall needed.
+
+**Install location:** the NSIS installer defaults to a **per-user** install
+(`%LOCALAPPDATA%\Programs\MRLatte`, not Program Files — `perMachine: false` in
+`frontend/package.json`'s `nsis` config), and the setup wizard has a page to pick
+a different folder (`allowToChangeInstallationDirectory: true`). Program Files
+needs admin rights and locks module installs down with UAC prompts, so a
+user-writable default avoids friction when adding modules after install.
+
+`yarn dist:win` / `dist:win:full` (electron-builder + NSIS) are the only supported ways to produce
+a Windows installer — an earlier 7-Zip self-extracting build was dropped once the NSIS path proved
+out: it launched a console window opening a browser tab rather than a real desktop window, needed
+an extra manual 7-Zip install on the build machine, and had no uninstaller.
+
+## Docker
+
+`deploy/` has the Dockerfile and compose files for a containerized deployment (build context is
+the repo root: `docker compose -f deploy/docker-compose.yml --project-directory . up -d --build`).
 
 ---
 
-# Notes / Original Instructions
-
-
-Changes Made
-1. Emergent logo removed — frontend/public/index.html
-Removed the Made with Emergent badge (fixed bottom-right overlay)
-Removed the emergent-main.js CDN script (was loading an external script on every page load)
-Removed the PostHog session recording script (was recording all user sessions including cross-origin iframes)
-Fixed the meta description from "A product of emergent.sh" to "NeuroVue — Neuroimaging Visualization Dashboard"
-2. Desktop app fixed for Windows — frontend/package.json
-The electron:dev script used bare NEUROVUE_DEV=1 which is bash-only and silently fails on Windows — the env var is never set, so Electron falls back to loading build/index.html instead of localhost:3000
-Fixed to use cross-env (already in devDependencies): cross-env NEUROVUE_DEV=1 wait-on ...
-To run the desktop app: yarn electron:start (starts CRA dev server + Electron together), or yarn dist:win for a production .zip build
-Bugs & Security Issues Found
-Security:
-
-[FIXED] CORS credentials + wildcard origins — backend/server.py: allow_credentials=True with allow_origins=['*'] is rejected by the CORS spec; browsers silently fail credentialed requests. Fixed to only enable credentials when explicit origins are configured via CORS_ORIGINS env var.
-[FIXED] PostHog session recording removed — For a neuroimaging tool that may handle patient scan data, recording all user sessions (including cross-origin iframes) is a significant privacy risk.
-External script without SRI — emergent-main.js was loaded from a CDN with no Subresource Integrity hash; a compromised CDN could inject arbitrary code. Removed entirely now.
-PostHog API key was hardcoded in the HTML — **. Removed.
-Bugs:
-
-[FIXED] Double-click handler stale closure — NiivueViewer.jsx:150: The handleDblClick registered at mount checked if (!onDoubleClickSlice) using the stale prop from mount time, not the live ref. If the prop was undefined at mount but later set, double-click swap would silently no-op forever. Both the guard check and the invocation now use onDoubleClickSliceRef.current.
-[FIXED] Blob URL memory leaks — replaceBaseVolume, addOverlayFromFile, and addMeshFromFile all called URL.createObjectURL but never URL.revokeObjectURL. For a medical imaging app loading large NIfTI files repeatedly, this causes significant memory accumulation. Fixed with try/finally to always revoke.
-Backend MongoDB crash on missing env var — server.py:19 — os.environ['MONGO_URL'] raises KeyError at startup if the env var isn't set. Consider os.environ.get('MONGO_URL') with a startup validation message.
-@app.on_event("shutdown") deprecated — FastAPI has deprecated this in favor of @asynccontextmanager lifespan. Not broken now but will generate warnings in newer FastAPI versions
+Active work is on the `modular` branch.

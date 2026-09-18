@@ -1,0 +1,236 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Left Cerebral White Matter",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.0,
+    -17.0,
+    18.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Left Cerebral Cortex",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -33.0,
+    -19.0,
+    17.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Left Lateral Ventricle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -11.0,
+    -11.0,
+    19.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Left Thalamus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -19.0,
+    6.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Left Caudate",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -13.0,
+    9.0,
+    10.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Left Putamen",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.0,
+    1.0,
+    0.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Left Pallidum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -19.0,
+    -5.0,
+    -1.0
+   ]
+  },
+  {
+   "value": 8,
+   "name": "Brain-Stem",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -31.0,
+    -34.0
+   ]
+  },
+  {
+   "value": 9,
+   "name": "Left Hippocampus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.0,
+    -22.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 10,
+   "name": "Left Amygdala",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -23.0,
+    -5.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 11,
+   "name": "Left Accumbens",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -9.0,
+    11.0,
+    -7.0
+   ]
+  },
+  {
+   "value": 12,
+   "name": "Right Cerebral White Matter",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    27.0,
+    -15.0,
+    18.0
+   ]
+  },
+  {
+   "value": 13,
+   "name": "Right Cerebral Cortex",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    33.0,
+    -18.0,
+    17.0
+   ]
+  },
+  {
+   "value": 14,
+   "name": "Right Lateral Ventricle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    11.0,
+    -10.0,
+    19.0
+   ]
+  },
+  {
+   "value": 15,
+   "name": "Right Thalamus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    11.0,
+    -18.0,
+    7.0
+   ]
+  },
+  {
+   "value": 16,
+   "name": "Right Caudate",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    13.0,
+    10.0,
+    10.0
+   ]
+  },
+  {
+   "value": 17,
+   "name": "Right Putamen",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    25.0,
+    2.0,
+    0.0
+   ]
+  },
+  {
+   "value": 18,
+   "name": "Right Pallidum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    20.0,
+    -4.0,
+    -1.0
+   ]
+  },
+  {
+   "value": 19,
+   "name": "Right Hippocampus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -21.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 20,
+   "name": "Right Amygdala",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    23.0,
+    -4.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 21,
+   "name": "Right Accumbens",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    9.0,
+    12.0,
+    -6.0
+   ]
+  }
+ ]
+}

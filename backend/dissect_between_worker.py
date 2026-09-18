@@ -14,15 +14,25 @@ Config JSON keys: lesion_path_a, lesion_path_b, result_id,
 Output: one JSON line on stdout; traceback to stderr on failure.
 """
 import json
-import os
 import sys
 from pathlib import Path
 
-# Ensure this worker's own directory is importable when spawned under the isolated
-# embeddable Python (safe_path=True) used by the offline bundle, which does not
-# auto-add the script directory to sys.path. Defensive: keeps any sibling-module
-# import working the same as under a normal dev interpreter.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from worker_common import (  # noqa: E402
+    make_set_status as _make_set_status,
+    DEFAULT_ATLAS_SPECS,
+    overlap_for as _overlap_for,
+    dissection_metrics as _dissection_metrics,
+    monitored_stage as _monitored_stage,
+    target_filtered_with_progress as _target_filtered_with_progress,
+)
+
+# See dissect_worker.py for the measurement this is calibrated
+# against (same global tract file, same load_tractogram call).
+_LOAD_BYTES_PER_SEC = 13 * 1024 * 1024
+# Two masks resampled onto the same fixed tractogram grid — roughly double
+# dissect_worker.py's single-mask ~3.6s.
+_RESAMPLE_EXPECTED_S = 7.0
 
 
 def main():
@@ -31,6 +41,15 @@ def main():
 
     config_path = Path(sys.argv[1])
     cfg = json.loads(config_path.read_text())
+
+    # Extra sys.path entries from the parent (optional Python stacks like
+    # python-reports/python-validation in a full packaged build — see
+    # worker_common.extra_sys_path_for_worker for why PYTHONPATH can't carry
+    # these across the subprocess boundary). Must run before any import that
+    # might need them.
+    for _p in cfg.get("sys_path") or []:
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
     lesion_path_a     = Path(cfg["lesion_path_a"])
     lesion_path_b     = Path(cfg["lesion_path_b"])
@@ -43,23 +62,30 @@ def main():
     # map to "end" upstream; directionality comes from the both-"end" rule below.
     mode_a            = cfg.get("mode_a", "through")
     mode_b            = cfg.get("mode_b", "through")
+    # Optional live-progress channel (job mode); no-op when absent (sync/summary).
+    set_status        = _make_set_status(cfg.get("status_path"))
     # Atlases driving the region-overlap breakdown (see dissect_worker.py).
-    atlas_specs = cfg.get("atlas_specs") or [
-        {"key": "ho_cort", "nii": "harvard_oxford_cort.nii.gz",
-         "labels": "harvard_oxford_cort_labels.json"},
-    ]
+    atlas_specs = cfg.get("atlas_specs") or DEFAULT_ATLAS_SPECS
 
     import numpy as np
     import nibabel as nib
     from dipy.io.streamline import load_tractogram, save_tractogram
     from dipy.io.stateful_tractogram import Space, StatefulTractogram
-    from dipy.tracking.utils import target, density_map
+    from dipy.tracking.utils import density_map
     from dipy.tracking.streamline import Streamlines
-    from nilearn.image import resample_to_img
+    from worker_common import resample_to_img
 
     # ── Load global tractogram ────────────────────────────────────────────────
-    sft = load_tractogram(str(global_tract_file), reference='same',
-                          to_space=Space.RASMM, bbox_valid_check=False)
+    # Same load+filter reweighting as dissect_worker.py, adapted for
+    # this worker's extra second target() pass (mask B, over the already-
+    # narrowed mask-A selection) and optional endpoint refinement.
+    try:
+        load_expected_s = max(4.0, global_tract_file.stat().st_size / _LOAD_BYTES_PER_SEC)
+    except OSError:
+        load_expected_s = 30.0
+    with _monitored_stage(set_status, "load", 0.00, 0.25, "Loading tractogram…", load_expected_s):
+        sft = load_tractogram(str(global_tract_file), reference='same',
+                              to_space=Space.RASMM, bbox_valid_check=False)
     ref_affine  = sft.affine
     ref_dims    = tuple(sft.dimensions)
     streamlines = sft.streamlines
@@ -77,24 +103,33 @@ def main():
                 "Ensure it is registered to MNI152."
             )
         ref_img = nib.Nifti1Image(np.zeros(ref_dims, dtype=np.int16), ref_affine)
+        # force_resample=True is REQUIRED for correctness — see dissect_worker.py
+        # for the measurement. False mis-places the mask on same-zoom grids.
         on_ref  = resample_to_img(limg, ref_img, interpolation='nearest',
-                                  copy_header=False, force_resample=False)
+                                  copy_header=False, force_resample=True)
         return np.asarray(on_ref.dataobj) > 0, None
 
-    lmask_a, err_a = _load_and_resample(lesion_path_a, "A")
-    if err_a:
-        print(json.dumps({"id": result_id, "error": err_a}), file=_real_stdout, flush=True)
-        sys.exit(1)
+    with _monitored_stage(set_status, "resample", 0.25, 0.30,
+                          "Resampling lesion masks…", _RESAMPLE_EXPECTED_S):
+        lmask_a, err_a = _load_and_resample(lesion_path_a, "A")
+        if err_a:
+            print(json.dumps({"id": result_id, "error": err_a}), file=_real_stdout, flush=True)
+            sys.exit(1)
 
-    lmask_b, err_b = _load_and_resample(lesion_path_b, "B")
-    if err_b:
-        print(json.dumps({"id": result_id, "error": err_b}), file=_real_stdout, flush=True)
-        sys.exit(1)
+        lmask_b, err_b = _load_and_resample(lesion_path_b, "B")
+        if err_b:
+            print(json.dumps({"id": result_id, "error": err_b}), file=_real_stdout, flush=True)
+            sys.exit(1)
 
     # ── Filtering ─────────────────────────────────────────────────────────────
     # Cheap pre-filter: streamlines touching BOTH masks (any point inside). This
-    # narrows the set before the per-endpoint tests below.
-    selected_a = list(target(streamlines, ref_affine, lmask_a, include=True))
+    # narrows the set before the per-endpoint tests below. Chunked for
+    # real progress — mask A runs over the full bundle (the expensive pass);
+    # mask B runs over the already-narrowed selected_a (much smaller/faster).
+    selected_a = _target_filtered_with_progress(
+        streamlines, ref_affine, lmask_a, set_status, "filter",
+        0.30, 0.65, "Selecting streamlines through Lesion A",
+    )
 
     if len(selected_a) == 0:
         print(json.dumps({
@@ -110,7 +145,10 @@ def main():
         }), file=_real_stdout, flush=True)
         sys.exit(0)
 
-    candidates = list(target(selected_a, ref_affine, lmask_b, include=True))
+    candidates = _target_filtered_with_progress(
+        selected_a, ref_affine, lmask_b, set_status, "filter",
+        0.65, 0.90, "Selecting streamlines through Lesion B",
+    )
 
     # Endpoint-aware selection. For "through" the pre-filter already guarantees a
     # point inside the mask, so no extra test is needed. For "end" we require an
@@ -161,6 +199,7 @@ def main():
         sys.exit(0)
 
     # ── Rasterize and persist ─────────────────────────────────────────────────
+    set_status("rasterize", 0.90, "Rasterizing & saving tract…")
     dm = density_map(selected_ab, ref_affine, ref_dims)
     result_dir = tract_results_dir / result_id
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -171,107 +210,17 @@ def main():
     sft_f = StatefulTractogram(Streamlines(selected_ab), reference=sft, space=Space.RASMM)
     save_tractogram(sft_f, str(trk_path), bbox_valid_check=False)
 
-    # ── Harvard-Oxford atlas overlap (identical helper to dissect_worker.py) ──
-    def _ho_overlap(dm_img, dm_data, atlas_nii_name, atlas_labels_name):
-        atlas_path  = atlas_dir / atlas_nii_name
-        labels_path = atlas_dir / atlas_labels_name
-        if not atlas_path.exists() or not labels_path.exists():
-            return []
-        atlas_img = nib.load(str(atlas_path))
-        atlas_r   = resample_to_img(atlas_img, dm_img, interpolation='nearest',
-                                    copy_header=False, force_resample=False)
-        a = np.asarray(atlas_r.dataobj, dtype=int)
-        with open(labels_path) as f:
-            raw_labels = json.load(f)
-        if isinstance(raw_labels, list):
-            labels = {str(entry["index"]): entry["name"] for entry in raw_labels}
-        else:
-            labels = {str(k): v for k, v in raw_labels.items()}
-        rows = []
-        dm_nonzero = dm_data > 0
-        for label_str, region_name in labels.items():
-            label_id = int(label_str)
-            if label_id == 0:
-                continue
-            region_mask = (a == label_id)
-            hit_voxels  = int(np.sum(region_mask & dm_nonzero))
-            if hit_voxels == 0:
-                continue
-            region_voxels = int(np.sum(region_mask))
-            rows.append({
-                "label":              label_id,
-                "name":               region_name,
-                "region_voxels":      region_voxels,
-                "hit_voxels":         hit_voxels,
-                "pct_region":         round(100 * hit_voxels / max(region_voxels, 1), 1),
-                "streamline_density": int(dm_data[region_mask].sum()),
-            })
-        rows.sort(key=lambda r: r["hit_voxels"], reverse=True)
-        return rows
-
-    # ── 4D tractography-atlas overlap (e.g. HCP842) — identical helper to
-    #    dissect_worker.py. Reports every overlapping tract from a 4D stack of
-    #    per-tract binary masks (a voxel may count toward multiple tracts). ──
-    def _tracts4d_overlap(dm_img, dm_data, atlas_nii_name, atlas_labels_name):
-        atlas_path  = atlas_dir / atlas_nii_name
-        labels_path = atlas_dir / atlas_labels_name
-        if not atlas_path.exists() or not labels_path.exists():
-            return []
-        atlas_img = nib.load(str(atlas_path))
-        if atlas_img.ndim != 4:
-            return []
-        X, Y, Z, T = atlas_img.shape
-        ref3d = nib.Nifti1Image(np.zeros((X, Y, Z), dtype=np.int16), atlas_img.affine)
-        dens_img = resample_to_img(dm_img, ref3d, interpolation='nearest',
-                                   copy_header=False, force_resample=False)
-        dens = np.asarray(dens_img.dataobj, dtype=int)
-        dm_nonzero = dens > 0
-
-        with open(labels_path) as f:
-            raw_labels = json.load(f)
-        if isinstance(raw_labels, list):
-            labels = {int(entry["index"]): entry["name"] for entry in raw_labels}
-        else:
-            labels = {int(k): v for k, v in raw_labels.items()}
-
-        dataobj = atlas_img.dataobj
-        rows = []
-        for t in range(T):
-            mask_t     = np.asanyarray(dataobj[..., t]) > 0
-            hit        = mask_t & dm_nonzero
-            hit_voxels = int(hit.sum())
-            if hit_voxels == 0:
-                continue
-            region_voxels = int(mask_t.sum())
-            label_id      = t + 1
-            rows.append({
-                "label":              label_id,
-                "name":               labels.get(label_id, f"Tract {label_id}"),
-                "region_voxels":      region_voxels,
-                "hit_voxels":         hit_voxels,
-                "pct_region":         round(100 * hit_voxels / max(region_voxels, 1), 1),
-                "streamline_density": int(dens[hit].sum()),
-            })
-        rows.sort(key=lambda r: r["hit_voxels"], reverse=True)
-        return rows
-
-    def _overlap_for(spec, dm_img, dm_data):
-        if spec.get("mode") == "tracts4d":
-            return _tracts4d_overlap(dm_img, dm_data, spec["nii"], spec["labels"])
-        return _ho_overlap(dm_img, dm_data, spec["nii"], spec["labels"])
-
+    # ── Atlas overlap (Harvard-Oxford-style + 4D tractography, worker_common.py) ──
+    set_status("atlas", 0.95, "Computing atlas overlap…")
     dm_img    = nib.load(str(nii_path))
     dm_data   = np.asarray(dm_img.dataobj, dtype=int)
     atlas_overlap = {
-        spec["key"]: _overlap_for(spec, dm_img, dm_data)
+        spec["key"]: _overlap_for(atlas_dir, spec, dm_img, dm_data)
         for spec in atlas_specs
     }
 
-    # ── Metrics ───────────────────────────────────────────────────────────────
-    affected_voxels = int(np.sum(dm > 0))
-    density_max     = int(dm.max())
-    voxel_vol_mm3   = float(np.prod(np.abs(np.diag(ref_affine[:3, :3]))))
-    tract_vol_cm3   = round(affected_voxels * voxel_vol_mm3 / 1000, 3)
+    # ── Metrics (worker_common.py) ───────────────────────────────────────────
+    affected_voxels, density_max, tract_vol_cm3 = _dissection_metrics(dm, ref_affine)
 
     print(json.dumps({
         "id":                     result_id,

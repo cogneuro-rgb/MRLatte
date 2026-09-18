@@ -1,0 +1,467 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Anterior Commissure (AC)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    7.0,
+    1.0,
+    -11.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Arcuate Fasciculus (AF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -45.0,
+    -35.0,
+    3.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Arcuate Fasciculus (AF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    -8.0,
+    20.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Acoustic Radiation (AST, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    8.0,
+    34.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Acoustic Radiation (AST, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    27.0,
+    1.0,
+    36.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Corpus Callosum (CC)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -19.0,
+    16.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Corpus Callosum — Body (CCMid)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -18.0,
+    51.0
+   ]
+  },
+  {
+   "value": 8,
+   "name": "Forceps Major (occipital)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -69.0,
+    17.0
+   ]
+  },
+  {
+   "value": 9,
+   "name": "Forceps Minor (frontal)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -7.0,
+    39.0,
+    4.0
+   ]
+  },
+  {
+   "value": 10,
+   "name": "Corticospinal Tract (CST, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.0,
+    -25.0,
+    48.0
+   ]
+  },
+  {
+   "value": 11,
+   "name": "Corticospinal Tract (CST, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    -17.0,
+    36.0
+   ]
+  },
+  {
+   "value": 12,
+   "name": "Cingulum (C, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -9.0,
+    -19.0,
+    29.0
+   ]
+  },
+  {
+   "value": 13,
+   "name": "Cingulum (C, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -20.0,
+    32.0
+   ]
+  },
+  {
+   "value": 14,
+   "name": "Fronto-Pontine Tract (FPT, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -8.0,
+    24.0
+   ]
+  },
+  {
+   "value": 15,
+   "name": "Fronto-Pontine Tract (FPT, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    -11.0,
+    27.0
+   ]
+  },
+  {
+   "value": 16,
+   "name": "Fornix (F)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -12.0,
+    14.0
+   ]
+  },
+  {
+   "value": 17,
+   "name": "Inferior Cerebellar Peduncle (ICP, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -11.0,
+    -48.0,
+    -46.0
+   ]
+  },
+  {
+   "value": 18,
+   "name": "Inferior Cerebellar Peduncle (ICP, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -48.0,
+    -44.0
+   ]
+  },
+  {
+   "value": 19,
+   "name": "Inferior Fronto-Occipital Fasciculus (IFOF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -29.0,
+    13.0,
+    -5.0
+   ]
+  },
+  {
+   "value": 20,
+   "name": "Inferior Fronto-Occipital Fasciculus (IFOF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.0,
+    14.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 21,
+   "name": "Inferior Longitudinal Fasciculus (ILF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -37.0,
+    -47.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 22,
+   "name": "Inferior Longitudinal Fasciculus (ILF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    37.0,
+    -45.0,
+    -11.0
+   ]
+  },
+  {
+   "value": 23,
+   "name": "Middle Cerebellar Peduncle (MCP)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -45.0,
+    -38.0
+   ]
+  },
+  {
+   "value": 24,
+   "name": "Medial Lemniscus (ML, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -12.0,
+    -5.0
+   ]
+  },
+  {
+   "value": 25,
+   "name": "Medial Lemniscus (ML, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -9.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 26,
+   "name": "Middle Longitudinal Fasciculus (MdLF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    -43.0,
+    18.0
+   ]
+  },
+  {
+   "value": 27,
+   "name": "Middle Longitudinal Fasciculus (MdLF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    37.0,
+    -38.0,
+    18.0
+   ]
+  },
+  {
+   "value": 28,
+   "name": "Occipito-Pontine Tract (OPT, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.0,
+    -33.0,
+    15.0
+   ]
+  },
+  {
+   "value": 29,
+   "name": "Occipito-Pontine Tract (OPT, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    -36.0,
+    14.0
+   ]
+  },
+  {
+   "value": 30,
+   "name": "Optic Radiation (OR, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -34.0,
+    2.0
+   ]
+  },
+  {
+   "value": 31,
+   "name": "Optic Radiation (OR, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    33.0,
+    -53.0,
+    6.0
+   ]
+  },
+  {
+   "value": 32,
+   "name": "Parieto-Pontine Tract (PPT, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -30.0,
+    12.0
+   ]
+  },
+  {
+   "value": 33,
+   "name": "Parieto-Pontine Tract (PPT, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -29.0,
+    32.0
+   ]
+  },
+  {
+   "value": 34,
+   "name": "Superior Cerebellar Peduncle (SCP)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.0,
+    -59.0,
+    -35.0
+   ]
+  },
+  {
+   "value": 35,
+   "name": "Superior Longitudinal Fasciculus (SLF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -41.0,
+    -30.0,
+    36.0
+   ]
+  },
+  {
+   "value": 36,
+   "name": "Superior Longitudinal Fasciculus (SLF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    -27.0,
+    36.0
+   ]
+  },
+  {
+   "value": 37,
+   "name": "Spinothalamic Tract (STT, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -28.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 38,
+   "name": "Spinothalamic Tract (STT, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    11.0,
+    -15.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 39,
+   "name": "Uncinate Fasciculus (UF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    13.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 40,
+   "name": "Uncinate Fasciculus (UF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    29.0,
+    22.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 41,
+   "name": "Vertical Occipital Fasciculus (VOF, L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -37.0,
+    -68.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 42,
+   "name": "Vertical Occipital Fasciculus (VOF, R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    37.0,
+    -63.0,
+    -6.0
+   ]
+  }
+ ]
+}

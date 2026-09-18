@@ -1,0 +1,25 @@
+{
+ "schemaVersion": 1,
+ "id": "harvard_oxford_sub",
+ "aliases": [
+  "ho_sub"
+ ],
+ "name": "Harvard-Oxford · Subcortical",
+ "short": "HO Sub",
+ "description": "21 subcortical structures · max-prob threshold 25%",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "harvard_oxford_sub.nii.gz",
+ "labels": "harvard_oxford_sub.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "LicenseRef-FSL-Atlases",
+  "attribution": "Harvard CMA / FSL"
+ }
+}

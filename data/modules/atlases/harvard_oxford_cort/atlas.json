@@ -1,0 +1,26 @@
+{
+ "schemaVersion": 1,
+ "id": "harvard_oxford_cort",
+ "aliases": [
+  "ho_cort",
+  "harvard_oxford"
+ ],
+ "name": "Harvard-Oxford · Cortical",
+ "short": "HO Cort",
+ "description": "48 cortical regions · max-prob threshold 25%",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "harvard_oxford_cort.nii.gz",
+ "labels": "harvard_oxford_cort.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "LicenseRef-FSL-Atlases",
+  "attribution": "Harvard CMA / FSL"
+ }
+}

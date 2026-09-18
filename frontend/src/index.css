@@ -10,8 +10,8 @@ body,
 
 body {
     margin: 0;
-    background: #050505;
-    color: #f4f4f5;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-family:
         "IBM Plex Sans",
         -apple-system,
@@ -31,8 +31,8 @@ code,
 }
 
 ::selection {
-    background: #f4f4f5;
-    color: #050505;
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
 }
 
 /* Custom scrollbar for sidebar */
@@ -43,20 +43,34 @@ code,
     background: transparent;
 }
 .thin-scroll::-webkit-scrollbar-thumb {
-    background: #27272a;
+    background: hsl(var(--border));
     border-radius: 0;
 }
 .thin-scroll::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
+    background: hsl(var(--muted-foreground));
 }
 
+/* Theme tokens. :root is the dark palette (the app's original/default look —
+   no class needed, and it's the safe fallback if the anti-flash script in
+   index.html hasn't run yet). .light overrides with the light palette.
+   Three background tiers (background < panel < panel-hover) capture the
+   app's existing depth hierarchy (root canvas < sidebar/topbar/cards <
+   hover/nested surfaces), which the original single-tier shadcn --card
+   token couldn't express. --subtle-foreground is a fourth text tier below
+   --muted-foreground, for the smallest uppercase labels. */
 @layer base {
-    :root {
+    :root,
+    .dark {
         --background: 0 0% 2%;
+        --panel: 0 0% 4%;
+        --panel-hover: 0 0% 7%;
+        /* Open collapsible section — one step lighter than panel-hover in dark
+           mode for a little more contrast against the sidebar. */
+        --panel-active: 0 0% 10%;
         --foreground: 0 0% 96%;
-        --card: 0 0% 7%;
+        --card: 0 0% 4%;
         --card-foreground: 0 0% 96%;
-        --popover: 0 0% 7%;
+        --popover: 0 0% 4%;
         --popover-foreground: 0 0% 96%;
         --primary: 0 0% 96%;
         --primary-foreground: 0 0% 4%;
@@ -64,6 +78,7 @@ code,
         --secondary-foreground: 0 0% 96%;
         --muted: 0 0% 11%;
         --muted-foreground: 0 0% 55%;
+        --subtle-foreground: 0 0% 40%;
         --accent: 0 0% 11%;
         --accent-foreground: 0 0% 96%;
         --destructive: 4 100% 59%;
@@ -71,6 +86,35 @@ code,
         --border: 240 4% 15%;
         --input: 240 4% 15%;
         --ring: 0 0% 83%;
+        --radius: 0;
+    }
+
+    .light {
+        --background: 0 0% 100%;
+        --panel: 0 0% 98%;
+        --panel-hover: 240 5% 92%;
+        /* Open collapsible section — one step darker than panel-hover in light
+           mode for a little more contrast against the sidebar. */
+        --panel-active: 240 5% 88%;
+        --foreground: 240 10% 6%;
+        --card: 0 0% 98%;
+        --card-foreground: 240 10% 6%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 10% 6%;
+        --primary: 240 10% 6%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 240 5% 92%;
+        --secondary-foreground: 240 10% 6%;
+        --muted: 240 5% 92%;
+        --muted-foreground: 240 4% 38%;
+        --subtle-foreground: 240 4% 55%;
+        --accent: 240 5% 92%;
+        --accent-foreground: 240 10% 6%;
+        --destructive: 4 90% 45%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 240 6% 87%;
+        --input: 240 6% 87%;
+        --ring: 240 5% 55%;
         --radius: 0;
     }
 }
@@ -87,6 +131,15 @@ canvas.niivue-canvas {
     width: 100% !important;
     height: 100% !important;
     background: #000;
+}
+
+/* The canvas is focusable (niivue sets tabindex for keyboard events), so
+   clicking it triggers the browser's default focus ring — a white outline
+   flashing around the whole canvas. Suppress it; niivue draws its own
+   crosshair/selection feedback. */
+canvas.niivue-canvas:focus,
+canvas.niivue-canvas:focus-visible {
+    outline: none;
 }
 
 /* Polar disc pulse for active retinotopy */

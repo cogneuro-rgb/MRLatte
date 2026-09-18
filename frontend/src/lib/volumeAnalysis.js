@@ -11,6 +11,85 @@ export function getDims(vol) {
   return [d[1], d[2], d[3]];
 }
 
+/**
+ * Robust intensity range [loVal, hiVal] at the given percentiles (default
+ * 2%–98%), for one-click auto-contrast. A percentile window ignores the
+ * extreme outliers that make a full min–max window look washed out. Builds a
+ * 256-bin histogram over the finite, non-zero voxels in a single pass, then
+ * reads back the percentile bin edges. Returns null if there's no usable data.
+ */
+export function robustRange(vol, loPct = 0.02, hiPct = 0.98) {
+  const img = vol?.img;
+  if (!img || !img.length) return null;
+  // First pass: min/max over finite voxels (skip exact zeros — usually
+  // background — so the window tracks the actual signal).
+  let mn = Infinity, mx = -Infinity, n = 0;
+  for (let i = 0; i < img.length; i++) {
+    const v = img[i];
+    if (!Number.isFinite(v) || v === 0) continue;
+    if (v < mn) mn = v;
+    if (v > mx) mx = v;
+    n++;
+  }
+  if (n === 0 || mx <= mn) return mx > mn ? [mn, mx] : null;
+  // Second pass: histogram.
+  const BINS = 256;
+  const hist = new Uint32Array(BINS);
+  const scale = (BINS - 1) / (mx - mn);
+  for (let i = 0; i < img.length; i++) {
+    const v = img[i];
+    if (!Number.isFinite(v) || v === 0) continue;
+    hist[Math.round((v - mn) * scale)]++;
+  }
+  const loCount = n * loPct;
+  const hiCount = n * hiPct;
+  let cum = 0, loBin = 0, hiBin = BINS - 1, gotLo = false;
+  for (let b = 0; b < BINS; b++) {
+    cum += hist[b];
+    if (!gotLo && cum >= loCount) { loBin = b; gotLo = true; }
+    if (cum >= hiCount) { hiBin = b; break; }
+  }
+  const loVal = mn + loBin / scale;
+  const hiVal = mn + hiBin / scale;
+  return hiVal > loVal ? [loVal, hiVal] : [mn, mx];
+}
+
+/**
+ * Bin counts of a volume's non-zero, finite voxel values across [min, max],
+ * for rendering a histogram under a threshold slider. Zero voxels are
+ * skipped (usually background), matching robustRange's convention.
+ */
+export function histogram(vol, bins = 64, min, max) {
+  const img = vol?.img;
+  if (!img || !img.length) return null;
+  const mn = Number.isFinite(min) ? min : vol.global_min ?? 0;
+  const mx = Number.isFinite(max) ? max : vol.global_max ?? 1;
+  if (!(mx > mn)) return null;
+  const counts = new Array(bins).fill(0);
+  const scale = (bins - 1) / (mx - mn);
+  for (let i = 0; i < img.length; i++) {
+    const v = img[i];
+    if (!Number.isFinite(v) || v === 0) continue;
+    if (v < mn || v > mx) continue;
+    counts[Math.round((v - mn) * scale)]++;
+  }
+  return { counts, min: mn, max: mx };
+}
+
+/** Determinant of the 3x3 spatial block of a column-major voxel→mm mat4.
+ *  |det| is the volume of one voxel in mm³. */
+export function affineDet3(M) {
+  if (!M) return 0;
+  const m0 = M[0], m1 = M[1], m2 = M[2];
+  const m4 = M[4], m5 = M[5], m6 = M[6];
+  const m8 = M[8], m9 = M[9], m10 = M[10];
+  return (
+    m0 * (m5 * m10 - m9 * m6) -
+    m4 * (m1 * m10 - m9 * m2) +
+    m8 * (m1 * m6 - m5 * m2)
+  );
+}
+
 export function voxToMM(vol, [i, j, k]) {
   const M = vol.matRAS;
   if (!M) return [i, j, k];
@@ -18,6 +97,66 @@ export function voxToMM(vol, [i, j, k]) {
     M[0] * i + M[4] * j + M[8] * k + M[12],
     M[1] * i + M[5] * j + M[9] * k + M[13],
     M[2] * i + M[6] * j + M[10] * k + M[14],
+  ];
+}
+
+/**
+ * World-mm location to navigate to for an integer-labelled atlas region.
+ * Center of mass of every voxel carrying `labelValue`, snapped to the nearest
+ * voxel that actually holds that label — some atlases (e.g. Harvard-Oxford
+ * cortical) store a region bilaterally under ONE label whose raw centroid lands
+ * on the midline outside the region, so the snap keeps the crosshair on
+ * coloured cortex. Returns null if no loaded voxel carries the label.
+ *
+ * IMPORTANT — coordinate frame: niivue keeps `vol.img` in the file's NATIVE
+ * voxel order (`hdr.dims`, indexed `i + nx*(j + ny*k)`, matching NVImage's
+ * getValues), and `hdr.affine` is the native-voxel→world-mm sform. `matRAS`/
+ * `voxToMM`/`dimsRAS` instead describe niivue's RAS-reoriented frame, so pairing
+ * them with raw `img` indices is wrong for any atlas whose native orientation
+ * isn't already RAS (the AAL/HO atlases here are LIA) — it lands the crosshair
+ * outside the brain. So this iterates and converts entirely in the native frame.
+ */
+export function regionCentroidMM(vol, labelValue) {
+  const hdr = vol?.hdr;
+  const A = hdr?.affine;
+  if (!vol?.img || !A || !hdr?.dims) return null;
+  const nx = hdr.dims[1], ny = hdr.dims[2], nz = hdr.dims[3];
+  if (!(nx > 0 && ny > 0 && nz > 0)) return null;
+  const img = vol.img;
+  if (img.length < nx * ny * nz) return null;
+  const lab = Math.round(labelValue);
+  let count = 0, cx = 0, cy = 0, cz = 0;
+  for (let k = 0; k < nz; k++) {
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        if (Math.round(img[i + nx * (j + ny * k)]) === lab) { count++; cx += i; cy += j; cz += k; }
+      }
+    }
+  }
+  if (count === 0) return null;
+  const ci = cx / count, cj = cy / count, ck = cz / count;
+  // Snap to the nearest in-region voxel so the crosshair lands ON the label.
+  let bi = Math.min(nx - 1, Math.max(0, Math.round(ci)));
+  let bj = Math.min(ny - 1, Math.max(0, Math.round(cj)));
+  let bk = Math.min(nz - 1, Math.max(0, Math.round(ck)));
+  if (Math.round(img[bi + nx * (bj + ny * bk)]) !== lab) {
+    let best = Infinity;
+    for (let k = 0; k < nz; k++) {
+      for (let j = 0; j < ny; j++) {
+        for (let i = 0; i < nx; i++) {
+          if (Math.round(img[i + nx * (j + ny * k)]) === lab) {
+            const d = (i - ci) * (i - ci) + (j - cj) * (j - cj) + (k - ck) * (k - ck);
+            if (d < best) { best = d; bi = i; bj = j; bk = k; }
+          }
+        }
+      }
+    }
+  }
+  // hdr.affine is row-major [row][col], native voxel → world mm.
+  return [
+    A[0][0] * bi + A[0][1] * bj + A[0][2] * bk + A[0][3],
+    A[1][0] * bi + A[1][1] * bj + A[1][2] * bk + A[1][3],
+    A[2][0] * bi + A[2][1] * bj + A[2][2] * bk + A[2][3],
   ];
 }
 
@@ -235,6 +374,18 @@ export function computeAtlasOverlap(lesionVol, atlasVol, labelMap) {
     }
   }
 
+  // `n` is counted in LESION voxels (one increment per lesion voxel), but
+  // `regionCount` is counted in ATLAS voxels (one increment per atlas voxel).
+  // Dividing them directly is a unit mismatch that scales percentOfRegion by
+  // the voxel-volume ratio — a 1 mm lesion against a 2 mm atlas reported ~8x
+  // the true fraction, a 0.737 mm native-grid lesion ~20x. Convert the
+  // numerator to the atlas's voxel volume so both sides are the same unit.
+  // The ratio is exactly 1 on the sameGrid path, which is therefore unchanged.
+  const lesionVoxMM3 = Math.abs(affineDet3(lesionVol.matRAS));
+  const atlasVoxMM3 = Math.abs(affineDet3(atlasVol.matRAS));
+  const voxVolRatio =
+    lesionVoxMM3 > 0 && atlasVoxMM3 > 0 ? lesionVoxMM3 / atlasVoxMM3 : 1;
+
   const rows = [];
   for (const [k, n] of Object.entries(lesionByRegion)) {
     const lab = parseInt(k, 10);
@@ -244,13 +395,16 @@ export function computeAtlasOverlap(lesionVol, atlasVol, labelMap) {
       regionName: labelMap?.[lab] || `region-${lab}`,
       voxelCount: n,
       percentOfLesion: totalLesion > 0 ? (n / totalLesion) * 100 : 0,
-      percentOfRegion: tot > 0 ? (n / tot) * 100 : 0,
+      percentOfRegion: tot > 0 ? ((n * voxVolRatio) / tot) * 100 : 0,
     });
   }
   rows.sort((a, b) => b.voxelCount - a.voxelCount);
   return {
     rows,
-    stats: { sameGrid, totalLesion, regions: Object.keys(lesionByRegion).length },
+    stats: {
+      sameGrid, totalLesion, regions: Object.keys(lesionByRegion).length,
+      voxVolRatio,
+    },
   };
 }
 

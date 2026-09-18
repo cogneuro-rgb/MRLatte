@@ -1,0 +1,23 @@
+{
+ "schemaVersion": 1,
+ "id": "destrieux",
+ "aliases": [],
+ "name": "Destrieux · FreeSurfer aparc.a2009s",
+ "short": "Destrieux",
+ "description": "Sulco-gyral cortical regions from the FreeSurfer 2009 parcellation",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "destrieux.nii.gz",
+ "labels": "destrieux.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": true,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "LicenseRef-FSL-Atlases",
+  "attribution": "Destrieux et al. 2010"
+ }
+}

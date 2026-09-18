@@ -91,27 +91,39 @@ Single_patient_visual_field_deficit.v*.py
 # Local agent / tooling state
 .claude/
 .playwright-mcp/
+CLAUDE.md
+
+# Knowledge graph — a local build artefact, not source. Regenerated for free from
+# the working tree (post-commit hook runs AST extraction; qwenMOE_graphify.bat does
+# a full rebuild). Committing it churned graph.json, GRAPH_REPORT.md and a dated
+# backup dir on every rebuild.
+graphify-out/
 
 # Deployment: ignore real env + build/runtime artifacts, keep templates tracked
 frontend/build/
-backend/lesion_store/
 caddy_data/
 caddy_config/
+# Build output now lands OUTSIDE the repo by default (../MRLatte-build via
+# MRLATTE_BUILD_DIR); ignore it defensively in case it is redirected in-tree.
+MRLatte-build/
 !.env.example
 !frontend/.env.production
 
 # Tract dissection: large tractogram files and generated results.
-# NOTE: S35_1mm.trk (~673 MB) is NOT committed on purpose — GitHub rejects files
-# >100 MB. Keep it on the build machine at backend/tracts/S35_1mm.trk; the offline
-# bundle build (build/assemble-bundle.ps1) copies it into the installer from there.
-backend/tracts/*.trk
-backend/tracts/*.tck
+# NOTE: the whole-brain tractogram (~673 MB) is NOT committed on purpose — GitHub
+# rejects files >100 MB. Keep it in the module root at data/modules/tracts/; the
+# offline bundle build (tools/build/assemble-bundle.ps1) copies it into the
+# installer from there.
+data/modules/tracts/*.trk
+data/modules/tracts/*.tck
 backend/tract_results/
 
-# Large tract-atlas source data (only built artifacts are committed)
-HCP1065/
-HCP824/
-IIT_bundles/
+# Large tract-atlas source data (only built artifacts are committed). Anchored to
+# the repo root: unanchored, `HCP1065/` also matches data/modules/atlases/hcp1065/
+# (case-insensitively on Windows) and would drop the committed HCP1065 atlas.
+/HCP1065/
+/HCP824/
+/IIT_bundles/
 
 # Patient-derived compute outputs — NEVER publish (privacy). These hold results
 # generated from patient scans and must not go to any remote.
@@ -119,8 +131,36 @@ backend/dicom_results/
 backend/lnm_results/
 backend/roi_results/
 backend/summary_results/
+backend/dissect_jobs/
+backend/lnm_jobs/
+backend/lesion_jobs/
 
-# 131 MB — exceeds GitHub's 100 MB per-file limit. Kept on the build machine;
-# build/assemble-bundle.ps1 pulls it into the installer. (LFS-tracked separately
-# in the clean release repo.)
-DaLnm/lnm_bundle_d100.npz
+# 131 MB — exceeds GitHub's 100 MB per-file limit. Kept in the module root;
+# tools/build/assemble-bundle.ps1 pulls it into the installer. (LFS-tracked
+# separately in the clean release repo.)
+data/modules/lnm/*.npz
+
+# Local pixel-measurement fixtures (never commit — 8.6MB binary caused a history rewrite)
+frontend/public/verify_*.trk
+
+# Phase plans (scratch handoff notes, not documentation)
+plans/
+SMALL-PROBLEMS.MD
+
+# Local module root (MRLATTE_MODULE_ROOT default in a git checkout, data/modules).
+# manifest.json lives here too (checked-in source, alongside the payload it
+# describes — see routers/modules.py). The large user-supplied slot payloads
+# (tractogram, connectome bundle), the install ledger and staging are never
+# committed (slot rules above cover the .trk/.npz). The atlas packs ARE tracked
+# — small, redistributable — so a fresh checkout renders without a download step.
+data/modules/manifest.installed.json
+# Per-install atlas view state (display order, hidden flags, recorded
+# checksums for catalog downloads). Written by backend/atlas_registry.py;
+# belongs to the machine, not the repo.
+data/modules/atlases/atlases.state.json
+data/modules/.staging/
+data/modules/.jobs/
+
+# Generated test artefacts (not source).
+test_reports/
+.pytest_cache/

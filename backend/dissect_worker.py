@@ -11,15 +11,31 @@ Usage: python dissect_worker.py <config_json_path>
 Output: JSON written to stdout on success; traceback to stderr on failure.
 """
 import json
-import os
 import sys
 from pathlib import Path
 
-# Ensure this worker's own directory is importable when spawned under the isolated
-# embeddable Python (safe_path=True) used by the offline bundle, which does not
-# auto-add the script directory to sys.path. Defensive: keeps any sibling-module
-# import working the same as under a normal dev interpreter.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from worker_common import (  # noqa: E402
+    make_set_status as _make_set_status,
+    DEFAULT_ATLAS_SPECS,
+    overlap_for as _overlap_for,
+    dissection_metrics as _dissection_metrics,
+    monitored_stage as _monitored_stage,
+    target_filtered_with_progress as _target_filtered_with_progress,
+)
+
+# load_tractogram has no progress hook, so its stage is driven by a
+# time-based estimate (monitored_stage) rather than real progress. Calibrated
+# against the real bundled global tract file (tracts/S35_1mm.trk, 673 MB,
+# 479,457 streamlines): ~52-61s to load on the dev machine this was measured
+# on, i.e. roughly 13 MB/s. Scales with file size so a smaller/larger
+# tractogram gets a proportional estimate; only shapes the asymptotic curve
+# mid-flight (see monitored_stage), never caps the actual load time.
+_LOAD_BYTES_PER_SEC = 13 * 1024 * 1024
+# The lesion resample targets the tractogram's OWN grid (fixed regardless of
+# the input lesion), so its cost is roughly constant — measured ~3.6s on the
+# same real file/grid.
+_RESAMPLE_EXPECTED_S = 4.0
 
 
 def main():
@@ -32,30 +48,52 @@ def main():
     config_path = Path(sys.argv[1])
     cfg = json.loads(config_path.read_text())
 
+    # Extra sys.path entries from the parent (optional Python stacks like
+    # python-reports/python-validation in a full packaged build — see
+    # worker_common.extra_sys_path_for_worker for why PYTHONPATH can't carry
+    # these across the subprocess boundary). Must run before any import that
+    # might need them.
+    for _p in cfg.get("sys_path") or []:
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
+
     lesion_path       = Path(cfg["lesion_path"])
     result_id         = cfg["result_id"]
     global_tract_file = Path(cfg["global_tract_file"])
     tract_results_dir = Path(cfg["tract_results_dir"])
     atlas_dir         = Path(cfg["atlas_dir"])
+    # Optional live-progress channel (job mode). When present, we overwrite this
+    # status file at each stage boundary so the parent's /status endpoint can
+    # report a progress bar. Absent for the synchronous endpoint and for the
+    # One-Click Summary orchestrator, in which case set_status is a no-op — so
+    # the compute path is byte-identical either way.
+    set_status = _make_set_status(cfg.get("status_path"))
     # Atlases driving the region-overlap breakdown. Each spec = {key, nii,
     # labels}. Defaults to Harvard-Oxford cortical (legacy key ho_cort) when
     # the caller does not specify one.
-    atlas_specs = cfg.get("atlas_specs") or [
-        {"key": "ho_cort", "nii": "harvard_oxford_cort.nii.gz",
-         "labels": "harvard_oxford_cort_labels.json"},
-    ]
+    atlas_specs = cfg.get("atlas_specs") or DEFAULT_ATLAS_SPECS
 
     import numpy as np
     import nibabel as nib
     from dipy.io.streamline import load_tractogram, save_tractogram
     from dipy.io.stateful_tractogram import Space, StatefulTractogram
-    from dipy.tracking.utils import target, density_map
+    from dipy.tracking.utils import density_map
     from dipy.tracking.streamline import Streamlines
-    from nilearn.image import resample_to_img
+    from worker_common import resample_to_img
 
     # ── Load global tractogram ────────────────────────────────────────────────
-    sft = load_tractogram(str(global_tract_file), reference='same',
-                          to_space=Space.RASMM, bbox_valid_check=False)
+    # Load + filter are the two slowest phases (confirmed on the real
+    # bundle: ~55s load, ~41s filter, vs ~3.6s resample and a few seconds for
+    # rasterize+atlas combined) — they now own 0.00-0.85 of the bar instead of
+    # the previous static jumps (0.10 -> 0.62), which sat frozen through both
+    # multi-second calls.
+    try:
+        load_expected_s = max(4.0, global_tract_file.stat().st_size / _LOAD_BYTES_PER_SEC)
+    except OSError:
+        load_expected_s = 30.0
+    with _monitored_stage(set_status, "load", 0.00, 0.25, "Loading tractogram…", load_expected_s):
+        sft = load_tractogram(str(global_tract_file), reference='same',
+                              to_space=Space.RASMM, bbox_valid_check=False)
     ref_affine  = sft.affine
     ref_dims    = tuple(sft.dimensions)
     streamlines = sft.streamlines
@@ -85,15 +123,28 @@ def main():
     # of target_mask"). Resampling the mask onto the tractogram grid (nearest-
     # neighbour) puts both in the same RASMM space and guarantees every
     # streamline point is in-bounds.
-    ref_img       = nib.Nifti1Image(np.zeros(ref_dims, dtype=np.int16), ref_affine)
-    lesion_on_ref = resample_to_img(limg, ref_img, interpolation='nearest',
-                                    copy_header=False, force_resample=False)
-    lmask_ref     = np.asarray(lesion_on_ref.dataobj) > 0
+    ref_img = nib.Nifti1Image(np.zeros(ref_dims, dtype=np.int16), ref_affine)
+    with _monitored_stage(set_status, "resample", 0.25, 0.30,
+                          "Resampling lesion onto tractogram grid…", _RESAMPLE_EXPECTED_S):
+        # force_resample=True is REQUIRED for correctness. The FOV mismatch
+        # described above is exactly nilearn's broken case: when source and
+        # target share voxel sizes and differ only by translation, False takes a
+        # "padding optimization" shortcut that mis-places the mask (80.2% of
+        # voxels wrong on a measured 1 mm same-zoom pair). A mis-placed lesion
+        # mask selects the wrong streamlines. nilearn 0.13 defaults this to True.
+        lesion_on_ref = resample_to_img(limg, ref_img, interpolation='nearest',
+                                        copy_header=False, force_resample=True)
+    lmask_ref = np.asarray(lesion_on_ref.dataobj) > 0
 
     # ── Select whole streamlines passing through lesion ───────────────────────
-    # any streamline with ≥1 point inside the mask is kept in full.
-    selected  = list(target(streamlines, ref_affine, lmask_ref, include=True))
-    n_input   = len(streamlines)
+    # any streamline with ≥1 point inside the mask is kept in full. Chunked
+    # so the bar advances with REAL progress through this — the
+    # other slow phase alongside load — instead of sitting at one static value.
+    n_input = len(streamlines)
+    selected = _target_filtered_with_progress(
+        streamlines, ref_affine, lmask_ref, set_status, "filter",
+        0.30, 0.90, "Selecting streamlines through lesion",
+    )
     n_selected = len(selected)
 
     if n_selected == 0:
@@ -111,6 +162,7 @@ def main():
         sys.exit(0)
 
     # ── Rasterize on TRK's full 182³ grid ────────────────────────────────────
+    set_status("rasterize", 0.90, "Rasterizing & saving tract…")
     dm = density_map(selected, ref_affine, ref_dims)
 
     # ── Persist outputs ───────────────────────────────────────────────────────
@@ -123,114 +175,18 @@ def main():
     sft_f = StatefulTractogram(Streamlines(selected), reference=sft, space=Space.RASMM)
     save_tractogram(sft_f, str(trk_path), bbox_valid_check=False)
 
-    # ── Harvard-Oxford atlas overlap ──────────────────────────────────────────
-    def _ho_overlap(dm_img, dm_data, atlas_nii_name, atlas_labels_name):
-        atlas_path  = atlas_dir / atlas_nii_name
-        labels_path = atlas_dir / atlas_labels_name
-        if not atlas_path.exists() or not labels_path.exists():
-            return []
-
-        atlas_img = nib.load(str(atlas_path))
-        atlas_r   = resample_to_img(atlas_img, dm_img, interpolation='nearest',
-                                    copy_header=False, force_resample=False)
-        a = np.asarray(atlas_r.dataobj, dtype=int)
-
-        with open(labels_path) as f:
-            raw_labels = json.load(f)
-        if isinstance(raw_labels, list):
-            labels = {str(entry["index"]): entry["name"] for entry in raw_labels}
-        else:
-            labels = {str(k): v for k, v in raw_labels.items()}
-
-        rows = []
-        dm_nonzero = dm_data > 0
-        for label_str, region_name in labels.items():
-            label_id = int(label_str)
-            if label_id == 0:
-                continue
-            region_mask = (a == label_id)
-            hit_voxels  = int(np.sum(region_mask & dm_nonzero))
-            if hit_voxels == 0:
-                continue
-            region_voxels = int(np.sum(region_mask))
-            rows.append({
-                "label":             label_id,
-                "name":              region_name,
-                "region_voxels":     region_voxels,
-                "hit_voxels":        hit_voxels,
-                "pct_region":        round(100 * hit_voxels / max(region_voxels, 1), 1),
-                "streamline_density": int(dm_data[region_mask].sum()),
-            })
-        rows.sort(key=lambda r: r["hit_voxels"], reverse=True)
-        return rows
-
-    # ── 4D tractography-atlas overlap (e.g. HCP842) ───────────────────────────
-    # The atlas is a 4D stack of per-tract BINARY masks (one frame per tract),
-    # which overlap heavily. Instead of a single winner-take-all label, report
-    # EVERY tract the affected streamlines pass through: resample the density map
-    # into the atlas grid once, then AND it against each frame. A voxel may count
-    # toward multiple tracts (intended).
-    def _tracts4d_overlap(dm_img, dm_data, atlas_nii_name, atlas_labels_name):
-        atlas_path  = atlas_dir / atlas_nii_name
-        labels_path = atlas_dir / atlas_labels_name
-        if not atlas_path.exists() or not labels_path.exists():
-            return []
-        atlas_img = nib.load(str(atlas_path))
-        if atlas_img.ndim != 4:
-            return []
-        X, Y, Z, T = atlas_img.shape
-        ref3d = nib.Nifti1Image(np.zeros((X, Y, Z), dtype=np.int16), atlas_img.affine)
-        dens_img = resample_to_img(dm_img, ref3d, interpolation='nearest',
-                                   copy_header=False, force_resample=False)
-        dens = np.asarray(dens_img.dataobj, dtype=int)
-        dm_nonzero = dens > 0
-
-        with open(labels_path) as f:
-            raw_labels = json.load(f)
-        if isinstance(raw_labels, list):
-            labels = {int(entry["index"]): entry["name"] for entry in raw_labels}
-        else:
-            labels = {int(k): v for k, v in raw_labels.items()}
-
-        dataobj = atlas_img.dataobj
-        rows = []
-        for t in range(T):
-            mask_t     = np.asanyarray(dataobj[..., t]) > 0
-            hit        = mask_t & dm_nonzero
-            hit_voxels = int(hit.sum())
-            if hit_voxels == 0:
-                continue
-            region_voxels = int(mask_t.sum())
-            label_id      = t + 1
-            rows.append({
-                "label":              label_id,
-                "name":               labels.get(label_id, f"Tract {label_id}"),
-                "region_voxels":      region_voxels,
-                "hit_voxels":         hit_voxels,
-                "pct_region":         round(100 * hit_voxels / max(region_voxels, 1), 1),
-                "streamline_density": int(dens[hit].sum()),
-            })
-        rows.sort(key=lambda r: r["hit_voxels"], reverse=True)
-        return rows
-
-    def _overlap_for(spec, dm_img, dm_data):
-        if spec.get("mode") == "tracts4d":
-            return _tracts4d_overlap(dm_img, dm_data, spec["nii"], spec["labels"])
-        return _ho_overlap(dm_img, dm_data, spec["nii"], spec["labels"])
-
+    # ── Atlas overlap (Harvard-Oxford-style + 4D tractography, worker_common.py) ──
+    set_status("atlas", 0.95, "Computing atlas overlap…")
     dm_img  = nib.load(str(nii_path))
     dm_data = np.asarray(dm_img.dataobj, dtype=int)
 
     atlas_overlap = {
-        spec["key"]: _overlap_for(spec, dm_img, dm_data)
+        spec["key"]: _overlap_for(atlas_dir, spec, dm_img, dm_data)
         for spec in atlas_specs
     }
 
-    # ── Metrics ───────────────────────────────────────────────────────────────
-    affected_voxels = int(np.sum(dm > 0))
-    density_max     = int(dm.max())
-    voxel_vol_mm3   = float(np.prod(np.abs(np.diag(ref_affine[:3, :3]))))
-    tract_vol_cm3   = round(affected_voxels * voxel_vol_mm3 / 1000, 3)
+    # ── Metrics (worker_common.py) ───────────────────────────────────────────
+    affected_voxels, density_max, tract_vol_cm3 = _dissection_metrics(dm, ref_affine)
 
     print(json.dumps({
         "id":                     result_id,

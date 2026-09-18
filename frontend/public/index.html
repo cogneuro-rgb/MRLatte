@@ -5,6 +5,18 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
         <meta name="description" content="MRLatte — Neuroimaging Visualization Dashboard" />
+        <script>
+            // Applies the saved theme class before first paint so light-mode
+            // users don't see a flash of the (default) dark theme. Dark needs
+            // no class — it's the :root default — so this only ever adds "light".
+            (function () {
+                try {
+                    if (localStorage.getItem("mrlatte-theme") === "light") {
+                        document.documentElement.classList.add("light");
+                    }
+                } catch (e) {}
+            })();
+        </script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />

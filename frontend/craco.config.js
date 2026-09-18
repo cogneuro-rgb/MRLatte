@@ -51,6 +51,36 @@ let webpackConfig = {
         ],
       };
 
+      // Don't run source-map-loader over node_modules.
+      //
+      // CRA registers a pre-loader that reads every dependency's .js.map and
+      // resolves the `sources` it lists. Some packages publish maps that point
+      // at TypeScript they don't actually ship — nifti-reader-js (a niivue
+      // dependency) has dist/*.js.map referencing ../src/*.ts while the
+      // published tarball contains only dist/. source-map-loader then emits
+      //   "Failed to parse source map ... ENOENT ... src/nifti.ts"
+      // five times per build, including during `yarn dist:win:full`.
+      //
+      // Nothing is wrong with our code and there is no version of the dep that
+      // fixes it, so stop asking third-party bundles for their original
+      // sources. Our OWN sources are unaffected: this only widens the exclude
+      // on the source-map-loader rule, and app code is not in node_modules.
+      const rules = webpackConfig.module?.rules ?? [];
+      for (const rule of rules) {
+        const isSourceMapLoader =
+          rule &&
+          rule.enforce === "pre" &&
+          typeof rule.loader === "string" &&
+          rule.loader.includes("source-map-loader");
+        if (!isSourceMapLoader) continue;
+        const prev = rule.exclude;
+        rule.exclude = Array.isArray(prev)
+          ? [...prev, /node_modules/]
+          : prev
+            ? [prev, /node_modules/]
+            : /node_modules/;
+      }
+
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);

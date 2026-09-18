@@ -1,0 +1,542 @@
+{
+  "schemaVersion": 1,
+  "generated": "2026-08-03",
+  "notes": [
+    "One entry per optional (or core) asset MRLatte can run without at install time.",
+    "`installTo` is relative to MODULE_ROOT (backend/deps.py:MODULE_ROOT).",
+    "`envVar` mirrors the per-asset override backend/deps.py passes to module_path()",
+    "for the same asset. The capability check in backend/routers/modules.py resolves",
+    "each entry through that SAME function (env override > module root), so the asset",
+    "under the module root reports installed=true.",
+    "`files` lists the members the fast installed-check requires (exists + size).",
+    "For a single-file module `files` is omitted and `installTo` IS the file.",
+    "`bytes` is the full download size of the module, which may exceed the sum of",
+    "the required `files` (optional members are downloaded but not gated on).",
+    "`sources` is an ORDERED fallback list — the phase-4 installer walks it until",
+    "one succeeds. A non-redistributable module omits `github-release`.",
+    "`sha256` is null until the phase-4 release pipeline fills it in; the API",
+    "reports verified=false for any module without a recorded hash verification."
+  ],
+  "modules": [
+    {
+      "id": "mni152-template",
+      "name": "MNI152 template (1 mm) + 2 mm brain mask",
+      "description": "Standard-space anatomical template used as the default base volume, plus the 2 mm MNI152 brain mask that bounds every lesion-network-mapping output.",
+      "type": "data",
+      "tier": "core",
+      "version": "2009c",
+      "unlocks": [
+        "template"
+      ],
+      "bytes": 4365601,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "mni152/mni152.nii.gz",
+          "bytes": 4336029,
+          "sha256": "dbbd4542823c1e2b12265c9b7e3cf959ee02ff7829bbf05cdcfbecc0013a00fa"
+        },
+        {
+          "path": "mni152/mni152_brain_mask.nii.gz",
+          "bytes": 29572,
+          "sha256": "cf4e5a5b4a776453ff12688c2d71d7af920d891bc03ea2f1c01999c11d423620"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-ICBM152",
+        "attribution": "ICBM 152 Nonlinear Asymmetric 2009c — Fonov et al., McConnell Brain Imaging Centre, MNI. mni152_brain_mask.nii.gz is the 2 mm ICBM152 brain mask as redistributed by nilearn (nilearn.datasets.load_mni152_brain_mask), saved verbatim (int8, 99x117x95, 2 mm) so the LNM bound is bit-identical to the pre-Phase-1b downloader path.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "mni152-template.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlases-core",
+      "name": "Core atlases (AAL, Harvard-Oxford, Destrieux, Jülich, Yeo-7, visfAtlas)",
+      "description": "Cortical, subcortical and functional parcellations used for region labelling, the tract-dissection breakdown and lesion network mapping. Each atlas is a self-describing folder and can be removed on its own from the Atlas Manager.",
+      "type": "data",
+      "tier": "core",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlases"
+      ],
+      "bytes": 1951962,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "aal/aal.labels.json",
+          "bytes": 25300,
+          "sha256": "dd17ef614c436e46ca5bd7507526c9edc08d770e932c544f65a76fe2dea64a60",
+          "mutable": true
+        },
+        {
+          "path": "aal/aal.nii.gz",
+          "bytes": 38953,
+          "sha256": "a327b172ba22734a4fe3ac3b016795cba2048de36dc5da13b6d64b4fe7c1c913"
+        },
+        {
+          "path": "aal/atlas.json",
+          "bytes": 537,
+          "sha256": "569005de0e49d341a9d9fc34622b9ed842a59c6cdd7676e6271c2c391b008468",
+          "mutable": true
+        },
+        {
+          "path": "harvard_oxford_cort/atlas.json",
+          "bytes": 604,
+          "sha256": "da749f3978d035b2144c9503aa1f2b0070e1cab02bdc70bc2f8b2c3317ec04a6",
+          "mutable": true
+        },
+        {
+          "path": "harvard_oxford_cort/harvard_oxford_cort.labels.json",
+          "bytes": 8158,
+          "sha256": "d190c1232a513f56719dbfb2d5e3733e4fd2ff197e214841380f992012863e90",
+          "mutable": true
+        },
+        {
+          "path": "harvard_oxford_cort/harvard_oxford_cort.nii.gz",
+          "bytes": 266743,
+          "sha256": "c6a54049468f873d854077c7eb1ae3da2f96c5c8025ef1e0430fac172e989c01"
+        },
+        {
+          "path": "harvard_oxford_sub/atlas.json",
+          "bytes": 587,
+          "sha256": "35ba7395d63fb2b4c979a5107a36d7351f380c983fd26aa63df5a9da7fb77519",
+          "mutable": true
+        },
+        {
+          "path": "harvard_oxford_sub/harvard_oxford_sub.labels.json",
+          "bytes": 3312,
+          "sha256": "7ea02faace5700eac77b087b038d2f7cae9bc93d8e9f652cb5a59dc36b0cc80c",
+          "mutable": true
+        },
+        {
+          "path": "harvard_oxford_sub/harvard_oxford_sub.nii.gz",
+          "bytes": 496603,
+          "sha256": "7d74b209d8258054afbd0ea127b8d81e2810ba66b30f104e85a6372e5277285e"
+        },
+        {
+          "path": "destrieux/atlas.json",
+          "bytes": 573,
+          "sha256": "8c6cc3f7ffca963e64158e34b5210d0acb390b99c7d9c416da7a6333a18814b9",
+          "mutable": true
+        },
+        {
+          "path": "destrieux/destrieux.labels.json",
+          "bytes": 23893,
+          "sha256": "743d2af042a656bebbdb994235ff56072df6d6103741031793c0e504a7049028",
+          "mutable": true
+        },
+        {
+          "path": "destrieux/destrieux.nii.gz",
+          "bytes": 88880,
+          "sha256": "0457d1eb61e69a4ad66cbd484c089dc81db21eea43e464920f81aa43c1e4c66c"
+        },
+        {
+          "path": "juelich/atlas.json",
+          "bytes": 557,
+          "sha256": "03b2e5d08831ef80c806d340cd86124ba2b6861c4026bdc6d4fde18a8e9af35f",
+          "mutable": true
+        },
+        {
+          "path": "juelich/juelich.labels.json",
+          "bytes": 10526,
+          "sha256": "cc3c7bfbeab9f43a21c2a3a9a526378bf148037712c7f7a8cb5b5ee14281c2f2",
+          "mutable": true
+        },
+        {
+          "path": "juelich/juelich.nii.gz",
+          "bytes": 310811,
+          "sha256": "8b398a8dbd5d49231c607f4ff2cf229f10a5557e8290fd129f66e10601c1c7be"
+        },
+        {
+          "path": "yeo7/atlas.json",
+          "bytes": 545,
+          "sha256": "345e649320fcdab89e435db15cbbbb074f08f2963c149a85e0dc54d0567c947e",
+          "mutable": true
+        },
+        {
+          "path": "yeo7/yeo7.labels.json",
+          "bytes": 1089,
+          "sha256": "77085ef5de9ba1d6ff8d6e096a5d38fb5d8b3926baf85d3855ffafbbcb7d9071",
+          "mutable": true
+        },
+        {
+          "path": "yeo7/yeo7.nii.gz",
+          "bytes": 490051,
+          "sha256": "058709f3e8606b02a33b80e66ab83711491d20f99f32da0525ba2ec8275f1f17"
+        },
+        {
+          "path": "visfatlas/atlas.json",
+          "bytes": 580,
+          "sha256": "d9ab5d9fe4f3035e370dc6d3895ecaa261d10db5182f25f8434963a246602337",
+          "mutable": true
+        },
+        {
+          "path": "visfatlas/visfatlas.labels.json",
+          "bytes": 6257,
+          "sha256": "72629adb8fcb67de509185d28765d8c548531ffbe5fd157c2a37e002ad685aec",
+          "mutable": true
+        },
+        {
+          "path": "visfatlas/visfatlas.nii.gz",
+          "bytes": 177403,
+          "sha256": "fa5cce9e87ab4fd092e1c661fe760b787e846abdfe2873aca9c59da247b12662"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "AAL (Tzourio-Mazoyer 2002); Harvard-Oxford (Harvard CMA / FSL); Destrieux (Destrieux 2010); Juelich (Eickhoff 2005). Distributed with FSL / nilearn. Yeo-7 functional networks: Yeo, Krienen et al., J Neurophysiol 106:1125-65 (2011), freely redistributable (7Networks liberal-mask parcellation, MNI152).",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlases-core.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "tractography-whole-brain",
+      "name": "Whole-brain tractography (user-supplied)",
+      "description": "Any whole-brain streamline set registered to the MNI template. Required for lesion-based virtual tract dissection. Not shipped: HCP-derived tractograms are covered by the WU-Minn HCP Open Access Data Use Terms, and any conforming .trk works.",
+      "type": "slot",
+      "tier": "optional",
+      "unlocks": [
+        "dissect"
+      ],
+      "envVar": "GLOBAL_TRACT_FILE",
+      "license": {
+        "spdx": "LicenseRef-HCP-DUT",
+        "attribution": "Derived from Human Connectome Project data (WU-Minn HCP consortium). Subject to the HCP Open Access Data Use Terms.",
+        "redistributable": false
+      },
+      "sources": [
+        {
+          "type": "sideload"
+        }
+      ],
+      "slot": {
+        "directory": "tracts",
+        "extensions": [
+          ".trk"
+        ],
+        "validator": "tractogram",
+        "dropInHint": "Drop any whole-brain .trk registered to MNI into this folder."
+      }
+    },
+    {
+      "id": "lnm-connectome",
+      "name": "DA-LNM connectome bundle (user-supplied)",
+      "description": "Per-subject component covariances used for degree-adjusted lesion network mapping. Any bundle produced by the DA-LNM preparation stage works, including a GSP1000 rebuild.",
+      "type": "slot",
+      "tier": "optional",
+      "unlocks": [
+        "lnm"
+      ],
+      "envVar": "LNM_BUNDLE",
+      "license": {
+        "spdx": "LicenseRef-HCP-DUT",
+        "attribution": "Derived from HCP resting-state connectivity (DA-LNM v2.1, see DaLnm/DA-LNM_Methods.pdf). Subject to the HCP Open Access Data Use Terms.",
+        "redistributable": false,
+        "provenanceReview": "RESOLVED: treat as non-redistributable. Built from HCP PTN1200 (HCP1200_Parcellation_Timeseries_Netmats, ~1003 subjects). DA-LNM_Methods section 'Access terms' states the WU-Minn HCP Open Access Data Use Terms restrict redistribution to users who have themselves registered and accepted them, and that the derived bundle should be treated accordingly. Users must obtain or rebuild it themselves and sideload. The same document names the GSP1000 normative connectome as the substrate to use where those terms are impractical - that is the route to a redistributable LNM module."
+      },
+      "sources": [
+        {
+          "type": "sideload"
+        }
+      ],
+      "slot": {
+        "directory": "lnm",
+        "extensions": [
+          ".npz"
+        ],
+        "validator": "lnm-bundle",
+        "dropInHint": "Drop a DA-LNM .npz bundle into this folder."
+      }
+    },
+    {
+      "id": "retinotopy-benson-wang",
+      "name": "Retinotopy atlases (Benson 2014, Wang 2015)",
+      "description": "Polar-angle, eccentricity and visual-area maps driving the retinotopy section and the visual-field deficit analysis.",
+      "type": "data",
+      "tier": "optional",
+      "version": "1.0.0",
+      "unlocks": [
+        "retinotopy"
+      ],
+      "bytes": 3973554,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "benson14/benson14_polar_angle.nii.gz",
+          "bytes": 1651292,
+          "sha256": "5031db4f7a9a35a00edb7d106272a71de02f27a0af43d0e2fe16b64c6015347f"
+        },
+        {
+          "path": "benson14/benson14_eccentricity.nii.gz",
+          "bytes": 1687820,
+          "sha256": "e84ddeca066a4679ca5ecfba63242d3a6009f2c1d4307ae01fec5ad9ae244b3f"
+        },
+        {
+          "path": "benson14/benson14_visual_areas.nii.gz",
+          "bytes": 216825,
+          "sha256": "86aec591168599710cff9fac2bfaef0c289fac044deadcc7ed1d386a2d999da9"
+        },
+        {
+          "path": "wang2015/wang2015_maxprob.nii.gz",
+          "bytes": 218955,
+          "sha256": "5118681dfc928ca431a87967e32efa78c7a9e33bdd09dd727bd022f61b84b0cc"
+        },
+        {
+          "path": "wang2015/wang2015_labels.json",
+          "bytes": 403,
+          "sha256": "8f6640c329e31c0dbb63d5576cd7e8a772b069457466153df580863750811a27"
+        },
+        {
+          "path": "misc/visual_areas_v1v5.nii.gz",
+          "bytes": 198259,
+          "sha256": "ad2555e8864fdcdc509df183fb0bfdf58a3806fe6669b9cd651e589cc03f380e"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Benson et al. 2014 (anatomically-defined retinotopy); Wang et al. 2015 (probabilistic visual area atlas); volumetric projections via neuropythy.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "retinotopy-benson-wang.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://github.com/noahbenson/neuropythy"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "tract-atlases-hcp",
+      "name": "Tract atlases (HCP1065, HCP842, IIT, JHU)",
+      "description": "Named white-matter bundle atlases used for the tract-dissection region breakdown.",
+      "type": "data",
+      "tier": "optional",
+      "version": "1.0.0",
+      "unlocks": [
+        "tract-atlases"
+      ],
+      "bytes": 10683874,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "jhu_wm/atlas.json",
+          "bytes": 505,
+          "sha256": "1f6077f394169f9f7289de2adc79db34f9233e9c6cd1ade6f84f85c0037878e0",
+          "mutable": true
+        },
+        {
+          "path": "jhu_wm/jhu_wm.labels.json",
+          "bytes": 8101,
+          "sha256": "4e4411c71afa499cab6784a75dc546e190596c194810aaa41215e0644758011e",
+          "mutable": true
+        },
+        {
+          "path": "jhu_wm/jhu_wm.nii.gz",
+          "bytes": 139600,
+          "sha256": "60db0d4b589ca60f42772349c52ec597ab4b362f3f1acbe7997f7e21516b61cd"
+        },
+        {
+          "path": "hcp1065_tracts/atlas.json",
+          "bytes": 640,
+          "sha256": "b06310c45b51c686185f1fcc1dd8a5c770f9a3fe3b1ec7688a8fec4e8b0a3007",
+          "mutable": true
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.labels.json",
+          "bytes": 14707,
+          "sha256": "3d83afc98011eb68d2758ba53b1039886b3b8e175dc6bbdb91d249ab67cd9781",
+          "mutable": true
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.nii.gz",
+          "bytes": 1253260,
+          "sha256": "86526405397ae7112ef0a08511147fb81104f8e3b0fea185e63fa8e5ce0eedab"
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.tracts4d.nii.gz",
+          "bytes": 6147880,
+          "sha256": "3cab84549e51bde8e818f2e7c0ffb7c9d419dbd6d7de6879a6311e8eee7955a1"
+        },
+        {
+          "path": "hcp842_tracts/atlas.json",
+          "bytes": 627,
+          "sha256": "af508e42740be0a1452f75a5c06e6aa6be32dfc74ea07e2b4b99058480e424a2",
+          "mutable": true
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.labels.json",
+          "bytes": 13195,
+          "sha256": "ba4ea528855b44759a5b2d319f85ae8a167b2344ffe6a30ceb545d8b98a022f6",
+          "mutable": true
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.nii.gz",
+          "bytes": 785492,
+          "sha256": "1548c6c8f183855be05e8ea20a67bf5bf4189c6de6b8bf7e00f80d87d1338cf4"
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.tracts4d.nii.gz",
+          "bytes": 1828739,
+          "sha256": "c5851393ac1a621f0491f69c7b68a4d6128c46c0822cb201147e76f4fdbdcbba"
+        },
+        {
+          "path": "iit_tracts/atlas.json",
+          "bytes": 525,
+          "sha256": "aead571aff301da88e1852b6dd51b1c7d20f88735a5965ab9e08351d571c5a1b",
+          "mutable": true
+        },
+        {
+          "path": "iit_tracts/iit_tracts.labels.json",
+          "bytes": 7181,
+          "sha256": "60f549d8b567f14d6d4d556054c4056a219b856787aad6330f0d60ffcd9f2801",
+          "mutable": true
+        },
+        {
+          "path": "iit_tracts/iit_tracts.nii.gz",
+          "bytes": 483422,
+          "sha256": "6efd5a7609981f832cc6bd6a54d99529879bb63b08f47912aec249b377b32dc8"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "HCP1065/HCP842 population tract atlases (Yeh et al., DSI Studio); IIT Human Brain Atlas (Varentsova/Zhang); JHU white-matter labels (Mori et al.).",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "tract-atlases-hcp.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://brain.labsolver.org/hcp_template.html"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "validation-neuropythy",
+      "name": "Retinotopy validation toolchain (neuropythy)",
+      "description": "Python package backing the Benson/Wang round-trip validation endpoint. Serves exactly one endpoint (/api/validation/round-trip).",
+      "type": "python-package",
+      "tier": "optional",
+      "version": "0.12",
+      "unlocks": [
+        "validation"
+      ],
+      "bytes": 33554432,
+      "sha256": null,
+      "installTo": "python/validation",
+      "pythonPackages": [
+        "neuropythy"
+      ],
+      "license": {
+        "spdx": "AGPL-3.0-or-later",
+        "attribution": "neuropythy — Noah C. Benson.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "pip",
+          "requirements": "requirements-validation.txt",
+          "packages": [
+            "neuropythy"
+          ]
+        },
+        {
+          "type": "upstream",
+          "url": "https://pypi.org/project/neuropythy/"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "reports-figures",
+      "name": "Report figure renderer (nilearn, matplotlib)",
+      "description": "Plotting stack used by the One-Click Summary renderer to produce glass-brain PNGs, brainsprite views and the packaged report.",
+      "type": "python-package",
+      "tier": "optional",
+      "version": "1.0.0",
+      "unlocks": [
+        "reports"
+      ],
+      "bytes": 199229440,
+      "sha256": null,
+      "installTo": "python/reports",
+      "pythonPackages": [
+        "nibabel",
+        "nilearn",
+        "matplotlib"
+      ],
+      "license": {
+        "spdx": "BSD-3-Clause",
+        "attribution": "nilearn (BSD-3-Clause), matplotlib (PSF-based, BSD-compatible), nibabel (MIT).",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "pip",
+          "requirements": "requirements-reports.txt",
+          "packages": [
+            "nibabel",
+            "nilearn",
+            "matplotlib"
+          ]
+        },
+        {
+          "type": "upstream",
+          "url": "https://pypi.org/project/nilearn/"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+ "schemaVersion": 1,
+ "id": "iit_tracts",
+ "aliases": [
+  "iit"
+ ],
+ "name": "IIT · Named White-Matter Tracts",
+ "short": "IIT",
+ "description": "IIT Human Brain Atlas named bundles",
+ "kind": "tracts",
+ "space": "MNI152",
+ "volume": "iit_tracts.nii.gz",
+ "labels": "iit_tracts.labels.json",
+ "colormap": "random",
+ "opacity": 0.7,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Varentsova / Zhang"
+ }
+}

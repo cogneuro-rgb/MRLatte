@@ -1,10 +1,28 @@
 # Runtime-only dependency set for the OFFLINE installer's embedded-Python backend.
 #
-# This is backend/requirements.txt minus dev-only tooling (pytest, black, isort,
-# flake8, mypy). Everything imported at runtime is included, including dipy, which
-# the tract-dissection workers (dissect_worker.py, dissect_between_worker.py) and
-# server.py import. (A previous version wrongly dropped dipy as "data-prep only",
-# which broke tract dissection + the one-click report in the offline build.)
+# This is backend/requirements.txt minus:
+#   - dev-only tooling: pytest, black, isort, flake8, mypy
+#   - the OPTIONAL report-figure stack: nilearn, matplotlib, pandas (+ the
+#     scikit-learn that nilearn drags in). Those moved to
+#     requirements-reports.txt — the `reports-figures` module. ~199 MB.
+#
+# PHASE 1b: nilearn used to be here for exactly one symbol, `resample_to_img`,
+# plus `load_mni152_brain_mask` on the LNM compute path. The function is now
+# vendored in worker_common.py (differential test: tests/test_resample_parity.py)
+# and the brain mask ships as a file
+# (frontend/public/atlases/mni152/mni152_brain_mask.nii.gz, mni152-template
+# module) that reproduces the downloader's mask bit-for-bit. Nothing on the
+# compute path imports nilearn, matplotlib or pandas any more — do NOT re-add
+# them here without an actual compute-path import to justify it.
+#
+# NOTE: dipy IS a runtime dependency — dissect_worker.py and
+# dissect_between_worker.py import it (via subprocess) for tract dissection.
+# It must be bundled or "No module named 'dipy'" surfaces in the packaged app.
+#
+# NOTE: the auth/AWS scaffolding that shipped with the project template
+# (boto3, requests-oauthlib, cryptography, email-validator, pyjwt, bcrypt,
+# passlib, python-jose) plus jq and typer were dropped — verified by grep to be
+# imported by no .py file in backend/. Do not re-add without a real import.
 #
 # Installed into the embeddable Python via:
 #   py -3.11 -m pip install --target MyApp_Files\python\site-packages -r requirements-frozen.txt
@@ -13,30 +31,23 @@
 
 fastapi==0.110.1
 uvicorn==0.25.0
-boto3>=1.34.129
-requests-oauthlib>=2.0.0
-cryptography>=42.0.8
 python-dotenv>=1.0.1
-pymongo==4.5.0
 pydantic>=2.6.4
-email-validator>=2.2.0
-pyjwt>=2.10.1
-bcrypt==4.1.3
-passlib>=1.7.4
 tzdata>=2024.2
-motor==3.3.1
-python-jose>=3.3.0
 requests>=2.31.0
-pandas>=2.2.0
 numpy>=1.26.0
 python-multipart>=0.0.9
-jq>=1.6.0
-typer>=0.9.0
 SimpleITK>=2.3.0
 nibabel>=5.0.0
 scipy>=1.11.0
-nilearn>=0.10.0
-matplotlib>=3.7.0
 neuropythy>=0.12.0
-dipy>=1.8.0
 dcm2niix>=1.0.20220505
+dipy>=1.8.0  # runtime: tract dissection workers (dissect_worker.py, dissect_between_worker.py)
+Send2Trash>=1.8.2  # runtime: module uninstall recycles slot payloads instead of deleting them (routers/modules.py:_remove_payload). Pure Python, no transitive deps.
+
+# lqtpy: lesion-metrics engine (backend/lesion_metrics.py, routers/lesion_metrics.py).
+# Pinned to a commit SHA (not a branch) on the published repo so the offline
+# bundle is reproducible. Requires `git` on the build machine — this is a
+# git+https VCS requirement, and pip shells out to git to fetch it even for
+# `pip install --target` (see tools/build/assemble-bundle.ps1 step 2/5).
+lqtpy @ git+https://github.com/rohan3412/LQTpy@a542cd3aa1ee9397de699a4646d5d8a145badb35

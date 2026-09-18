@@ -1,0 +1,1831 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Precentral_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    -6.0,
+    50.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Precentral_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -10.0,
+    50.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Frontal_Sup_2_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -20.0,
+    36.0,
+    36.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Frontal_Sup_2_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    34.0,
+    38.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Frontal_Mid_2_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    32.0,
+    30.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Frontal_Mid_2_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    32.0,
+    30.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Frontal_Inf_Oper_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -48.0,
+    12.0,
+    18.0
+   ]
+  },
+  {
+   "value": 8,
+   "name": "Frontal_Inf_Oper_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    50.0,
+    14.0,
+    20.0
+   ]
+  },
+  {
+   "value": 9,
+   "name": "Frontal_Inf_Tri_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -46.0,
+    28.0,
+    12.0
+   ]
+  },
+  {
+   "value": 10,
+   "name": "Frontal_Inf_Tri_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    50.0,
+    28.0,
+    12.0
+   ]
+  },
+  {
+   "value": 11,
+   "name": "Frontal_Inf_Orb_2_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -42.0,
+    32.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 12,
+   "name": "Frontal_Inf_Orb_2_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    34.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 13,
+   "name": "Rolandic_Oper_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -48.0,
+    -10.0,
+    12.0
+   ]
+  },
+  {
+   "value": 14,
+   "name": "Rolandic_Oper_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    -8.0,
+    14.0
+   ]
+  },
+  {
+   "value": 15,
+   "name": "Supp_Motor_Area_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    4.0,
+    60.0
+   ]
+  },
+  {
+   "value": 16,
+   "name": "Supp_Motor_Area_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -2.0,
+    60.0
+   ]
+  },
+  {
+   "value": 17,
+   "name": "Olfactory_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    14.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 18,
+   "name": "Olfactory_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    14.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 19,
+   "name": "Frontal_Sup_Medial_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    48.0,
+    30.0
+   ]
+  },
+  {
+   "value": 20,
+   "name": "Frontal_Sup_Medial_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    50.0,
+    28.0
+   ]
+  },
+  {
+   "value": 21,
+   "name": "Frontal_Med_Orb_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    52.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 22,
+   "name": "Frontal_Med_Orb_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    50.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 23,
+   "name": "Rectus_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    36.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 24,
+   "name": "Rectus_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    34.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 25,
+   "name": "OFCmed_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    36.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 26,
+   "name": "OFCmed_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    38.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 27,
+   "name": "OFCant_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    46.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 28,
+   "name": "OFCant_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    48.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 29,
+   "name": "OFCpost_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    24.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 30,
+   "name": "OFCpost_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    26.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 31,
+   "name": "OFClat_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -42.0,
+    40.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 32,
+   "name": "OFClat_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    48.0,
+    36.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 33,
+   "name": "Insula_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    6.0,
+    2.0
+   ]
+  },
+  {
+   "value": 34,
+   "name": "Insula_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    6.0,
+    2.0
+   ]
+  },
+  {
+   "value": 37,
+   "name": "Cingulate_Mid_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -16.0,
+    40.0
+   ]
+  },
+  {
+   "value": 38,
+   "name": "Cingulate_Mid_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -10.0,
+    38.0
+   ]
+  },
+  {
+   "value": 39,
+   "name": "Cingulate_Post_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -44.0,
+    24.0
+   ]
+  },
+  {
+   "value": 40,
+   "name": "Cingulate_Post_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -44.0,
+    20.0
+   ]
+  },
+  {
+   "value": 41,
+   "name": "Hippocampus_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    -22.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 42,
+   "name": "Hippocampus_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    -20.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 43,
+   "name": "ParaHippocampal_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -20.0,
+    -18.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 44,
+   "name": "ParaHippocampal_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    -16.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 45,
+   "name": "Amygdala_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -2.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 46,
+   "name": "Amygdala_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    0.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 47,
+   "name": "Calcarine_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -80.0,
+    6.0
+   ]
+  },
+  {
+   "value": 48,
+   "name": "Calcarine_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -74.0,
+    8.0
+   ]
+  },
+  {
+   "value": 49,
+   "name": "Cuneus_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -82.0,
+    26.0
+   ]
+  },
+  {
+   "value": 50,
+   "name": "Cuneus_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    14.0,
+    -80.0,
+    26.0
+   ]
+  },
+  {
+   "value": 51,
+   "name": "Lingual_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -68.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 52,
+   "name": "Lingual_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -68.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 53,
+   "name": "Occipital_Sup_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -16.0,
+    -86.0,
+    26.0
+   ]
+  },
+  {
+   "value": 54,
+   "name": "Occipital_Sup_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    -82.0,
+    30.0
+   ]
+  },
+  {
+   "value": 55,
+   "name": "Occipital_Mid_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -32.0,
+    -82.0,
+    14.0
+   ]
+  },
+  {
+   "value": 56,
+   "name": "Occipital_Mid_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    -80.0,
+    18.0
+   ]
+  },
+  {
+   "value": 57,
+   "name": "Occipital_Inf_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    -80.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 58,
+   "name": "Occipital_Inf_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    -84.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 59,
+   "name": "Fusiform_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -32.0,
+    -42.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 60,
+   "name": "Fusiform_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    -40.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 61,
+   "name": "Postcentral_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -42.0,
+    -24.0,
+    48.0
+   ]
+  },
+  {
+   "value": 62,
+   "name": "Postcentral_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -26.0,
+    52.0
+   ]
+  },
+  {
+   "value": 63,
+   "name": "Parietal_Sup_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -60.0,
+    58.0
+   ]
+  },
+  {
+   "value": 64,
+   "name": "Parietal_Sup_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -60.0,
+    60.0
+   ]
+  },
+  {
+   "value": 65,
+   "name": "Parietal_Inf_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -48.0,
+    46.0
+   ]
+  },
+  {
+   "value": 66,
+   "name": "Parietal_Inf_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    -48.0,
+    48.0
+   ]
+  },
+  {
+   "value": 67,
+   "name": "SupraMarginal_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -56.0,
+    -34.0,
+    30.0
+   ]
+  },
+  {
+   "value": 68,
+   "name": "SupraMarginal_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    58.0,
+    -32.0,
+    34.0
+   ]
+  },
+  {
+   "value": 69,
+   "name": "Angular_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -62.0,
+    34.0
+   ]
+  },
+  {
+   "value": 70,
+   "name": "Angular_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    -62.0,
+    38.0
+   ]
+  },
+  {
+   "value": 71,
+   "name": "Precuneus_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -58.0,
+    46.0
+   ]
+  },
+  {
+   "value": 72,
+   "name": "Precuneus_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -58.0,
+    42.0
+   ]
+  },
+  {
+   "value": 73,
+   "name": "Paracentral_Lobule_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -26.0,
+    68.0
+   ]
+  },
+  {
+   "value": 74,
+   "name": "Paracentral_Lobule_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -32.0,
+    66.0
+   ]
+  },
+  {
+   "value": 75,
+   "name": "Caudate_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -12.0,
+    10.0,
+    10.0
+   ]
+  },
+  {
+   "value": 76,
+   "name": "Caudate_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    10.0,
+    10.0
+   ]
+  },
+  {
+   "value": 77,
+   "name": "Putamen_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    2.0,
+    2.0
+   ]
+  },
+  {
+   "value": 78,
+   "name": "Putamen_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    4.0,
+    2.0
+   ]
+  },
+  {
+   "value": 79,
+   "name": "Pallidum_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -18.0,
+    -2.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 80,
+   "name": "Pallidum_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    20.0,
+    -2.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 83,
+   "name": "Heschl_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -42.0,
+    -20.0,
+    8.0
+   ]
+  },
+  {
+   "value": 84,
+   "name": "Heschl_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    -18.0,
+    10.0
+   ]
+  },
+  {
+   "value": 85,
+   "name": "Temporal_Sup_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -54.0,
+    -22.0,
+    6.0
+   ]
+  },
+  {
+   "value": 86,
+   "name": "Temporal_Sup_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    58.0,
+    -24.0,
+    6.0
+   ]
+  },
+  {
+   "value": 87,
+   "name": "Temporal_Pole_Sup_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    14.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 88,
+   "name": "Temporal_Pole_Sup_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    48.0,
+    14.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 89,
+   "name": "Temporal_Mid_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -56.0,
+    -34.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 90,
+   "name": "Temporal_Mid_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    58.0,
+    -38.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 91,
+   "name": "Temporal_Pole_Mid_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    14.0,
+    -36.0
+   ]
+  },
+  {
+   "value": 92,
+   "name": "Temporal_Pole_Mid_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    14.0,
+    -34.0
+   ]
+  },
+  {
+   "value": 93,
+   "name": "Temporal_Inf_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    -30.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 94,
+   "name": "Temporal_Inf_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    54.0,
+    -32.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 95,
+   "name": "Cerebellum_Crus1_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    -68.0,
+    -30.0
+   ]
+  },
+  {
+   "value": 96,
+   "name": "Cerebellum_Crus1_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    -68.0,
+    -30.0
+   ]
+  },
+  {
+   "value": 97,
+   "name": "Cerebellum_Crus2_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    -74.0,
+    -40.0
+   ]
+  },
+  {
+   "value": 98,
+   "name": "Cerebellum_Crus2_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    32.0,
+    -70.0,
+    -42.0
+   ]
+  },
+  {
+   "value": 99,
+   "name": "Cerebellum_3_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -38.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 100,
+   "name": "Cerebellum_3_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    14.0,
+    -36.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 101,
+   "name": "Cerebellum_4_5_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -44.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 102,
+   "name": "Cerebellum_4_5_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.0,
+    -44.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 103,
+   "name": "Cerebellum_6_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -60.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 104,
+   "name": "Cerebellum_6_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -60.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 105,
+   "name": "Cerebellum_7b_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -32.0,
+    -62.0,
+    -44.0
+   ]
+  },
+  {
+   "value": 106,
+   "name": "Cerebellum_7b_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    -66.0,
+    -48.0
+   ]
+  },
+  {
+   "value": 107,
+   "name": "Cerebellum_8_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    -56.0,
+    -50.0
+   ]
+  },
+  {
+   "value": 108,
+   "name": "Cerebellum_8_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -58.0,
+    -50.0
+   ]
+  },
+  {
+   "value": 109,
+   "name": "Cerebellum_9_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -50.0,
+    -48.0
+   ]
+  },
+  {
+   "value": 110,
+   "name": "Cerebellum_9_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -50.0,
+    -48.0
+   ]
+  },
+  {
+   "value": 111,
+   "name": "Cerebellum_10_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -36.0,
+    -44.0
+   ]
+  },
+  {
+   "value": 112,
+   "name": "Cerebellum_10_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -36.0,
+    -42.0
+   ]
+  },
+  {
+   "value": 113,
+   "name": "Vermis_1_2",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -40.0,
+    -22.0
+   ]
+  },
+  {
+   "value": 114,
+   "name": "Vermis_3",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -42.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 115,
+   "name": "Vermis_4_5",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -54.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 116,
+   "name": "Vermis_6",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -68.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 117,
+   "name": "Vermis_7",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -74.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 118,
+   "name": "Vermis_8",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -66.0,
+    -36.0
+   ]
+  },
+  {
+   "value": 119,
+   "name": "Vermis_9",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -56.0,
+    -36.0
+   ]
+  },
+  {
+   "value": 120,
+   "name": "Vermis_10",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    2.0,
+    -48.0,
+    -32.0
+   ]
+  },
+  {
+   "value": 121,
+   "name": "Thal_AV_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -6.0,
+    8.0
+   ]
+  },
+  {
+   "value": 122,
+   "name": "Thal_AV_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -6.0,
+    8.0
+   ]
+  },
+  {
+   "value": 123,
+   "name": "Thal_LP_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -16.0,
+    16.0
+   ]
+  },
+  {
+   "value": 124,
+   "name": "Thal_LP_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -14.0,
+    16.0
+   ]
+  },
+  {
+   "value": 125,
+   "name": "Thal_VA_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -6.0,
+    4.0
+   ]
+  },
+  {
+   "value": 126,
+   "name": "Thal_VA_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -4.0,
+    4.0
+   ]
+  },
+  {
+   "value": 127,
+   "name": "Thal_VL_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -12.0,
+    8.0
+   ]
+  },
+  {
+   "value": 128,
+   "name": "Thal_VL_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -12.0,
+    8.0
+   ]
+  },
+  {
+   "value": 129,
+   "name": "Thal_VPL_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -18.0,
+    -22.0,
+    6.0
+   ]
+  },
+  {
+   "value": 130,
+   "name": "Thal_VPL_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -20.0,
+    6.0
+   ]
+  },
+  {
+   "value": 131,
+   "name": "Thal_IL_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -18.0,
+    0.0
+   ]
+  },
+  {
+   "value": 132,
+   "name": "Thal_IL_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -18.0,
+    0.0
+   ]
+  },
+  {
+   "value": 133,
+   "name": "Thal_Re_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -10.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 134,
+   "name": "Thal_Re_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -10.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 135,
+   "name": "Thal_MDm_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    -16.0,
+    6.0
+   ]
+  },
+  {
+   "value": 136,
+   "name": "Thal_MDm_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -16.0,
+    4.0
+   ]
+  },
+  {
+   "value": 137,
+   "name": "Thal_MDl_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -14.0,
+    6.0
+   ]
+  },
+  {
+   "value": 138,
+   "name": "Thal_MDl_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -14.0,
+    6.0
+   ]
+  },
+  {
+   "value": 139,
+   "name": "Thal_LGN_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -24.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 140,
+   "name": "Thal_LGN_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    -24.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 141,
+   "name": "Thal_MGN_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -16.0,
+    -24.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 142,
+   "name": "Thal_MGN_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -24.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 143,
+   "name": "Thal_PuI_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -18.0,
+    -30.0,
+    2.0
+   ]
+  },
+  {
+   "value": 144,
+   "name": "Thal_PuI_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -28.0,
+    0.0
+   ]
+  },
+  {
+   "value": 145,
+   "name": "Thal_PuM_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -28.0,
+    8.0
+   ]
+  },
+  {
+   "value": 146,
+   "name": "Thal_PuM_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -28.0,
+    8.0
+   ]
+  },
+  {
+   "value": 147,
+   "name": "Thal_PuA_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -12.0,
+    -22.0,
+    8.0
+   ]
+  },
+  {
+   "value": 148,
+   "name": "Thal_PuA_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -22.0,
+    8.0
+   ]
+  },
+  {
+   "value": 149,
+   "name": "Thal_PuL_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -18.0,
+    -26.0,
+    12.0
+   ]
+  },
+  {
+   "value": 150,
+   "name": "Thal_PuL_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    -22.0,
+    14.0
+   ]
+  },
+  {
+   "value": 151,
+   "name": "ACC_sub_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    30.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 152,
+   "name": "ACC_sub_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    32.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 153,
+   "name": "ACC_pre_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    44.0,
+    8.0
+   ]
+  },
+  {
+   "value": 154,
+   "name": "ACC_pre_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    44.0,
+    12.0
+   ]
+  },
+  {
+   "value": 155,
+   "name": "ACC_sup_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    26.0,
+    24.0
+   ]
+  },
+  {
+   "value": 156,
+   "name": "ACC_sup_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    28.0,
+    22.0
+   ]
+  },
+  {
+   "value": 157,
+   "name": "N_Acc_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    12.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 158,
+   "name": "N_Acc_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    12.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 159,
+   "name": "VTA_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.0,
+    -20.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 160,
+   "name": "VTA_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -20.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 161,
+   "name": "SN_pc_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -20.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 162,
+   "name": "SN_pc_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -18.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 163,
+   "name": "SN_pr_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -16.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 164,
+   "name": "SN_pr_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -14.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 165,
+   "name": "Red_N_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    -20.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 166,
+   "name": "Red_N_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -20.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 167,
+   "name": "LC_L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    -34.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 168,
+   "name": "LC_R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -36.0,
+    -28.0
+   ]
+  },
+  {
+   "value": 169,
+   "name": "Raphe_D",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    0.0,
+    -28.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 170,
+   "name": "Raphe_M",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    0.0,
+    -30.0,
+    -22.0
+   ]
+  }
+ ]
+}

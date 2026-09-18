@@ -1,35 +1,49 @@
-﻿import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Brain, LayoutGrid, Box, Camera, Crosshair as CrosshairIcon, Activity, Scissors,
   Eye, Layers, FlaskConical, PencilRuler, Database, Plus, Image as ImageIcon, Waypoints, Trash2,
-  RotateCcw, Columns3, BadgeCheck, Ruler, AlertTriangle, Save, FolderOpen,
-  GitCompareArrows, GitBranch, ZoomIn, Loader2, AlertCircle, X, Target, Network, Download,
+  RotateCcw, Columns3, Ruler, Save, FolderOpen,
+  GitCompareArrows, GitBranch, Loader2, AlertCircle, X, Target, Network, Download,
+  PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Sun, Moon,
+  FlipHorizontal2, Minimize2, Contrast, Move, Keyboard, ZoomIn, FileCode,
+  ChevronsDownUp, ChevronsUpDown, Package, Pencil,
 } from "lucide-react";
 import NiivueViewer from "@/components/NiivueViewer";
+import GotoMniInput from "@/components/GotoMniInput";
 import SplashScreen from "@/components/SplashScreen";
 import LayerControl from "@/components/LayerControl";
 import LayerControlAdvanced from "@/components/LayerControlAdvanced";
 import ColorBarStack from "@/components/ColorBarStack";
+import FrameStepper from "@/components/FrameStepper";
 import FileUploader from "@/components/FileUploader";
-import AtlasValidationPanel from "@/components/AtlasValidationPanel";
 import { PolarAngleDisc, EccentricityBar, polarAngleDiscToDataURL } from "@/components/PolarAngleDisc";
-import { SidebarSection } from "@/components/SidebarSection";
+import { SidebarSection, SidebarSectionsContext, useSidebarSectionsController } from "@/components/SidebarSection";
 import { CrosshairInfo } from "@/components/CrosshairInfo";
 import { DrawingPanel } from "@/components/DrawingPanel";
-import { MeasurePanel } from "@/components/MeasurePanel";
-import { LongitudinalPanel } from "@/components/LongitudinalPanel";
-import { ClusterPanel } from "@/components/ClusterPanel";
-import { OverlapPanel } from "@/components/OverlapPanel";
-import { LesionReportPanel } from "@/components/LesionReportPanel";
-import { OneClickSummaryPanel } from "@/components/OneClickSummaryPanel";
-import { TractDissectionPanel } from "@/components/TractDissectionPanel";
-import { DaLnMapperPanel } from "@/components/DaLnMapperPanel";
-import { AddROIPanel } from "@/components/AddROIPanel";
+import { useClickOutside } from "@/hooks/use-click-outside";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useTheme } from "@/hooks/use-theme";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
+
+// Code-split the heavy, mount-gated panels: each is only rendered inside a
+// collapsed SidebarSection (or a dialog), so lazyWithRetry defers its chunk
+// until the user actually opens it, and retries once on network failure.
+// SidebarSection provides the Suspense + ChunkErrorBoundary.
+const MeasurePanel         = lazyWithRetry(() => import("@/components/MeasurePanel"));
+const LongitudinalPanel    = lazyWithRetry(() => import("@/components/LongitudinalPanel"));
+const TractDissectionPanel = lazyWithRetry(() => import("@/components/TractDissectionPanel"));
+const DaLnMapperPanel      = lazyWithRetry(() => import("@/components/DaLnMapperPanel"));
 import { Slider } from "@/components/ui/slider";
 import {
   BASE_VOLUME, RETINOTOPY_LAYERS, WHITE_MATTER_RETINOTOPY_LAYERS,
-  STANDARD_ATLASES, WANG_LABELS, VAREA_LABELS,
+  WANG_LABELS, VAREA_LABELS,
 } from "@/lib/atlasConfig";
+// Atlases come from the registry (/api/atlases), not a hardcoded array. The
+// old STANDARD_ATLASES constant could not react to an install, an uninstall or
+// a reorder, and had drifted to list 6 of the 11 atlases actually on disk.
+import { useAtlases, useAtlasRegions, useResolveAtlas } from "@/hooks/use-atlases";
+import { patchAtlas, regionMask } from "@/lib/atlasApi";
+import { toNameMap } from "@/lib/atlasLabels";
 // Cortical (Benson) + white-matter (template) layers share the same
 // toggle/load/colorbar plumbing. The WM .nii.gz files are produced offline and
 // may be absent — toggling one surfaces a "failed to load" toast (graceful), and
@@ -38,20 +52,40 @@ const ALL_RETINOTOPY_LAYERS = [
   ...RETINOTOPY_LAYERS,
   ...WHITE_MATTER_RETINOTOPY_LAYERS,
 ];
+
+// Fold an angle into [-180, 180) — used by the clip-plane az/el right-drag so
+// a sustained drag wraps continuously instead of pinning at a slider end.
+const wrapTurn = (deg) => (((deg + 180) % 360) + 360) % 360 - 180;
 import { VISFATLAS_NAV_MM } from "@/lib/visfAtlasColormap";
-import { nearestEloquentAtMM } from "@/lib/eloquent";
+import { robustRange } from "@/lib/volumeAnalysis";
+import { measurementsToMarkers } from "@/lib/measure";
+import { tractResultUrl } from "@/lib/tractDissection";
 import {
   computeVoxelCounts, unionCounts, affectedSet, mergeRanges,
   classifyHemifield, buildSummary,
   computeVoxelCounts2D, unionGrids,
 } from "@/lib/retinotopyAnalysis";
 import { VisualFieldMap2D, visualFieldMap2DToDataURL, visualFieldMap2DDataURL } from "@/components/VisualFieldMap2D";
-import { convertDicom, fetchDicomSeriesFile, dicomSeriesDownloadUrl } from "@/lib/dicom";
-import { tractSubsampleAvailable, subsampleTract } from "@/lib/tractography";
+import { dicomSeriesDownloadUrl } from "@/lib/dicom";
 import {
-  WORKSPACE_VERSION, fileToBase64, base64ToFile, saveWorkspace, openWorkspace,
+  WORKSPACE_VERSION, fileToBase64, base64ToFile, saveWorkspace, openWorkspace, saveBinaryFile,
 } from "@/lib/workspace";
+import { activeToggleCls } from "@/lib/buttonVariants";
 import { toast } from "sonner";
+import { useBaseVolume } from "@/hooks/useBaseVolume";
+import { useTracts } from "@/hooks/useTracts";
+import { useQuickOpenFile } from "@/hooks/useQuickOpenFile";
+import { DEFAULT_TRACT_RENDER } from "@/lib/gl/tractSettings";
+import { TractographySection } from "@/pages/sections/TractographySection";
+import { RetinotopySection } from "@/pages/sections/RetinotopySection";
+import { BaseVolumeSection } from "@/pages/sections/BaseVolumeSection";
+import { LesionMasksSection } from "@/pages/sections/LesionMasksSection";
+import { AtlasesSection } from "@/pages/sections/AtlasesSection";
+import { ActivationMapsSection } from "@/pages/sections/ActivationMapsSection";
+import { ModuleGate } from "@/components/ModuleGate";
+import { ModuleStore } from "@/components/ModuleStore";
+const AtlasManager = lazyWithRetry(() => import("@/components/AtlasManager"));
+import { useModules } from "@/hooks/use-modules";
 
 const SLICE_MODES = [
   { id: "multiplanar", label: "Multiplanar + 3D", icon: LayoutGrid },
@@ -61,37 +95,169 @@ const SLICE_MODES = [
   { id: "sagittal", label: "Sagittal", icon: Activity },
 ];
 
-const LESION_CMAP = "red";
+// "red" first so a single lesion mask keeps its long-standing default color
+// (SMALL-FIXES item 45 era); subsequent masks cycle through the rest so
+// multiple loaded lesions stay visually distinguishable (item 96).
+const LESION_CMAP_PALETTE = ["red", "blue", "green", "warm", "cool", "winter"];
 const ROI_CMAP_PALETTE = ["green", "blue", "winter", "plasma", "viridis", "warm"];
-const ACTIVATION_CMAP_PALETTE = ["warm", "cool", "plasma", "viridis", "inferno", "hot", "actc", "winter"];
-const TRACT_RGB_PALETTE = [
-  [255, 165, 0, 255],
-  [120, 200, 255, 255],
-  [180, 80, 255, 255],
-  [80, 230, 180, 255],
-  [255, 90, 140, 255],
-];
+// "jet" first so the FIRST activation map loaded gets it (SMALL-FIXES 47);
+// subsequent maps cycle through the rest. Diverging-only (item 96) — no
+// clearly-sequential single-hue maps (hot/inferno/actc), since activation
+// maps are signed stat data, not intensity.
+const ACTIVATION_CMAP_PALETTE = ["jet", "warm", "cool", "turbo", "plasma", "viridis"];
+// TRACT_RGB_PALETTE / MESH_EXTS / TRACT_CLIENT_MAX_BYTES moved to hooks/useTracts.js.
 
-const MESH_EXTS = [".trk", ".tck", ".trx", ".vtk", ".gii", ".mz3", ".obj", ".stl", ".ply"];
-// NiiVue parses tractograms entirely in the WebGL renderer (one contiguous
-// ArrayBuffer + several typed-array copies), so files past this size reliably
-// exhaust the renderer's memory. Larger files are decimated on the backend.
-const TRACT_CLIENT_MAX_BYTES = 700 * 1024 * 1024; // ~700 MB
+// Pseudo-layer id for the in-progress scratch drawing, so it can be picked for
+// the retinotopy deficit analysis without first being saved as a lesion layer.
+// Deliberately not a valid niivue volume id: every lookup routes it to
+// getDrawingAsVolume() instead of getVolume(), and a real layer can never
+// collide with it.
+const DRAWING_LESION_ID = "__drawing__";
 
 export default function Dashboard() {
+  const { theme, toggleTheme, setTheme } = useTheme();
+  // Module store entry point. `ok !== true` means the backend never answered —
+  // the "modules absent" dot must NOT light up in that case (see ModuleGate).
+  const { openStore, modules: manifestModules, ok: modulesOk } = useModules();
+  const modulesAbsent = modulesOk === true
+    && manifestModules.some((m) => (m.type || "data") === "data" && !m.installed);
   const viewerRef = useRef(null);
   const bensonVfMap2dRef = useRef(null);
   const wmVfMap2dRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
+  // Panel chrome: collapsing hides the sidebar/topbar visually (width/height
+  // squeezed to 0 via CSS) but keeps their contents mounted, so section
+  // open/closed state and in-progress panel inputs (measurements, drawing,
+  // etc.) survive a collapse/expand cycle.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [topbarCollapsed, setTopbarCollapsed] = useState(false);
+  // Controlled open/closed state for the two sections the mask-edit workflow
+  // drives programmatically (handleUserEdit closes Load-Mask and opens Draw).
+  // Every other SidebarSection stays uncontrolled via defaultOpen.
+  const [lesionSectionOpen, setLesionSectionOpen] = useState(false);
+  const [drawingSectionOpen, setDrawingSectionOpen] = useState(false);
+  const [tractDissectSectionOpen, setTractDissectSectionOpen] = useState(false);
+  const [tractSectionOpen, setTractSectionOpen] = useState(false);
+  const [tractAutoExpandId, setTractAutoExpandId] = useState(null);
+  const [lnmSectionOpen, setLnmSectionOpen] = useState(false);
+  const [activationSectionOpen, setActivationSectionOpen] = useState(false);
+  const [activationAutoExpandId, setActivationAutoExpandId] = useState(null);
+
+  const scrollSectionIntoView = (testId) => {
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-testid="${testId}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
+  // Item 105: "toggle all sections" registry — every SidebarSection under the
+  // provider below self-registers, so the header button can both read how many
+  // are open and drive all of them at once (works for the uncontrolled ones and
+  // the two controlled ones above alike). See components/SidebarSection.jsx.
+  const {
+    ctx: sidebarSectionsCtx,
+    openCount: openSectionCount,
+    setAll: setAllSectionsOpen,
+  } = useSidebarSectionsController();
+  // Focus/presentation mode hides sidebar + topbar + info/status bars at once,
+  // restoring the previous collapse state on exit.
+  const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Viewer view state (pushed to NiiVue via effects below; persisted to workspace).
+  const [radiological, setRadiological] = useState(true);
+  const [orientationLabels, setOrientationLabels] = useState(true);
+  // Right-drag mode toggle: "zoom" (default) | "windowing" | "pan". Left-click
+  // is ALWAYS crosshair (when not drawing) and isn't controlled by this state
+  // anymore — see NiivueViewer's setDragMode, which now configures the RIGHT
+  // mouse button only. (Kept the variable name "dragMode" for continuity with
+  // the workspace-save format and existing call sites — only its target
+  // button and default value changed.)
+  const [dragMode, setDragMode] = useState("zoom"); // zoom | windowing | pan
+  // Measurements (distance/angle list) + midline landmark. Owned here so they
+  // survive the Measurements section collapsing and can be persisted.
+  const [measurements, setMeasurements] = useState([]);
+  const [landmark, setLandmark] = useState(null);
+  // Crosshair "pins": labeled probe points that snapshot the value at that
+  // voxel across every visible layer at the moment they're dropped.
+  const [pins, setPins] = useState([]);
+  // Bumped by Clear All so result-holding panels (Create ROI, Lesion Network
+  // Mapping) can reset their own local cards — the viewer removes their overlay
+  // volumes but doesn't own their panel state.
+  const [clearNonce, setClearNonce] = useState(0);
+  // Set by the "D" shortcut, consumed once by DrawingPanel (see its prop docs).
+  const [drawTogglePending, setDrawTogglePending] = useState(false);
+  // Item 5: name to prefill Draw Mask's save-name box with when handleUserEdit
+  // re-opens a saved lesion for editing. editNonce bumps on every Edit click
+  // (even re-editing the same name) so DrawingPanel's effect re-fires.
+  const [editingSaveName, setEditingSaveName] = useState("");
+  const [editNonce, setEditNonce] = useState(0);
   const [sliceType, setSliceType] = useState("multiplanar");
+  // Drawing tool state — lifted here from DrawingPanel so Dashboard can show
+  // the 4th erase button in the topbar and pass the canvas label to NiivueViewer.
+  const [drawingActive, setDrawingActive] = useState(false);
+  const [activeTool, setActiveTool] = useState("pen"); // "pen" | "brush"
+  // Brush mode: "3D" for multiplanar/asymmetric (default), "2D" for single
+  // slice views (axial/coronal/sagittal). Auto-switches when sliceType changes;
+  // the user can also override it manually via DrawingPanel's 2D/3D toggle.
+  const [brushMode, setBrushMode] = useState("3D");
   const [crosshair, setCrosshair] = useState(true);
   const [crosshairWidth, setCrosshairWidth] = useState(1);
   const [crosshairColor, setCrosshairColor] = useState("white");
   const [showCrosshairSettings, setShowCrosshairSettings] = useState(false);
-  const [clipDepth, setClipDepth] = useState(2);
+  const [showClipSettings, setShowClipSettings] = useState(false);
+  const crosshairSettingsRef = useRef(null);
+  const clipSettingsRef = useRef(null);
+  useClickOutside(crosshairSettingsRef, () => setShowCrosshairSettings(false), showCrosshairSettings);
+  // Item 102 (6e): don't auto-close the clip popover for a right-click/
+  // right-drag on the 3D render tile — that gesture rotates the camera (6c)
+  // and the whole point is to watch the az/el sliders track it live (6d)
+  // while the popover stays open. The crosshair popover above keeps the
+  // original unconditional auto-close. canvasWrapperRef/viewerRef are refs
+  // (stable identity, declared elsewhere in this component) read only when
+  // this callback actually runs — safe regardless of their declaration
+  // order relative to this line.
+  const clipPopoverShouldIgnore = useCallback((e) => {
+    if (e.button !== 2) return false;
+    const el = canvasWrapperRef.current;
+    if (!el || !el.contains(e.target)) return false;
+    const nv = viewerRef.current?.getNiivue?.();
+    if (!nv) return false;
+    const rect = el.getBoundingClientRect();
+    const dpr = nv.uiData?.dpr || window.devicePixelRatio || 1;
+    const x = (e.clientX - rect.left) * dpr;
+    const y = (e.clientY - rect.top) * dpr;
+    try { return nv.inRenderTile(x, y) !== -1; } catch (_e) { return false; }
+  }, []);
+  useClickOutside(clipSettingsRef, () => setShowClipSettings(false), showClipSettings, clipPopoverShouldIgnore);
+  // Item 102 (6a): clipEnabled owns on/off; clipDepth is now a pure -0.6..0.6
+  // value with no "off" sentinel encoded in it, so depth/az/el keep their
+  // values across an on/off toggle (previously 0.6 meant "off" AND "max
+  // depth" simultaneously, which couldn't preserve a depth setting once
+  // disengaged).
+  const [clipEnabled, setClipEnabled] = useState(false);
+  // Global tractography
+  // render controls (geometry/lighting/thickness/slab/display-fraction),
+  // pushed to the viewer below via setTractRenderOptions — a uniform-only
+  // patch that never rebuilds a buffer.
+  const [tractRender, setTractRender] = useState(DEFAULT_TRACT_RENDER);
+  const [clipDepth, setClipDepth] = useState(0);
   const [clipAz, setClipAz] = useState(0);
   const [clipEl, setClipEl] = useState(0);
   const [baseLabel, setBaseLabel] = useState(BASE_VOLUME.name);
+  // Desktop-only full path of a custom base image (item 13's hover tooltip);
+  // null for the bundled MNI152 template and in the browser build, where no
+  // real filesystem path is obtainable from a File object.
+  const [baseFullPath, setBaseFullPath] = useState(null);
+  // 4D frame stepper state — { frame, nFrames }. nFrames stays 1 for a plain
+  // 3D base volume, which is what keeps FrameStepper (and the ArrowLeft/
+  // ArrowRight capture-phase claim below) inert for the common case.
+  const [frameInfo, setFrameInfo] = useState({ frame: 0, nFrames: 1 });
+  // Live mirror of baseLabel for the (empty-deps) keyboard-shortcuts map.
+  const baseLabelRef = useRef(baseLabel);
+  useEffect(() => { baseLabelRef.current = baseLabel; }, [baseLabel]);
+  // Live mirror of sliceType for the (empty-deps) keyboard-shortcuts map.
+  const sliceTypeRef = useRef("multiplanar");
+  useEffect(() => { sliceTypeRef.current = sliceType; }, [sliceType]);
   const [baseVisible, setBaseVisible] = useState(true);
   // DICOM import: series picker + staged progress (upload → convert → load).
   const [dicomJob, setDicomJob] = useState(null);       // { jobId, series }
@@ -108,23 +274,21 @@ export default function Dashboard() {
   // a side view swaps it into the big slot.
   const [asymmetric, setAsymmetric] = useState(false);
   const [largeSlice, setLargeSlice] = useState("axial");
+  // Refs mirror asymmetric/largeSlice for the empty-deps `shortcuts` memo, which
+  // captures state at first render and must read live values via refs.
+  const asymmetricRef = useRef(false);
+  useEffect(() => { asymmetricRef.current = asymmetric; }, [asymmetric]);
+  const largeSliceRef = useRef("axial");
+  useEffect(() => { largeSliceRef.current = largeSlice; }, [largeSlice]);
 
-  // Overlay metadata cache: id → {globalMin, globalMax, calMin, calMax, isSigned, ignoreZeroVoxels}
+  // Overlay metadata cache: id → {globalMin, globalMax, calMin, calMax, hasZeroVoxels, ignoreZeroVoxels}
   // Populated whenever an overlay is loaded / its thresholds change. Used to drive
   // the per-layer threshold UI and the ColorBarStack on the viewer.
   const [overlayMeta, setOverlayMeta] = useState({});
 
-  // Short label for whichever slider scroll is currently bound to ('Depth', 'Base', 'Az', …).
-  const [scrollTarget, setScrollTarget] = useState(null);
-  // Stores a (delta: number) => void function that adjusts whichever slider
-  // was last interacted with. delta is +1 (scroll up) or -1 (scroll down).
-  // Plain scroll fires this (if set). Ctrl+scroll always zooms via NiiVue.
-  const scrollAdjustRef = useRef(null);
   // Ref attached to the canvas wrapper div for the non-passive wheel listener.
+  // Plain scroll = slice navigation (NiiVue native); Ctrl+scroll = zoom.
   const canvasWrapperRef = useRef(null);
-
-  // Atlas verification modal (Benson/Wang side-by-side surface↔volume plots)
-  const [showValidation, setShowValidation] = useState(false);
 
   // Per-activation-layer atlas selection for region-name lookups in the
   // crosshair info bar. Map: layerId → atlasId (one of STANDARD_ATLASES.id).
@@ -148,27 +312,87 @@ export default function Dashboard() {
   const [eccenThresh, setEccenThresh] = useState({ mode: "any", min: 3 });
   const [eccenInverted, setEccenInverted] = useState(false);
   const [retAtlasTick, setRetAtlasTick] = useState(0);
+  // Bumps on every draw-bitmap mutation, so the retinotopy analysis re-reads the
+  // live scratch drawing (same sentinel role retAtlasTick plays for atlases).
+  // Only bumped while the drawing is actually selected for analysis — otherwise
+  // every brush stroke would re-run the full voxel loop for the real lesions too.
+  const [drawVersion, setDrawVersion] = useState(0);
   const [lesionPickerOpen, setLesionPickerOpen] = useState(false);
   const [bensonViewMode, setBensonViewMode] = useState("2d");
   const [wmInlineViewMode, setWmInlineViewMode] = useState("2d");
 
-  // Standard atlas state (AAL, HO, Juelich)
-  const initAtlasState = useMemo(() => {
-    const s = {};
-    for (const a of STANDARD_ATLASES) s[a.id] = { visible: false, opacity: a.opacity, colormap: a.colormap };
-    return s;
-  }, []);
-  const [atlasState, setAtlasState] = useState(initAtlasState);
-  // labels caches: atlasId -> { value: name }
-  const atlasLabelsRef = useRef({});
-  // Live snapshot of atlasState for use inside handleLocationChange without
-  // adding atlasState to the callback's dependency array.
-  const atlasStateRef = useRef(atlasState);
-  useEffect(() => { atlasStateRef.current = atlasState; }, [atlasState]);
+  // ===== Standard atlases (from the registry) =====
+  const { atlases: standardAtlases, refresh: refreshAtlases, reorder: reorderAtlases,
+          openManager: openAtlasManager } = useAtlases();
+  const resolveAtlas = useResolveAtlas();
+  const { regions: atlasRegions, ensure: ensureAtlasRegions,
+          clear: clearAtlasRegions } = useAtlasRegions();
+
+  // Per-atlas view state. Seeded PER ID as atlases arrive, not once from a
+  // constant: the list is dynamic now, so a useMemo(..., []) could never see an
+  // atlas installed after mount, and every consumer indexing atlasState[a.id]
+  // unguarded would throw on it.
+  const [atlasState, setAtlasState] = useState({});
+  const initAtlasState = useMemo(() => ({}), []);
+  useEffect(() => {
+    if (!standardAtlases.length) return;
+    setAtlasState((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const a of standardAtlases) {
+        if (!next[a.id]) {
+          next[a.id] = { visible: false, opacity: a.opacity, colormap: a.colormap };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [standardAtlases]);
+
+  // {atlasId: {value: name}} for the two SYNCHRONOUS hot paths below
+  // (handleLocationChange runs inside a niivue callback, atlasLabelLookup
+  // inside the cluster table's render). Mirrors the reactive `atlasRegions`
+  // state through a ref — the pattern CLAUDE.md §6 requires for anything a
+  // listener registered at mount has to read.
+  // Per-atlas "show only these regions" allow-list: {atlasId: Set<value>}.
+  // An empty/absent entry means every region is shown.
+  const [atlasIsolate, setAtlasIsolate] = useState({});
+
+  const atlasNamesRef = useRef({});
+  useEffect(() => {
+    const m = {};
+    for (const [id, list] of Object.entries(atlasRegions)) m[id] = toNameMap(list);
+    atlasNamesRef.current = m;
+  }, [atlasRegions]);
 
   // User-uploaded layers (lesion / roi / activation / custom-atlas)
   const [userLayers, setUserLayers] = useState([]);
+  // {volumeId: displayName} for the crosshair value bar (item 19). niivue names
+  // each volume by its layer id (e.g. "lesion-1699…"), so the value bar showed
+  // that raw id instead of the layer's real name; this maps it back. A ref, not
+  // a dep, because handleLocationChange is a hot niivue callback (CLAUDE.md §6).
+  const layerNamesRef = useRef({});
+  useEffect(() => {
+    const m = {};
+    for (const l of userLayers) m[l.id] = l.name;
+    layerNamesRef.current = m;
+  }, [userLayers]);
+  // Free-text notes (item 13), keyed by whatever id the layer/card uses —
+  // one flat map shared by every section (base volume's "mni152", standard
+  // atlas ids, retinotopy layer ids, and every user-uploaded layer/tract id)
+  // since none of those id spaces collide. Session-only: not part of any
+  // save/restore payload yet.
+  const [layerNotes, setLayerNotes] = useState({});
+  const handleNotesChange = (id, text) => setLayerNotes((p) => ({ ...p, [id]: text }));
   const userFileCache = useRef({});
+  // Per-type palette cursor for addUserFile's colormap cycling (item 96).
+  // MUST be a ref, not derived from userLayers.length: a multi-file upload
+  // loop (`for (const f of files) await addUserFile(f, type)`, item 95) awaits
+  // addUserFile before the next iteration, but React state doesn't flush
+  // synchronously between awaits — every file in one batch would read the same
+  // stale userLayers.length and get the SAME colormap. Incremented
+  // synchronously inside addUserFile instead.
+  const cmapCursor = useRef({ lesion: 0, activation: 0, roi: 0 });
 
   // Tract / mesh layers
   const [tractLayers, setTractLayers] = useState([]);
@@ -183,84 +407,118 @@ export default function Dashboard() {
   // List of {layerName, value} for all visible volumes at the current voxel
   const [crosshairValues, setCrosshairValues] = useState([]);
 
-  // Eloquent-structure proximity (Jülich). Off by default — enabling it
-  // auto-loads the Jülich atlas (invisible) for distance lookups.
-  const [proximityWarn, setProximityWarn] = useState(false);
-  const [crosshairEloquent, setCrosshairEloquent] = useState(null);
-  const proximityWarnRef = useRef(false);
-  const lastEloquentMM = useRef(null);
   const labelsDebounceRef = useRef(null);
+
+  // Tracks which 2D view (axCorSag: 0=axial, 1=coronal, 2=sagittal) the user
+  // last clicked or scrolled in, for orientation-aware arrow-key slice
+  // stepping in Multi/Asymmetric layouts (single-view modes use the view
+  // itself instead — see the shortcuts below). Defaults to axial. Mirrored
+  // into state (only on actual change, not every event) so the active tile
+  // can be highlighted without re-rendering on every scroll tick.
+  const lastOrientationRef = useRef(0);
+  const [activeOrientation, setActiveOrientation] = useState(0);
+
+  // Threshold-slider histograms, computed lazily per layer id (full-volume
+  // scan) the first time that layer's advanced panel is expanded.
+  const [histograms, setHistograms] = useState({});
+  const requestHistogram = useCallback((layerId) => {
+    setHistograms((prev) => {
+      if (prev[layerId]) return prev;
+      const h = viewerRef.current?.getOverlayHistogram(layerId);
+      return h ? { ...prev, [layerId]: h } : prev;
+    });
+  }, []);
+
+  // Live "N voxels / X.XX mL visible" readout next to a layer's threshold
+  // slider. Debounced (full-volume scan) so dragging the slider doesn't
+  // trigger a scan on every tick — only once the drag settles.
+  const [thresholdVolumes, setThresholdVolumes] = useState({});
+  const thresholdVolumeTimers = useRef({});
+  const scheduleThresholdVolume = useCallback((id, lo, hi, invert) => {
+    clearTimeout(thresholdVolumeTimers.current[id]);
+    thresholdVolumeTimers.current[id] = setTimeout(() => {
+      const stats = viewerRef.current?.getOverlayThresholdVolume(id, lo, hi, invert);
+      if (stats) setThresholdVolumes((prev) => ({ ...prev, [id]: stats }));
+    }, 250);
+  }, []);
 
   // ===== Location change → labels + voxel values =====
   const handleLocationChange = useCallback((data) => {
     if (!data) return;
     if (data.mm) setCrosshairMM([data.mm[0], data.mm[1], data.mm[2]]);
     if (data.vox) setCrosshairVox([data.vox[0], data.vox[1], data.vox[2]]);
-
-    // Eloquent proximity (throttled: skip if crosshair moved < 0.5mm).
-    if (proximityWarnRef.current && data.mm) {
-      const prev = lastEloquentMM.current;
-      const moved =
-        !prev ||
-        Math.abs(prev[0] - data.mm[0]) +
-          Math.abs(prev[1] - data.mm[1]) +
-          Math.abs(prev[2] - data.mm[2]) > 0.5;
-      if (moved) {
-        lastEloquentMM.current = [data.mm[0], data.mm[1], data.mm[2]];
-        const jvol = viewerRef.current?.getVolume?.("juelich");
-        const jlabels = atlasLabelsRef.current?.juelich;
-        if (jvol?.img && jlabels) {
-          setCrosshairEloquent(
-            nearestEloquentAtMM([data.mm[0], data.mm[1], data.mm[2]], jvol, jlabels, 6)
-          );
-        }
+    if (Number.isFinite(data.axCorSag) && data.axCorSag >= 0 && data.axCorSag <= 2) {
+      if (lastOrientationRef.current !== data.axCorSag) {
+        lastOrientationRef.current = data.axCorSag;
+        setActiveOrientation(data.axCorSag);
       }
     }
+
     // niivue reports each volume's name as the URL basename (e.g.
-    // 'visfAtlas_maxprob'). Map that back to the layer id we registered.
+    // 'benson14_polar_angle'). Map that back to the layer id we registered.
+    //
+    // Atlases resolve through the registry rather than the hand-written regex
+    // this used to carry: that regex listed four ids and silently failed for
+    // hcp1065, so the crosshair bar never named a white-matter tract. The
+    // retinotopy layers keep their explicit mapping — they are not atlases and
+    // are not in the registry.
     const canon = (rawName) => {
       if (!rawName) return rawName;
-      if (rawName.includes("visfAtlas")) return "visfAtlas";
       if (rawName.includes("wang2015_maxprob")) return "wang2015_maxprob";
       if (rawName.includes("benson14_polar_angle")) return "benson_polar_angle";
       if (rawName.includes("benson14_eccentricity")) return "benson_eccentricity";
       if (rawName.includes("benson14_visual_areas")) return "benson_visual_areas";
-      const m = rawName.match(/^(aal|harvard_oxford_[a-z]+|juelich|destrieux)(_atlas)?$/);
-      if (m) return m[1];
-      return rawName;
+      return resolveAtlas(rawName)?.id || rawName;
     };
     const labels = {};
     const values = data.values || [];
     const valueRows = [];
+
+    // Item 19: the value bar showed a row for EVERY loaded volume, including
+    // the retinotopy helper maps (benson/wm polar-angle + eccentricity) that
+    // are auto-loaded invisibly at opacity 0 the moment a lesion exists — they
+    // appeared as PolarAng0 / Eccen0 / wm_… noise. Skip any volume that is not
+    // actually visible (opacity 0), keyed by the live niivue opacity so the
+    // rule is uniform across user layers, atlases and retinotopy.
+    const nv = viewerRef.current?.getNiivue();
+    const opacityByName = {};
+    if (nv?.volumes) for (const vol of nv.volumes) opacityByName[vol.name] = vol.opacity;
+
+    // Friendly name for a value row: a user layer shows its sidebar name (not
+    // the raw "lesion-<timestamp>" id), an atlas its short name, the fixed
+    // helpers their labels.
+    const RETINO_SHORT = {
+      mni152: "MNI152", wang2015_maxprob: "Wang",
+      benson_polar_angle: "PolarAng", benson_eccentricity: "Eccen",
+      benson_visual_areas: "VArea", wm_polar_angle: "WM PolarAng",
+      wm_eccentricity: "WM Eccen",
+    };
+    const readoutName = (rawName, canonName) => {
+      const ln = layerNamesRef.current[rawName] || layerNamesRef.current[canonName];
+      if (ln) return ln;
+      const atlas = resolveAtlas(canonName);
+      if (atlas) return atlas.short || atlas.id;
+      return RETINO_SHORT[canonName] || shortLayerName(canonName);
+    };
+
     for (const v of values) {
       const name = canon(v.name);
       const k = Math.round(v.value);
       if (k > 0) {
         if (name === "wang2015_maxprob" && WANG_LABELS[k]) labels["Wang ROI"] = WANG_LABELS[k];
         else if (name === "benson_visual_areas" && VAREA_LABELS[k]) labels["Visual Area"] = VAREA_LABELS[k];
-        else if (atlasLabelsRef.current[name]) {
-          // Jülich is loaded silently for the Eloquent Warn feature. Only show
-          // its region labels when warn is active OR when the user has explicitly
-          // enabled the Jülich atlas in the Atlases panel.
-          const juelichGated = name === "juelich"
-            && !proximityWarnRef.current
-            && !atlasStateRef.current.juelich?.visible;
-          if (!juelichGated) {
-            const tbl = atlasLabelsRef.current[name];
-            if (tbl[k]) labels[shortAtlas(name)] = tbl[k];
-          }
+        else if (atlasNamesRef.current[name]) {
+          const tbl = atlasNamesRef.current[name];
+          if (tbl[k]) labels[shortAtlas(name, resolveAtlas)] = tbl[k];
         }
       }
-      // Build a numeric value row for *every* loaded volume. Hidden-label
-      // helpers (suffix "__labels") are skipped. Same Jülich gate applies
-      // so "JÜLICH 36.00" doesn't appear when warn is off.
-      if (typeof v.value === "number" && !String(name || "").endsWith("__labels")) {
-        const juelichGated = name === "juelich"
-          && !proximityWarnRef.current
-          && !atlasStateRef.current.juelich?.visible;
-        if (!juelichGated) {
-          valueRows.push({ name: shortLayerName(name), value: v.value });
-        }
+      // Build a numeric value row only for volumes the user can actually see.
+      // Hidden-label helpers (suffix "__labels") and opacity-0 helpers are
+      // skipped; the base volume (opacity undefined here only if unset) stays.
+      const opacity = opacityByName[v.name];
+      const visible = opacity === undefined || opacity > 0;
+      if (typeof v.value === "number" && visible && !String(name || "").endsWith("__labels")) {
+        valueRows.push({ name: readoutName(v.name, name), value: v.value });
       }
     }
     // For each user layer with a chosen label atlas, look up the region
@@ -273,9 +531,9 @@ export default function Dashboard() {
       if (!v) continue;
       const k = Math.round(v.value);
       if (k <= 0) continue;
-      const tbl = atlasLabelsRef.current[atlasId];
+      const tbl = atlasNamesRef.current[resolveAtlas(atlasId)?.id || atlasId];
       if (tbl?.[k]) {
-        extra[`${shortLayerName(layerId)}↦${shortAtlas(atlasId)}`] = tbl[k];
+        extra[`${readoutName(layerId, layerId)}↦${shortAtlas(atlasId, resolveAtlas)}`] = tbl[k];
       }
     }
     const mergedLabels = Object.keys(extra).length ? { ...labels, ...extra } : labels;
@@ -288,14 +546,14 @@ export default function Dashboard() {
       setCrosshairLabels(mergedLabels);
       setCrosshairValues(valueRows);
     }, 40);
-  }, [layerLabelAtlas]);
+  }, [layerLabelAtlas, resolveAtlas]);
 
   // Atlas lookup function for cluster table (returns region name at a peak voxel)
   const atlasLabelLookup = useCallback((peakVox) => {
     const nv = viewerRef.current?.getNiivue();
     if (!nv) return null;
     // pick first visible standard atlas
-    for (const a of STANDARD_ATLASES) {
+    for (const a of standardAtlases) {
       if (!atlasState[a.id]?.visible) continue;
       const vol = nv.volumes.find((v) => v?.name === a.id);
       if (!vol?.img || !vol?.dims) continue;
@@ -303,11 +561,11 @@ export default function Dashboard() {
       const [i, j, k] = peakVox.map((n) => Math.round(n));
       const idx = i + nx * (j + ny * k);
       const val = Math.round(vol.img[idx] || 0);
-      const labels = atlasLabelsRef.current[a.id];
-      if (labels?.[val]) return `${shortAtlas(a.id)}: ${labels[val]}`;
+      const labels = atlasNamesRef.current[a.id];
+      if (labels?.[val]) return `${a.short || a.id}: ${labels[val]}`;
     }
     return null;
-  }, [atlasState]);
+  }, [atlasState, standardAtlases]);
 
   // ===== Retinotopy handlers =====
   const handleRetToggle = async (id) => {
@@ -334,13 +592,6 @@ export default function Dashboard() {
   const handleRetOpacity = (id, v) => {
     setRetState((p) => ({ ...p, [id]: { ...p[id], opacity: v } }));
     viewerRef.current?.setOverlayOpacity(id, v);
-    setScrollTarget('Ret');
-    scrollAdjustRef.current = (d) => setRetState((p) => {
-      const cur = p[id]?.opacity ?? 1;
-      const n = Math.max(0, Math.min(1, cur + d * 0.05));
-      viewerRef.current?.setOverlayOpacity(id, n);
-      return { ...p, [id]: { ...p[id], opacity: n } };
-    });
   };
   const handleRetColormap = (id, cm) => {
     setRetState((p) => ({ ...p, [id]: { ...p[id], colormap: cm } }));
@@ -348,46 +599,31 @@ export default function Dashboard() {
   };
 
   // ===== Standard atlases handlers =====
-  const loadAtlasLabels = async (id, labelsUrl) => {
-    if (!labelsUrl || atlasLabelsRef.current[id]) return;
-    try {
-      const res = await fetch(labelsUrl);
-      const data = await res.json();
-      const tbl = {};
-      if (Array.isArray(data)) {
-        // AAL / HO / Destrieux: array of {index, name}
-        for (const it of data) tbl[it.index] = it.name;
-      } else if (data && typeof data === "object") {
-        // visfAtlas: dict {"1":"lh_mFus_faces", ...}
-        for (const [k, v] of Object.entries(data)) {
-          tbl[parseInt(k, 10)] = v;
-        }
-      }
-      atlasLabelsRef.current[id] = tbl;
-    } catch (e) {
-      console.warn("labels fetch failed:", e);
-    }
-  };
+  // Label fetching + normalisation now lives in useAtlasRegions/lib/atlasLabels;
+  // this file no longer knows what shape a label file has.
 
   const handleAtlasToggle = async (id) => {
-    const cfg = STANDARD_ATLASES.find((a) => a.id === id);
-    const s = atlasState[id];
+    const cfg = resolveAtlas(id);
     const viewer = viewerRef.current;
     if (!cfg || !viewer) return;
+    const s = atlasState[cfg.id] || { opacity: cfg.opacity, colormap: cfg.colormap };
     if (s.visible) {
-      viewer.removeOverlayByName(id);
-      setAtlasState((p) => ({ ...p, [id]: { ...p[id], visible: false } }));
+      viewer.removeOverlayByName(cfg.id);
+      setAtlasState((p) => ({ ...p, [cfg.id]: { ...p[cfg.id], visible: false } }));
     } else {
       const vol = await viewer.addOverlayFromUrl({ ...cfg, opacity: s.opacity, colormap: s.colormap });
       if (vol) {
-        await loadAtlasLabels(id, cfg.labelsUrl);
-        setAtlasState((p) => ({ ...p, [id]: { ...p[id], visible: true } }));
-        refreshOverlayMeta(id);
+        await ensureAtlasRegions(cfg);
+        setAtlasState((p) => ({
+          ...p,
+          [cfg.id]: { ...(p[cfg.id] || { opacity: cfg.opacity, colormap: cfg.colormap }), visible: true },
+        }));
+        refreshOverlayMeta(cfg.id);
         toast.success(`${cfg.name} loaded`);
         // visfAtlas ROIs sit on higher visual cortex (ventral occipital-temporal
         // and lateral occipital). Default crosshair at brain centre never
         // intersects them — auto-jump so the user can immediately see colour.
-        if (id === "visfAtlas" && VISFATLAS_NAV_MM) {
+        if (cfg.id === "visfatlas" && VISFATLAS_NAV_MM) {
           viewer.setCrosshairMM?.(...VISFATLAS_NAV_MM);
         }
       }
@@ -396,17 +632,76 @@ export default function Dashboard() {
   const handleAtlasOpacity = (id, v) => {
     setAtlasState((p) => ({ ...p, [id]: { ...p[id], opacity: v } }));
     viewerRef.current?.setOverlayOpacity(id, v);
-    setScrollTarget('Atlas');
-    scrollAdjustRef.current = (d) => setAtlasState((p) => {
-      const cur = p[id]?.opacity ?? 1;
-      const n = Math.max(0, Math.min(1, cur + d * 0.05));
-      viewerRef.current?.setOverlayOpacity(id, n);
-      return { ...p, [id]: { ...p[id], opacity: n } };
-    });
   };
   const handleAtlasColormap = (id, cm) => {
     setAtlasState((p) => ({ ...p, [id]: { ...p[id], colormap: cm } }));
     viewerRef.current?.setOverlayColormap(id, cm);
+  };
+  // Show only the chosen regions of an atlas. Implemented as a colormap-label
+  // alpha mask rather than by editing voxels, so it is instant and reversible
+  // and never touches the atlas on disk.
+  const handleAtlasIsolate = (atlasId, values) => {
+    const cfg = resolveAtlas(atlasId);
+    if (!cfg) return;
+    const set = values && values.length ? new Set(values) : null;
+    setAtlasIsolate((p) => {
+      const next = { ...p };
+      if (set) next[cfg.id] = set;
+      else delete next[cfg.id];
+      return next;
+    });
+    viewerRef.current?.setOverlayLabelFilter?.(cfg.id, set ? [...set] : null);
+  };
+
+  // Persist per-region colours onto the atlas's own label file, so a colour
+  // scheme travels with the atlas folder instead of living in app state.
+  const handleAtlasRegionColors = async (atlasId, colors) => {
+    const cfg = resolveAtlas(atlasId);
+    if (!cfg) return;
+    try {
+      await patchAtlas(cfg.id, { colors });
+      clearAtlasRegions(cfg.id);
+      const fresh = await ensureAtlasRegions(cfg);
+      viewerRef.current?.setOverlayLabelColors?.(cfg.id, fresh);
+    } catch (e) {
+      toast.error("Could not save that colour", { description: e?.message });
+    }
+  };
+
+  // Clip an atlas out of the 3D clip-plane grouping (SMALL-PROBLEMS 18). The
+  // per-overlay clip plumbing is generic by id, so this is the user-layer
+  // handler applied to an atlas — no new logic.
+  const handleAtlasClipChange = (id, clipOn) => handleUserClipChange(id, clipOn);
+
+  // Jump the crosshair to an atlas region's center (label-list navigate button).
+  const handleAtlasNavigate = async (atlasId, labelValue) => {
+    const cfg = resolveAtlas(atlasId);
+    if (!cfg) return;
+    // Prefer the centroid the registry already computed at install time (it is
+    // snapped onto an in-region voxel, so a bilateral single-label region lands
+    // ON itself instead of on the midline). Falls back to the client-side scan
+    // for an atlas whose labels predate that.
+    const seeded = (atlasRegions[cfg.id] || []).find((r) => r.value === labelValue)?.centroidMM;
+    const mm = seeded || viewerRef.current?.getAtlasRegionCentroidMM?.(cfg.id, labelValue);
+    if (mm) viewerRef.current?.setCrosshairMM?.(...mm);
+    else toast.info("That region has no voxels in the loaded atlas");
+  };
+
+  // Turn selected atlas regions into a mask layer (Region -> ROI).
+  const handleAtlasRegionMask = async (atlasId, values, label) => {
+    const cfg = resolveAtlas(atlasId);
+    if (!cfg || !values?.length) return;
+    try {
+      const res = await regionMask(cfg.id, values, label);
+      const r = await fetch(res.url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const file = new File([blob], res.filename, { type: "application/gzip" });
+      await addUserFile(file, "roi");
+      toast.success(`${res.regions.length} region(s) added as an ROI layer`);
+    } catch (e) {
+      toast.error("Could not build that region mask", { description: e?.message });
+    }
   };
 
   // ===== Generic user-uploaded layer add (volume) =====
@@ -414,14 +709,30 @@ export default function Dashboard() {
     const viewer = viewerRef.current;
     if (!viewer) return null;
     const id = `${type}-${Date.now()}`;
+    // Palette cycling (item 96) — cmapCursor is a ref incremented synchronously
+    // here (not derived from userLayers.length) so a multi-file upload loop
+    // (item 95) gives each file in the SAME batch a different colormap; see the
+    // cmapCursor declaration above for why state-derived counting breaks that.
+    const nextCmap = (palette, key) => {
+      const idx = cmapCursor.current[key] % palette.length;
+      cmapCursor.current[key] += 1;
+      return palette[idx];
+    };
     const cm =
       opts.colormap ||
-      (type === "lesion" ? LESION_CMAP
-        : type === "activation" ? ACTIVATION_CMAP_PALETTE[userLayers.filter((l) => l.type === "activation").length % ACTIVATION_CMAP_PALETTE.length]
+      (type === "lesion" ? nextCmap(LESION_CMAP_PALETTE, "lesion")
+        : type === "activation" ? nextCmap(ACTIVATION_CMAP_PALETTE, "activation")
         : type === "atlas" ? "random"
-        : ROI_CMAP_PALETTE[userLayers.filter((l) => l.type === "roi").length % ROI_CMAP_PALETTE.length]);
+        : nextCmap(ROI_CMAP_PALETTE, "roi"));
     const opacity = opts.opacity ?? (type === "lesion" ? 0.85 : 0.8);
-    const vol = await viewer.addOverlayFromFile(file, { colormap: cm, opacity, name: id });
+    const vol = await viewer.addOverlayFromFile(file, {
+      colormap: cm, opacity, name: id,
+      // Drives the per-type defaults in the viewer: the activation threshold
+      // defaults (49) and the initial "mask zero voxels" toggle state — on for
+      // lesion/ROI masks so their zero background can't veil the base scan (45),
+      // off for activation maps so zeros follow the threshold logic (48).
+      overlayKind: type,
+    });
     if (!vol) return null;
     userFileCache.current[id] = { file, colormap: cm };
     // Activation maps omit the type prefix — the section header already says "Activation Maps"
@@ -429,12 +740,23 @@ export default function Dashboard() {
     setUserLayers((p) => [
       ...p,
       { id, name: opts.name || layerName, type, visible: true, opacity, colormap: cm,
-        description: `${(file.size / 1024).toFixed(1)} KB` },
+        clip: type !== "lesion" && type !== "activation",
+        description: `${(file.size / 1024).toFixed(1)} KB`,
+        // Desktop-only (Electron's webUtils.getPathForFile via preload) — a
+        // plain browser <input type=file> cannot expose a real filesystem
+        // path, so this stays null there and the hover tooltip falls back
+        // to the layer name.
+        fullPath: window.mrlatte?.getPathForFile?.(file) || null },
     ]);
     refreshOverlayMeta(id);
     toast.success(`${typeLabel(type)} loaded`, { description: file.name });
-    return vol;
+    return id; // the new layer id, so callers (workspace restore) can post-configure it
   };
+
+  // "Save" Lesion Network Map → Activation Maps (item 59) — thin wrapper over
+  // addUserFile so the network map gets full threshold/colormap controls
+  // instead of the panel's own ad-hoc overlay.
+  const handleSaveLnmActivation = (file, name) => addUserFile(file, "activation", { name });
 
   const handleUserToggle = (id) => {
     const layer = userLayers.find((l) => l.id === id);
@@ -442,7 +764,7 @@ export default function Dashboard() {
     if (!layer || !viewer) return;
     if (layer.visible) {
       // Zero the opacity rather than removing the volume. This preserves all
-      // runtime state on the NiiVue NVImage object: __zeroMaskCache,
+      // runtime state on the NiiVue NVImage object: __maskZero,
       // __origColormap, __userThreshold, __invertThreshold, and the derived
       // __thr_* LUT registration. Removing and re-adding (the old approach)
       // created a fresh NVImage and silently wiped mask-zero and threshold
@@ -460,19 +782,27 @@ export default function Dashboard() {
   const handleUserOpacity = (id, v) => {
     setUserLayers((p) => p.map((l) => (l.id === id ? { ...l, opacity: v } : l)));
     viewerRef.current?.setOverlayOpacity(id, v);
-    const layerLabel = userLayers.find((l) => l.id === id)?.name?.slice(0, 12) ?? 'Layer';
-    setScrollTarget(layerLabel);
-    scrollAdjustRef.current = (d) => setUserLayers((p) => {
-      const layer = p.find((l) => l.id === id);
-      if (!layer) return p;
-      const n = Math.max(0, Math.min(1, layer.opacity + d * 0.05));
-      viewerRef.current?.setOverlayOpacity(id, n);
-      return p.map((l) => (l.id === id ? { ...l, opacity: n } : l));
-    });
   };
   const handleUserColormap = (id, cm) => {
     setUserLayers((p) => p.map((l) => (l.id === id ? { ...l, colormap: cm } : l)));
     viewerRef.current?.setOverlayColormap(id, cm);
+  };
+  // Colormap-direction invert (item 55) — mirrors handleUserColormap. Only
+  // wired to activation-map layers (see UserLayerList below); the viewer
+  // method is a no-op for base volume / categorical atlases regardless.
+  const handleUserColormapInvert = (id, on) => {
+    viewerRef.current?.setColormapInverted?.(id, on);
+    setOverlayMeta((p) => ({
+      ...p,
+      [id]: { ...(p[id] || {}), colormapInverted: on },
+    }));
+  };
+  const handleUserClipChange = (id, clipOn) => {
+    viewerRef.current?.setOverlayClip?.(id, clipOn);
+    setOverlayMeta((p) => ({
+      ...p,
+      [id]: { ...(p[id] || {}), clip: clipOn },
+    }));
   };
   const handleUserRemove = (id) => {
     viewerRef.current?.removeOverlayByName(id);
@@ -483,6 +813,54 @@ export default function Dashboard() {
       delete n[id];
       return n;
     });
+  };
+
+  // Explicit per-object download of a saved/loaded mask (item 39: download is
+  // separate from save). Uses the cached File; no re-encode.
+  const handleUserDownload = async (id) => {
+    const cached = userFileCache.current[id];
+    if (!cached?.file) { toast.error("No downloadable file for this layer"); return; }
+    try {
+      const buf = new Uint8Array(await cached.file.arrayBuffer());
+      await saveBinaryFile(cached.file.name || `${id}.nii.gz`, cached.file.type || "application/gzip", buf);
+    } catch (e) {
+      toast.error("Download failed", { description: e?.message });
+    }
+  };
+
+  // Re-open a saved/loaded mask in the editable drawing (item 39: saved objects
+  // are re-editable). Loads its file into nv.drawBitmap via the item-37 path.
+  const handleUserEdit = async (id) => {
+    const cached = userFileCache.current[id];
+    if (!cached?.file) { toast.error("No editable file for this layer"); return; }
+    const layer = userLayers.find((l) => l.id === id);
+    viewerRef.current?.drawClear?.();
+    const ok = await viewerRef.current?.loadDrawingFromVolume?.(cached.file);
+    if (!ok) return;
+    // Fully unload the source layer rather than just hiding it (item 5): Save
+    // always creates a NEW layer, so leaving the original around — even
+    // invisible — meant editing then saving left both the old and new file.
+    handleUserRemove(id);
+    // Prefill the save-name box with the original name so pressing Save again
+    // reuses it by default (still editable) instead of minting a new name.
+    setEditingSaveName(layer?.name || "");
+    setEditNonce((n) => n + 1);
+    // Collapse Load-Mask, expand Draw, and make sure paint mode is on. Opening
+    // the Draw section mounts DrawingPanel, which mirrors the viewer's paint
+    // state on subscribe (setDrawingActiveCallback) → shows "Drawing · Active".
+    setLesionSectionOpen(false);
+    setDrawingSectionOpen(true);
+    viewerRef.current?.setDrawingEnabled?.(true);
+    toast.success("Loaded into Draw Mask — edit it there");
+  };
+
+  // Clone a saved mask as a brand-new layer, named "Copy of {original}" (item
+  // 5). Reuses the cached File — no re-draw, no touching the original.
+  const handleUserDuplicate = async (id) => {
+    const cached = userFileCache.current[id];
+    if (!cached?.file) { toast.error("No duplicable file for this layer"); return; }
+    const layer = userLayers.find((l) => l.id === id);
+    await addUserFile(cached.file, layer?.type || "lesion", { name: `Copy of ${layer?.name || id}` });
   };
 
   // ===== Overlay threshold / mask-zero handling =====
@@ -506,6 +884,44 @@ export default function Dashboard() {
       ...p,
       [id]: { ...(p[id] || {}), cal_min, cal_max },
     }));
+    scheduleThresholdVolume(id, cal_min, cal_max, overlayMeta[id]?.invertThreshold);
+  };
+  // mrview-style colour-scaling range, independent of the visibility window.
+  const handleColorRangeChange = (id, color_min, color_max) => {
+    viewerRef.current?.setOverlayColorRange(id, color_min, color_max);
+    setOverlayMeta((p) => ({
+      ...p,
+      [id]: { ...(p[id] || {}), color_min, color_max },
+    }));
+  };
+  // One-click auto-contrast: snap an overlay's colour range to its robust
+  // 2–98th-percentile intensity window.
+  const handleAutoColorRange = (id) => {
+    const v = viewerRef.current?.getVolume?.(id);
+    const r = robustRange(v);
+    if (!r) return toast.error("Auto-contrast unavailable for this layer");
+    handleColorRangeChange(id, r[0], r[1]);
+  };
+  // Same idea as handleAutoColorRange, but for the VISIBILITY threshold
+  // instead of the colour-scaling range — snaps to the robust 2-98th
+  // percentile window so background/outlier voxels drop out of view.
+  const handleAutoThreshold = (id) => {
+    const v = viewerRef.current?.getVolume?.(id);
+    const r = robustRange(v);
+    if (!r) return toast.error("Auto-threshold unavailable for this layer");
+    handleCalRangeChange(id, r[0], r[1]);
+  };
+  // Base-volume window presets.
+  const handleBaseAutoWindow = () => {
+    const v = viewerRef.current?.getBaseVolume?.();
+    const r = robustRange(v);
+    if (!r) return toast.error("Auto-contrast unavailable");
+    handleBaseCalRange(null, r[0], r[1]);
+  };
+  const handleBaseFullWindow = () => {
+    const range = viewerRef.current?.getBaseRange?.();
+    if (!range) return;
+    handleBaseCalRange(null, range.global_min, range.global_max);
   };
   const handleIgnoreZeroChange = (id, on) => {
     viewerRef.current?.setIgnoreZeroVoxels(id, on);
@@ -526,6 +942,7 @@ export default function Dashboard() {
     // across invert toggles (the threshold range itself doesn't change —
     // only the alpha mask direction does). No refresh needed in either
     // direction.
+    scheduleThresholdVolume(id, overlayMeta[id]?.cal_min, overlayMeta[id]?.cal_max, on);
   };
 
   const handleEccenInvert = useCallback(() => {
@@ -539,28 +956,35 @@ export default function Dashboard() {
   // Ensure a standard atlas is loaded as a queryable niivue volume + its
   // labels are fetched. If not already present, loads it invisibly
   // (opacity 0) so it can be sampled without visually clashing. Returns the
-  // atlas NVImage, or null. Shared by the label-atlas picker, the lesion
-  // report, and the eloquent-proximity warning.
+  // atlas NVImage, or null. Shared by the label-atlas picker and the lesion
+  // report.
   const ensureAtlasLoaded = useCallback(async (atlasId, { silent = false } = {}) => {
     if (!atlasId) return null;
     const viewer = viewerRef.current;
     const nv = viewer?.getNiivue();
     if (!viewer || !nv) return null;
-    const cfg = STANDARD_ATLASES.find((a) => a.id === atlasId);
+    const cfg = resolveAtlas(atlasId);
     if (!cfg) return null;
-    const existing = nv.volumes?.find((v) => v?.name === atlasId);
+    const existing = nv.volumes?.find((v) => v?.name === cfg.id);
     if (existing) {
-      if (cfg.labelsUrl) await loadAtlasLabels(atlasId, cfg.labelsUrl);
+      await ensureAtlasRegions(cfg);
       return existing;
     }
     const vol = await viewer.addOverlayFromUrl({ ...cfg, opacity: 0 });
     if (vol) {
-      await loadAtlasLabels(atlasId, cfg.labelsUrl);
-      setAtlasState((p) => ({ ...p, [atlasId]: { ...p[atlasId], visible: false, opacity: 0 } }));
+      await ensureAtlasRegions(cfg);
+      setAtlasState((p) => ({
+        ...p,
+        [cfg.id]: { ...(p[cfg.id] || { colormap: cfg.colormap }), visible: false, opacity: 0 },
+      }));
       if (!silent) toast.success(`${cfg.short} loaded for label lookup`);
     }
     return vol;
-  }, []);
+  }, [resolveAtlas, ensureAtlasRegions]);
+
+  // Retinotopy layers whose speculative preload already failed — see the guard
+  // in ensureRetinotopyLoaded below. A ref, not state: nothing renders from it.
+  const failedRetinotopyRef = useRef(new Set());
 
   // Same pattern as ensureAtlasLoaded but for RETINOTOPY_LAYERS. Used by the
   // lesion-aware retinotopy legend so polar/eccen atlases can be sampled even
@@ -574,11 +998,24 @@ export default function Dashboard() {
     if (!cfg) return null;
     const existing = nv.volumes?.find((v) => v?.name === layerId);
     if (existing) return existing;
-    const vol = await viewer.addOverlayFromUrl({ ...cfg, opacity: 0 });
+    // A speculative preload that already failed is not going to start working:
+    // the WM maps ship with an optional module, so on a core install they 404
+    // every time. The preload effect re-fires whenever a lesion appears or
+    // disappears — and the scratch drawing makes that happen constantly — so
+    // without this the app re-requests a known-absent file on every edit.
+    // Only speculative loads are remembered; an explicit user-initiated load
+    // still retries (the module may have been installed since).
+    if (silent && failedRetinotopyRef.current.has(layerId)) return null;
+    // `silent` covers failure as well as success: toasting about an optional
+    // module the user never asked for is noise.
+    const vol = await viewer.addOverlayFromUrl({ ...cfg, opacity: 0, quiet: silent });
     if (vol) {
+      failedRetinotopyRef.current.delete(layerId);
       setRetState((p) => ({ ...p, [layerId]: { ...p[layerId], visible: false, opacity: 0 } }));
       setRetAtlasTick((t) => t + 1);
       if (!silent) toast.success(`${cfg.name} loaded for overlap lookup`);
+    } else if (silent) {
+      failedRetinotopyRef.current.add(layerId);
     }
     return vol;
   }, []);
@@ -591,183 +1028,100 @@ export default function Dashboard() {
     await ensureAtlasLoaded(atlasId);
   };
 
-  // ===== Base volume upload / reset =====
-  const handleBaseUpload = async (file) => {
-    const ok = await viewerRef.current?.replaceBaseVolume(file);
-    if (ok) {
-      setBaseLabel(file.name);
-      setDicomDownload(null);
-      refreshBaseOverlayMeta();
-    }
-  };
+  // Base-volume handlers (hooks/useBaseVolume.js) + tract/mesh handlers
+  // (hooks/useTracts.js). Same local names as before extraction.
+  const {
+    handleBaseUpload, baseLoading, markBaseLoadedExternally, handleDicomImport, loadDicomSeries, handleResetBase,
+    handleBaseVisibilityToggle, handleBaseOpacity, handleBaseColormap,
+    handleBaseCalRange, handleBaseColorbarToggle, refreshBaseOverlayMeta,
+  } = useBaseVolume({
+    viewerRef, baseVisible, setBaseLabel, setBaseVisible, setBaseOpacity,
+    setBaseColormap, setBaseColorbarOn, setBaseOverlayMeta, setDicomJob,
+    setDicomProgress, setDicomDownload, setLoadedSeriesId, setBaseFullPath,
+  });
+  const {
+    handleTractUpload, handleTractColorMode, handleTractSolidColor, handleTractOpacity,
+    handleTractRemove, buildTractReportModelFor, handleSaveTract,
+    handleTractRenderChange, handleTractVisible, handleTractClip,
+  } = useTracts({
+    viewerRef, tractLayers, setTractLayers, setTractLoading,
+    setTractLoadError, tractDirectionMap, tractRender, setTractRender,
+  });
 
-  const handleDicomImport = async (fileArr) => {
-    if (!fileArr?.length) return;
-    setDicomJob(null);
-    setDicomDownload(null);
-    setDicomProgress({ stage: "upload", fraction: 0 });
-    try {
-      const res = await convertDicom(fileArr, (f) =>
-        setDicomProgress({ stage: "upload", fraction: f }),
-      );
-      // Upload done — dcm2niix runs server-side (indeterminate).
-      setDicomProgress({ stage: "convert", fraction: 1 });
-      const series = res?.series || [];
-      if (series.length === 0) {
-        setDicomProgress(null);
-        toast.error("No series produced from these DICOM files.");
-        return;
-      }
-      setDicomProgress(null);
-      if (series.length === 1) {
-        // Only one series — load it straight away.
-        await loadDicomSeries(res.job_id, series[0]);
-      } else {
-        setLoadedSeriesId(null);
-        setDicomJob({ jobId: res.job_id, series });
-        toast.info(`${series.length} series found`, { description: "Pick one to load." });
-      }
-    } catch (e) {
-      setDicomProgress(null);
-      toast.error("DICOM import failed", { description: e?.message });
-    }
-  };
-
-  const loadDicomSeries = async (jobId, s) => {
-    setDicomProgress({ stage: "load", fraction: 1 });
-    try {
-      const niftiFile = await fetchDicomSeriesFile(jobId, s.id);
-      const ok = await viewerRef.current?.replaceBaseVolume(niftiFile);
-      if (ok) {
-        setBaseLabel(`DICOM · ${s.description || s.id}`);
-        setLoadedSeriesId(s.id);
-        setDicomDownload({ jobId, seriesId: s.id, name: s.description || s.id });
-        refreshBaseOverlayMeta();
-      }
-      // Keep the series picker open so the user can load another series from the
-      // same study (jobId stays valid server-side). The Cancel button dismisses it.
-      toast.success("DICOM series loaded", { description: s.description || s.id });
-    } catch (e) {
-      toast.error("Failed to load series", { description: e?.message });
-    } finally {
-      setDicomProgress(null);
-    }
-  };
-
-  const handleResetBase = async () => {
-    const ok = await viewerRef.current?.resetToBase(BASE_VOLUME);
-    if (ok) {
-      setBaseLabel(BASE_VOLUME.name);
-      setBaseVisible(true);
-      setDicomDownload(null);
-      toast.success("MNI152 template restored");
-    }
-  };
-
-  const handleBaseVisibilityToggle = () => {
-    const next = !baseVisible;
-    setBaseVisible(next);
-    viewerRef.current?.setBaseVisible(next);
-  };
-  const handleBaseOpacity = (_, v) => {
-    setBaseOpacity(v);
-    viewerRef.current?.setBaseOpacity(v);
-    setScrollTarget('Base');
-    scrollAdjustRef.current = (d) => setBaseOpacity((p) => {
-      const n = Math.max(0, Math.min(1, p + d * 0.05));
-      viewerRef.current?.setBaseOpacity(n);
-      return n;
-    });
-  };
-  const handleBaseColormap = (_, cm) => {
-    setBaseColormap(cm);
-    viewerRef.current?.setBaseColormap(cm);
-  };
-  const handleBaseCalRange = (_, lo, hi) => {
-    viewerRef.current?.setBaseWindow(lo, hi);
-    setBaseOverlayMeta((p) => ({ ...p, cal_min: lo, cal_max: hi }));
-  };
-  const handleBaseColorbarToggle = (_, on) => {
-    setBaseColorbarOn(on);
-    viewerRef.current?.setBaseColorbarVisible(on);
-  };
-  const refreshBaseOverlayMeta = useCallback(() => {
-    setTimeout(() => {
-      const range = viewerRef.current?.getBaseRange();
-      if (range) setBaseOverlayMeta(range);
-    }, 60);
+  // ===== 4D frame stepper =====
+  // Re-seed whenever the base volume changes (new upload, reset, or a quick-
+  // open route) rather than touching useBaseVolume.js itself — a 3D base
+  // resets nFrames back to 1, which is what keeps the stepper hidden again.
+  useEffect(() => {
+    const info = viewerRef.current?.getFrameInfo?.();
+    if (info) setFrameInfo(info);
+  }, [baseLabel]);
+  const handleFrameChange = useCallback((frame, nFrames) => {
+    setFrameInfo({ frame, nFrames });
+  }, []);
+  const stepFrame = useCallback((dir) => {
+    const frame = viewerRef.current?.stepFrame?.(dir);
+    if (typeof frame === "number") setFrameInfo((p) => ({ ...p, frame }));
+  }, []);
+  const setFrame = useCallback((i) => {
+    const frame = viewerRef.current?.setFrame?.(i);
+    if (typeof frame === "number") setFrameInfo((p) => ({ ...p, frame }));
   }, []);
 
-  // ===== Tract files (.trk/.tck/.trx) =====
-  const handleTractUpload = async (file) => {
-    const viewer = viewerRef.current;
-    if (!viewer) return;
-    const lower = file.name.toLowerCase();
-    if (!MESH_EXTS.some((ext) => lower.endsWith(ext))) {
-      return toast.error("Unsupported tract format", { description: "Use .trk, .tck, .trx, .vtk, .gii, .mz3" });
+  // Simulated base-volume loading progress bar. niivue's loader exposes no
+  // byte/percent progress hook (checked — nothing like onProgress in its
+  // source), so this can't be a real percentage; it climbs toward 90% over a
+  // plausible duration and snaps to 100% on actual completion, same pattern
+  // SplashScreen already uses for the app's own boot progress.
+  const [loadBarPct, setLoadBarPct] = useState(0);
+  const [loadBarVisible, setLoadBarVisible] = useState(false);
+  const wasBaseLoadingRef = useRef(false);
+  useEffect(() => {
+    if (baseLoading) {
+      wasBaseLoadingRef.current = true;
+      setLoadBarVisible(true);
+      setLoadBarPct(0);
+      const start = Date.now();
+      const CLIMB_MS = 5000;
+      let raf;
+      const tick = () => {
+        const pct = Math.min(90, ((Date.now() - start) / CLIMB_MS) * 90);
+        setLoadBarPct(pct);
+        if (pct < 90) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
     }
-    const id = `tract-${Date.now()}`;
-    const rgba = TRACT_RGB_PALETTE[tractLayers.length % TRACT_RGB_PALETTE.length];
-    const colorByDirection = lower.endsWith(".trk") || lower.endsWith(".tck") || lower.endsWith(".trx");
-    setTractLoading({ name: file.name, phase: "Reading file…" });
-    setTractLoadError(null);
-    try {
-      // Files too large for the in-browser parser are decimated server-side
-      // first; the smaller result is what actually gets rendered.
-      let fileToLoad = file;
-      let subsampled = false;
-      if (file.size > TRACT_CLIENT_MAX_BYTES) {
-        setTractLoading({ name: file.name, phase: "Checking server…" });
-        if (!(await tractSubsampleAvailable())) {
-          setTractLoadError({
-            name: file.name,
-            message:
-              "File too large to render in-browser and the backend is not running. Start the backend (uvicorn) or use a smaller tractogram.",
-          });
-          return;
-        }
-        setTractLoading({ name: file.name, phase: "Subsampling on server…" });
-        try {
-          fileToLoad = await subsampleTract(file);
-          subsampled = true;
-        } catch (e) {
-          setTractLoadError({ name: file.name, message: e?.message || "Server subsampling failed" });
-          return;
-        }
-      }
-      const mesh = await viewer.addMeshFromFile(fileToLoad, {
-        rgba255: rgba, opacity: 1.0, name: id, colorByDirection,
-        onProgress: (phase) => setTractLoading({ name: file.name, phase }),
-        onError: (message) => setTractLoadError({ name: file.name, message }),
-      });
-      if (mesh) {
-        tractDirectionMap.current[id] = colorByDirection;
-        const sizeLabel = `${(file.size / 1024).toFixed(1)} KB`;
-        setTractLayers((p) => [
-          ...p,
-          { id, name: `Tract · ${file.name}`, visible: true, opacity: 1.0,
-            color: `rgb(${rgba[0]},${rgba[1]},${rgba[2]})`,
-            direction: colorByDirection,
-            description: subsampled ? `${sizeLabel} · subsampled` : sizeLabel },
-        ]);
-        toast.success("Tract loaded", { description: file.name });
-      }
-    } finally {
-      setTractLoading(null);
+    if (wasBaseLoadingRef.current) {
+      wasBaseLoadingRef.current = false;
+      setLoadBarPct(100);
+      const t = setTimeout(() => setLoadBarVisible(false), 220);
+      return () => clearTimeout(t);
     }
-  };
-  const handleTractDirectionToggle = (id, next) => {
-    setTractLayers((p) => p.map((l) => (l.id === id ? { ...l, direction: next } : l)));
-    viewerRef.current?.setMeshFiberColor(id, next ? "Local" : "Global");
-  };
-  const handleTractOpacity = (id, v) => {
-    setTractLayers((p) => p.map((l) => (l.id === id ? { ...l, opacity: v } : l)));
-    viewerRef.current?.setMeshOpacity(id, v);
-  };
-  const handleTractRemove = (id) => {
-    viewerRef.current?.removeMesh(id);
-    setTractLayers((p) => p.filter((l) => l.id !== id));
-  };
+  }, [baseLoading]);
+
+  // Timeseries graph data: intensity at the crosshair voxel across every
+  // frame. Depends on crosshairVox (recompute on crosshair move) and
+  // baseLabel (force a recompute on a NEW 4D volume even if the crosshair
+  // numerically didn't move) — not on frameInfo.frame, since the series
+  // itself doesn't change as you step through it, only which frame is marked.
+  const [timeseriesData, setTimeseriesData] = useState(null);
+  useEffect(() => {
+    if (!(frameInfo.nFrames > 1) || !crosshairVox) { setTimeseriesData(null); return; }
+    const [vx, vy, vz] = crosshairVox;
+    const values = viewerRef.current?.getTimeseriesAtVoxel?.(Math.round(vx), Math.round(vy), Math.round(vz));
+    setTimeseriesData(values || null);
+  }, [crosshairVox, frameInfo.nFrames, baseLabel]);
+
+  // Explorer double-click / file-association quick-open (no-op in the
+  // browser build, and for any window not opened with a file). Resolves
+  // initialBaseVolume BEFORE the viewer ever mounts, so a base/timeseries
+  // quick-open loads straight from the double-clicked file — no MNI152
+  // fetch-then-swap flash.
+  const { initialBaseVolume } = useQuickOpenFile({
+    viewerReady, handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer: handleUserRemove,
+    setAsymmetric, setSliceType, setFocusMode,
+  });
 
   // ===== Inflated brain support removed per user request =====
 
@@ -781,13 +1135,16 @@ export default function Dashboard() {
     setOverlayMeta({});
     userFileCache.current = {};
     tractDirectionMap.current = {};
-    atlasLabelsRef.current = {};
+    clearAtlasRegions();
+    cmapCursor.current = { lesion: 0, activation: 0, roi: 0 };
     setCrosshairLabels({});
     setCrosshairValues([]);
     setSelectedLesionIds(new Set());
     setLayerLabelAtlas({});
-    setCrosshairEloquent(null);
     setLesionPickerOpen(false);
+    setMeasurements([]);
+    setLandmark(null);
+    setClearNonce((n) => n + 1);
     toast.success("All overlays cleared");
   };
 
@@ -811,25 +1168,44 @@ export default function Dashboard() {
       savedAt: new Date().toISOString(),
       label: baseLabel,
       view: {
-        sliceType, crosshair, crosshairWidth, crosshairColor, clipDepth, clipAz, clipEl, asymmetric, largeSlice,
-        baseVisible, baseOpacity, baseColormap, baseColorbarOn, proximityWarn,
+        sliceType, crosshair, crosshairWidth, crosshairColor, clipEnabled, clipDepth, clipAz, clipEl, asymmetric, largeSlice,
+        baseVisible, baseOpacity, baseColormap, baseColorbarOn,
+        // Base intensity window + view chrome (v3).
+        baseCalMin: baseOverlayMeta.cal_min, baseCalMax: baseOverlayMeta.cal_max,
+        sidebarCollapsed, topbarCollapsed, dragMode, radiological, orientationLabels, theme,
+        activeOrientation,
+        // Global tract
+        // render settings (geometry, lighting, thickness, slab, display
+        // fraction). Tract *layers* themselves stay unpersisted — only this
+        // render-state object is saved, same as clipEnabled above.
+        tractRender,
       },
       crosshairMM,
       retState,
       atlasState,
       layerLabelAtlas,
-      userLayers: userLayers.map((l) => ({
-        id: l.id, name: l.name, type: l.type, visible: l.visible,
-        opacity: l.opacity, colormap: l.colormap,
-      })),
+      userLayers: userLayers.map((l) => {
+        const m = overlayMeta[l.id] || {};
+        return {
+          id: l.id, name: l.name, type: l.type, visible: l.visible,
+          opacity: l.opacity, colormap: l.colormap,
+          // Per-layer threshold (visibility) + colour-scaling ranges (v3).
+          calMin: m.cal_min, calMax: m.cal_max,
+          colorMin: m.color_min, colorMax: m.color_max,
+        };
+      }),
+      measurements,
+      landmark,
+      pins,
       files,
     };
-  }, [userLayers, sliceType, crosshair, crosshairWidth, crosshairColor, clipDepth, clipAz, clipEl,
-      asymmetric, largeSlice, baseVisible, baseOpacity, baseColormap, baseColorbarOn,
-      proximityWarn, crosshairMM, retState, atlasState, layerLabelAtlas, baseLabel]);
+  }, [userLayers, overlayMeta, sliceType, crosshair, crosshairWidth, crosshairColor, clipEnabled, clipDepth, clipAz, clipEl,
+      asymmetric, largeSlice, baseVisible, baseOpacity, baseColormap, baseColorbarOn, baseOverlayMeta,
+      sidebarCollapsed, topbarCollapsed, dragMode, radiological, orientationLabels, theme, activeOrientation,
+      measurements, landmark, pins, crosshairMM, retState, atlasState, layerLabelAtlas, baseLabel, tractRender]);
 
   const applyWorkspace = useCallback(async (ws) => {
-    if (!ws || (ws.version !== 1 && ws.version !== WORKSPACE_VERSION)) {
+    if (!ws || ![1, 2, 3, 4].includes(ws.version)) {
       toast.error("Unsupported workspace file");
       return;
     }
@@ -840,9 +1216,26 @@ export default function Dashboard() {
     setCrosshair(v.crosshair ?? true);
     if (v.crosshairWidth != null) setCrosshairWidth(v.crosshairWidth);
     if (v.crosshairColor) setCrosshairColor(v.crosshairColor);
-    setClipDepth(v.clipDepth ?? 2);
+    // Item 102 (6a): v.clipEnabled is new (workspaces saved after this
+    // change); older files only have clipDepth, where >= 0.6 meant "off" (the
+    // previous overloaded sentinel — see the state declarations above).
+    if (v.clipEnabled !== undefined) {
+      setClipEnabled(!!v.clipEnabled);
+      setClipDepth(v.clipDepth ?? 0);
+    } else {
+      const wasEngaged = v.clipDepth != null && v.clipDepth < 0.6;
+      setClipEnabled(wasEngaged);
+      setClipDepth(wasEngaged ? v.clipDepth : 0);
+    }
     setClipAz(v.clipAz ?? 0);
     setClipEl(v.clipEl ?? 0);
+    // v.tractRender is new
+    // (workspaces saved after this change); older workspace files lack this
+    // key entirely, same "older files lack this key" case as clipEnabled
+    // above. Merge over DEFAULT_TRACT_RENDER (rather than replace) so a file
+    // saved before a later field existed (e.g. pre-A3 slabEnabled removal)
+    // still yields a complete, current-shape object.
+    setTractRender({ ...DEFAULT_TRACT_RENDER, ...(v.tractRender || {}) });
     setAsymmetric(!!v.asymmetric);
     if (v.largeSlice) setLargeSlice(v.largeSlice);
     setBaseVisible(v.baseVisible ?? true);
@@ -850,24 +1243,47 @@ export default function Dashboard() {
     if (v.baseOpacity != null) { setBaseOpacity(v.baseOpacity); viewerRef.current?.setBaseOpacity(v.baseOpacity); }
     if (v.baseColormap) { setBaseColormap(v.baseColormap); viewerRef.current?.setBaseColormap(v.baseColormap); }
     if (v.baseColorbarOn != null) { setBaseColorbarOn(!!v.baseColorbarOn); viewerRef.current?.setBaseColorbarVisible(!!v.baseColorbarOn); }
-    setProximityWarn(!!v.proximityWarn);
+    if (v.baseCalMin != null && v.baseCalMax != null) handleBaseCalRange(null, v.baseCalMin, v.baseCalMax);
+    // View chrome (v3): missing on older files → keep current defaults.
+    setSidebarCollapsed(!!v.sidebarCollapsed);
+    setTopbarCollapsed(!!v.topbarCollapsed);
+    if (v.dragMode) setDragMode(v.dragMode);
+    setRadiological(!!v.radiological);
+    if (v.orientationLabels != null) setOrientationLabels(!!v.orientationLabels);
+    if (v.theme === "light" || v.theme === "dark") setTheme(v.theme);
+    if (v.activeOrientation != null && v.activeOrientation >= 0 && v.activeOrientation <= 2) {
+      lastOrientationRef.current = v.activeOrientation;
+      setActiveOrientation(v.activeOrientation);
+    }
+    // Measurements + midline landmark (v3).
+    setMeasurements(Array.isArray(ws.measurements) ? ws.measurements : []);
+    setLandmark(ws.landmark || null);
+    setPins(Array.isArray(ws.pins) ? ws.pins : []);
 
-    // Re-add user volumes from embedded bytes
+    // Re-add user volumes from embedded bytes, then restore per-layer
+    // visibility + threshold/colour ranges (a load defaults to visible).
     for (const l of ws.userLayers || []) {
       const f = ws.files?.[l.id];
       if (!f?.b64) continue;
       const file = base64ToFile(f.b64, f.name || `${l.type}.nii.gz`);
-      await addUserFile(file, l.type, { colormap: l.colormap, opacity: l.opacity });
+      const newId = await addUserFile(file, l.type, { colormap: l.colormap, opacity: l.opacity });
+      if (!newId) continue;
+      if (typeof l.calMin === "number" && typeof l.calMax === "number") handleCalRangeChange(newId, l.calMin, l.calMax);
+      if (typeof l.colorMin === "number" && typeof l.colorMax === "number") handleColorRangeChange(newId, l.colorMin, l.colorMax);
+      if (l.visible === false) handleUserToggle(newId);
     }
 
-    // Restore standard atlases that were visible
-    for (const a of STANDARD_ATLASES) {
-      if (ws.atlasState?.[a.id]?.visible) {
-        await handleAtlasToggle(a.id);
-        const s = ws.atlasState[a.id];
-        if (typeof s.opacity === "number") handleAtlasOpacity(a.id, s.opacity);
-        if (s.colormap) handleAtlasColormap(a.id, s.colormap);
-      }
+    // Restore standard atlases that were visible. Saved ids are resolved
+    // through the registry's aliases: a workspace written before the atlas
+    // revamp holds "ho_cort"/"hcp1065"/"visfAtlas", which are now
+    // harvard_oxford_cort/hcp1065_tracts/visfatlas.
+    for (const [savedId, s] of Object.entries(ws.atlasState || {})) {
+      if (!s?.visible) continue;
+      const cfg = resolveAtlas(savedId);
+      if (!cfg) continue;          // that atlas has since been uninstalled
+      await handleAtlasToggle(cfg.id);
+      if (typeof s.opacity === "number") handleAtlasOpacity(cfg.id, s.opacity);
+      if (s.colormap) handleAtlasColormap(cfg.id, s.colormap);
     }
     // Restore retinotopy layers that were visible
     for (const r of ALL_RETINOTOPY_LAYERS) {
@@ -901,45 +1317,58 @@ export default function Dashboard() {
     }
   };
 
-  // Toggle Eloquent Warn. Updates the ref synchronously before React re-renders
-  // so any in-flight onLocationChange events immediately see the new value and
-  // stop calling setCrosshairEloquent — eliminating the banner-persists race.
-  const handleProximityWarnToggle = useCallback(() => {
-    const next = !proximityWarnRef.current;
-    proximityWarnRef.current = next;
-    if (!next) {
-      setCrosshairEloquent(null);
-      lastEloquentMM.current = null;
-      // Hide the silently-loaded Jülich atlas so it leaves no visual trace on
-      // the canvas. Guard: only zero the opacity if the user hasn't explicitly
-      // turned the atlas on via the Atlas panel (atlasStateRef tracks that).
-      if (!atlasStateRef.current.juelich?.visible) {
-        viewerRef.current?.setOverlayOpacity("juelich", 0);
-      }
-    } else {
-      ensureAtlasLoaded("juelich", { silent: true });
-    }
-    setProximityWarn(next);
-  }, [ensureAtlasLoaded]);
+  // Item 104: right-drag over the 3D render tile rotates the CLIP PLANE (the
+  // render camera is niivue's native left-drag and is untouched by this).
+  // NiivueViewer emits pixel DELTAS, folded in here with functional setState
+  // so the drag always continues from the sliders' current values — that is
+  // what makes slider→drag as seamless as drag→slider (previously the drag
+  // read the camera as its base and snapped back to the last drag's angles).
+  // Both axes wrap over a FULL 360° turn into [-180, 180) so a sustained drag
+  // never sticks at an end stop. Elevation gets the same period as azimuth
+  // because the plane normal is sph2cartDeg(az + 180, el), which is continuous
+  // and 360°-periodic in elevation too — the old -90..90 clamp is exactly what
+  // made vertical drags stick at a pole (see the el slider's range below).
+  const handleClipRotateDelta = useCallback((dAz, dEl) => {
+    setClipAz((prev) => wrapTurn(prev + dAz));
+    setClipEl((prev) => wrapTurn(prev + dEl));
+  }, []);
 
   // ===== Side effects =====
-  useEffect(() => { viewerRef.current?.setClipPlane(clipDepth, clipAz, clipEl); }, [clipDepth, clipAz, clipEl]);
+  // Item 102 (6a): clipEnabled owns on/off; pass niivue's out-of-volume depth
+  // (2) to disengage when off, the real -0.6..0.6 clipDepth value otherwise.
+  useEffect(() => {
+    const d = clipEnabled ? clipDepth : 2;
+    viewerRef.current?.setClipPlane(d, clipAz, clipEl);
+  }, [clipEnabled, clipDepth, clipAz, clipEl]);
 
+  // Push the global tractography render settings to the viewer on
+  // every change. setTractRenderOptions patches a live ref read inside the
+  // drawMesh3D wrapper each frame — never a rebuild.
+  useEffect(() => { viewerRef.current?.setTractRenderOptions(tractRender); }, [tractRender]);
 
   useEffect(() => {
     const el = canvasWrapperRef.current;
     if (!el) return;
+    // Ctrl+scroll over the canvas → zoom the 2D views. Plain scroll falls
+    // through to NiiVue for 2D-tile slice navigation. Item 102 (6b): NiiVue's
+    // OWN sliceScroll3D (which plain scroll over the render tile used to
+    // reach) is overridden in NiivueViewer.jsx's setup effect to always zoom
+    // the 3D render and never step the clip plane's depth — so scroll no
+    // longer needs to be swallowed here at all; the item-61 render-tile
+    // swallow this replaced is gone along with the stale-closure refs it
+    // needed (showClipSettingsRef/clipEngagedRef). Capture phase +
+    // preventDefault only for the ctrl case so plain scroll (2D slice nav,
+    // 3D zoom) is never blocked.
     const handleWheel = (e) => {
-      if (!e.ctrlKey) return;          // plain scroll → NiiVue owns the event → zoom
-      const adjust = scrollAdjustRef.current;
-      if (!adjust) return;             // no slider touched yet → NiiVue zooms as fallback
-      e.preventDefault();
-      e.stopPropagation();             // capture phase — canvas never receives the event
-      adjust(e.deltaY > 0 ? -1 : 1);
+      if (e.ctrlKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        viewerRef.current?.zoom2D(e.deltaY > 0 ? -1 : 1);
+      }
     };
     el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => el.removeEventListener('wheel', handleWheel, { capture: true });
-  }, []);  // empty deps: single stable registration, scrollAdjustRef.current is always live
+  }, []);  // empty deps: single stable registration; viewerRef.current is always live
   useEffect(() => { viewerRef.current?.setCrosshair(crosshair); }, [crosshair]);
   useEffect(() => {
     const colorMap = {
@@ -959,6 +1388,102 @@ export default function Dashboard() {
     if (!viewerReady) return;
     viewerRef.current?.setAsymmetricLayout(asymmetric ? largeSlice : null);
   }, [asymmetric, largeSlice, viewerReady]);
+  // Push view state to the viewer whenever it changes (and once ready).
+  useEffect(() => { if (viewerReady) viewerRef.current?.setRadiologicalConvention(radiological); }, [radiological, viewerReady]);
+  useEffect(() => { if (viewerReady) viewerRef.current?.setOrientationLabels(orientationLabels); }, [orientationLabels, viewerReady]);
+  useEffect(() => { if (viewerReady) viewerRef.current?.setDragMode(dragMode); }, [dragMode, viewerReady]);
+  // Auto-switch brushMode when sliceType changes: multiplanar and asymmetric
+  // default to 3D (sphere stamps span slices naturally); single-slice views
+  // default to 2D (flat disc on the visible slice).
+  useEffect(() => {
+    const is3DDefault = sliceType === "multiplanar" || sliceType === "asymmetric";
+    setBrushMode(is3DDefault ? "3D" : "2D");
+  }, [sliceType]);
+  // Push measurement markers (3D spheres + 2D slice markers + segments) to the
+  // viewer whenever the list or landmark changes — driven here (not in the
+  // panel) so markers persist even when the Measurements section is collapsed.
+  useEffect(() => {
+    if (!viewerReady) return;
+    const { points, edges } = measurementsToMarkers(measurements, landmark, pins);
+    viewerRef.current?.setMeasurementPoints?.(points, edges);
+  }, [measurements, landmark, pins, viewerReady]);
+
+  // ===== Keyboard shortcuts =====
+  const shortcuts = useMemo(() => {
+    const cycleSlice = (step) => setSliceType((cur) => {
+      const idx = SLICE_MODES.findIndex((m) => m.id === cur);
+      const next = SLICE_MODES[(idx + step + SLICE_MODES.length) % SLICE_MODES.length];
+      setAsymmetric(false);
+      return next.id;
+    });
+    // Axis for nv.moveCrosshairInVox: 0=sagittal(X), 1=coronal(Y), 2=axial(Z).
+    // Single-view modes always step that view; the multiplanar grid steps
+    // whichever view was last clicked or scrolled in (lastOrientationRef).
+    // Asymmetric mode always steps the biggest window (largeSlice) — returns
+    // null when the biggest window is the 3D render (no 2D slice axis).
+    const currentStepAxis = () => {
+      if (asymmetricRef.current) {
+        const big = largeSliceRef.current;
+        const acs = big === "axial" ? 0 : big === "coronal" ? 1 : big === "sagittal" ? 2 : null;
+        return acs == null ? null : 2 - acs;
+      }
+      const st = sliceTypeRef.current;
+      const axCorSag =
+        st === "axial" ? 0 : st === "coronal" ? 1 : st === "sagittal" ? 2 : lastOrientationRef.current;
+      return 2 - axCorSag;
+    };
+    const stepBy = (dir) => {
+      const ax = currentStepAxis();
+      if (ax != null) viewerRef.current?.stepSlice(ax, dir);
+    };
+    return {
+      ArrowUp: () => stepBy(1),
+      ArrowDown: () => stepBy(-1),
+      PageUp: () => stepBy(1),
+      PageDown: () => stepBy(-1),
+      // Claimed on the capture-phase listener too (see useKeyboardShortcuts
+      // below) — a plain 3D volume just no-ops (stepFrame checks nFrames<=1).
+      ArrowLeft: () => stepFrame(-1),
+      ArrowRight: () => stepFrame(1),
+      "+": () => viewerRef.current?.zoom2D(1),
+      "-": () => viewerRef.current?.zoom2D(-1),
+      c: () => setCrosshair((v) => !v),
+      r: () => setRadiological((v) => !v),
+      // Paint mode — delegated to DrawingPanel's own toggle rather than driven
+      // here. Enabling is not just setDrawingEnabled(true): it also clears
+      // click-to-segment, sets the tool mode and pen type, pushes penValue with
+      // `filled` ON, sets the draw opacity, and hands off the crosshair. This
+      // shortcut used to do only the first of those, so the pen drew unfilled
+      // outlines and the crosshair stayed put.
+      //
+      // Opening the section first is what MOUNTS DrawingPanel (it unmounts when
+      // collapsed, and disables paint mode on the way out — so drawing only
+      // ever lives while the section is open). The pending flag is read by the
+      // panel's effect on mount, so the request survives that mount.
+      d: () => {
+        setDrawingSectionOpen(true);
+        setDrawTogglePending(true);
+      },
+      // Both interpolate paths toast on their own when the preconditions aren't
+      // met (wrong view, one slice, no drawing), so there's nothing to guard here.
+      i: () => viewerRef.current?.interpolateDrawnSlices?.(),
+      I: () => viewerRef.current?.interpolateAllDrawnSlices?.(),
+      w: () => setDragMode((m) => (m === "zoom" ? "windowing" : m === "windowing" ? "pan" : "zoom")),
+      f: () => setFocusMode((v) => !v),
+      s: () => viewerRef.current?.saveScreenshot({ caption: baseLabelRef.current }),
+      "[": () => cycleSlice(-1),
+      "]": () => cycleSlice(1),
+      "1": () => { setAsymmetric(false); setSliceType("axial"); },
+      "2": () => { setAsymmetric(false); setSliceType("coronal"); },
+      "3": () => { setAsymmetric(false); setSliceType("sagittal"); },
+      "0": () => viewerRef.current?.resetZoomPan(),
+      "?": () => setShowShortcuts((v) => !v),
+    };
+    // stepFrame is a stable (empty-deps) useCallback identity, so listing it
+    // here doesn't reintroduce the stale-closure risk the other refs guard
+    // against.
+  }, [stepFrame]);
+  useKeyboardShortcuts(shortcuts, { captureKeys: ["ArrowLeft", "ArrowRight"] });
 
   // Double-click in asymmetric mode → promote the clicked side view
   const handleDoubleClickSlice = useCallback((slice) => {
@@ -975,10 +1500,47 @@ export default function Dashboard() {
   const customAtlases = userLayers.filter((l) => l.type === "atlas");
 
   // ===== Lesion-aware retinotopy legend =====
+  // The unsaved scratch drawing can be analysed directly (no Save round-trip):
+  // it shows up in the retinotopy picker as an extra option whenever it holds
+  // at least one painted voxel. `drawingHasContent` is refreshed from the
+  // viewer's draw-change callback below rather than derived from render state,
+  // because the bitmap lives outside React entirely.
+  const [drawingHasContent, setDrawingHasContent] = useState(false);
+  // Read inside the (mount-once) draw-change subscriber, which must not capture
+  // a stale selection — see the "Stale closures" invariant in CLAUDE.md §6.
+  const drawingSelectedRef = useRef(false);
+  drawingSelectedRef.current = selectedLesionIds.has(DRAWING_LESION_ID);
+
+  useEffect(() => {
+    if (!viewerReady) return undefined;
+    // Captured so the cleanup unsubscribes from the SAME viewer it subscribed
+    // to, rather than whatever viewerRef happens to hold at teardown.
+    const viewer = viewerRef.current;
+    viewer?.setDrawChangeCallback?.(() => {
+      setDrawingHasContent(!!viewer?.getDrawingAsVolume?.());
+      // Only re-run the analysis when the drawing is what's being analysed.
+      // Without this guard every brush stroke would also recompute the overlap
+      // for any real lesion layers that happen to be selected.
+      if (drawingSelectedRef.current) setDrawVersion((v) => v + 1);
+    });
+    return () => viewer?.setDrawChangeCallback?.(null);
+  }, [viewerReady]);
+
+  // What the retinotopy picker offers: the saved lesion layers, plus the live
+  // drawing. The deficit analysis is the ONE consumer that can read an unsaved
+  // mask, so this is deliberately NOT folded into `lesionLayers` — Tract
+  // Dissection, LNM, and One-Click Summary all resolve a layer id to a cached
+  // File, which the scratch drawing has no entry for.
+  const retinoLesionOptions = useMemo(() => (
+    drawingHasContent
+      ? [...lesionLayers, { id: DRAWING_LESION_ID, name: "Current drawing (unsaved)" }]
+      : lesionLayers
+  ), [lesionLayers, drawingHasContent]);
+
   // Auto-load polar/eccen atlases (silent, opacity 0) the first time any
   // lesion layer exists. Cheap files; loading once means the legend reflects
   // overlap even when the user hasn't toggled the retinotopy layer on.
-  const anyLesion = lesionLayers.length > 0;
+  const anyLesion = retinoLesionOptions.length > 0;
   useEffect(() => {
     if (!anyLesion) return;
     ensureRetinotopyLoaded("benson_polar_angle", { silent: true });
@@ -987,12 +1549,21 @@ export default function Dashboard() {
     ensureRetinotopyLoaded("wm_eccentricity", { silent: true });
   }, [anyLesion, ensureRetinotopyLoaded]);
 
+  // Resolve a picker id to something the overlap maths can read. The drawing
+  // id has no niivue volume behind it — it's the scratch bitmap wrapped in the
+  // base volume's geometry (see drawingApi.getDrawingAsVolume).
+  const lesionVolForId = useCallback((id) => (
+    id === DRAWING_LESION_ID
+      ? viewerRef.current?.getDrawingAsVolume?.()
+      : viewerRef.current?.getVolume?.(id)
+  ), []);
+
   // Drop removed lesions from the picker selection so the analysis stays in sync.
-  const lesionIdsKey = lesionLayers.map((l) => l.id).join("|");
+  const lesionIdsKey = retinoLesionOptions.map((l) => l.id).join("|");
   useEffect(() => {
     setSelectedLesionIds((prev) => {
       if (prev.size === 0) return prev;
-      const live = new Set(lesionLayers.map((l) => l.id));
+      const live = new Set(retinoLesionOptions.map((l) => l.id));
       let changed = false;
       const next = new Set();
       for (const id of prev) {
@@ -1005,21 +1576,22 @@ export default function Dashboard() {
 
   // Per-atlas per-lesion voxel-count maps. Memoized on the set of selected
   // lesion ids + the atlas-load tick. Cheap (~10k voxels) so no worker.
-  // viewerRef is a mutable ref, so retAtlasTick and lesionIdsKey are sentinel
-  // triggers that force re-evaluation when an atlas (re)loads or the lesion
-  // set changes. eslint can't see through them; the deps are intentional.
+  // viewerRef is a mutable ref, so retAtlasTick, lesionIdsKey and drawVersion
+  // are sentinel triggers that force re-evaluation when an atlas (re)loads, the
+  // lesion set changes, or the scratch drawing is edited while selected. eslint
+  // can't see through them; the deps are intentional.
   const polarCounts = useMemo(() => {
     const viewer = viewerRef.current;
     const atlas = viewer?.getVolume?.("benson_polar_angle");
     if (!atlas?.img || selectedLesionIds.size === 0) return new Map();
     const maps = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) maps.push(computeVoxelCounts(lv, atlas));
     }
     return unionCounts(maps);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   const eccenCounts = useMemo(() => {
     const viewer = viewerRef.current;
@@ -1027,12 +1599,12 @@ export default function Dashboard() {
     if (!atlas?.img || selectedLesionIds.size === 0) return new Map();
     const maps = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) maps.push(computeVoxelCounts(lv, atlas));
     }
     return unionCounts(maps);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   const polarOverlap = useMemo(() => {
     const set = affectedSet(polarCounts, { mode: polarThresh.mode, minVoxels: polarThresh.min });
@@ -1064,12 +1636,12 @@ export default function Dashboard() {
     if (!atlas?.img || selectedLesionIds.size === 0) return new Map();
     const maps = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) maps.push(computeVoxelCounts(lv, atlas));
     }
     return unionCounts(maps);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   const wmEccenCounts = useMemo(() => {
     const viewer = viewerRef.current;
@@ -1077,12 +1649,12 @@ export default function Dashboard() {
     if (!atlas?.img || selectedLesionIds.size === 0) return new Map();
     const maps = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) maps.push(computeVoxelCounts(lv, atlas));
     }
     return unionCounts(maps);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   // True once a WM map is actually loaded (user toggled it on). retAtlasTick is a
   // sentinel so this re-reads the ref after a (un)load.
@@ -1119,12 +1691,12 @@ export default function Dashboard() {
     if (!pa?.img || !ec?.img || selectedLesionIds.size === 0) return null;
     const grids = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) grids.push(computeVoxelCounts2D(lv, pa, ec));
     }
     return unionGrids(grids);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   const wm2DGrid = useMemo(() => {
     const viewer = viewerRef.current;
@@ -1133,12 +1705,12 @@ export default function Dashboard() {
     if (!pa?.img || !ec?.img || selectedLesionIds.size === 0) return null;
     const grids = [];
     for (const id of selectedLesionIds) {
-      const lv = viewer?.getVolume?.(id);
+      const lv = lesionVolForId(id);
       if (lv?.img) grids.push(computeVoxelCounts2D(lv, pa, ec));
     }
     return unionGrids(grids);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesionIds, retAtlasTick, lesionIdsKey]);
+  }, [selectedLesionIds, retAtlasTick, lesionIdsKey, drawVersion]);
 
   const toggleLesionSelected = (id) => {
     setSelectedLesionIds((prev) => {
@@ -1149,7 +1721,7 @@ export default function Dashboard() {
     });
   };
   const retActive = Object.values(retState).filter((s) => s.visible).length;
-  const stdAtlasActive = Object.values(atlasState).filter((s) => s.visible).length;
+  const stdAtlasActive = standardAtlases.filter((a) => atlasState[a.id]?.visible).length;
   const totalActive =
     retActive + stdAtlasActive +
     userLayers.filter((l) => l.visible).length +
@@ -1168,707 +1740,418 @@ export default function Dashboard() {
         id: l.id, name: l.name, colormap: l.colormap,
         calMin: m.cal_min,
         calMax: m.cal_max,
+        colorMin: m.color_min, colorMax: m.color_max,
         globalMin: m.global_min, globalMax: m.global_max,
+        colormapInverted: m.colormapInverted, // item 55 follow-up
+        invertThreshold: m.invertThreshold, // item 118: outside-threshold mode flips the dim bands
       });
     }
     for (const r of ALL_RETINOTOPY_LAYERS) {
-      if (!retState[r.id]?.visible) continue;
+      const st = retState[r.id];
+      // Skip layers that are loaded but not actually shown. One-Click Summary
+      // silently loads the polar/eccen maps at opacity 0 purely to compute the
+      // deficit grids; without the opacity guard they leaked into the top panel
+      // as dead "PolarAng 0 / Eccen 0 / wm_…0" colorbar chips that do nothing.
+      if (!st?.visible || !(st.opacity > 0)) continue;
       const m = overlayMeta[r.id];
       if (!m) continue;
       out.push({
         id: r.id, name: r.name, colormap: retState[r.id].colormap,
         calMin: m.cal_min,
         calMax: m.cal_max,
+        colorMin: m.color_min, colorMax: m.color_max,
         globalMin: m.global_min, globalMax: m.global_max,
+        colormapInverted: m.colormapInverted, // item 55 follow-up
+        invertThreshold: m.invertThreshold, // item 118: outside-threshold mode flips the dim bands
       });
     }
     return out;
   }, [userLayers, retState, overlayMeta]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#050505] text-[#F4F4F5]" data-testid="dashboard-root">
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground" data-testid="dashboard-root">
       <SplashScreen ready={viewerReady} />
       {/* ============ SIDEBAR ============ */}
-      <aside className="w-[400px] flex-shrink-0 border-r border-[#27272A] bg-[#0a0a0a] flex flex-col" data-testid="sidebar">
-        <div className="border-b border-[#27272A] px-5 py-4 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center border border-[#27272A]">
-            <Brain size={16} className="text-white" />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-semibold tracking-tight leading-none">MRLatte</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 mt-1">
-              base · lesion · roi · activation · atlas · tracts
+      {/* Collapsing squeezes the width to 0 and clips overflow rather than
+          unmounting the content, so every SidebarSection's open/closed state
+          and any in-progress panel input survives collapse/expand. */}
+      <aside
+        className={`flex-shrink-0 border-r border-border bg-panel flex flex-col overflow-hidden transition-[width] duration-150 ${
+          sidebarCollapsed || focusMode ? "w-0 border-r-0" : "w-[400px]"
+        }`}
+        data-testid="sidebar"
+      >
+        <div className="w-[400px] flex flex-col h-full">
+          <div className="border-b border-border px-5 py-4 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center border border-border">
+              <Brain size={16} className="text-foreground" />
             </div>
+            <div className="flex-1">
+              <div className="text-[15px] font-semibold tracking-tight leading-none">MRLatte</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground mt-1">
+                base · lesion · roi · activation · atlas · tracts
+              </div>
+            </div>
+            <div className="font-mono text-[10px] text-muted-foreground" data-testid="active-count">
+              {totalActive} active
+            </div>
+            <button
+              onClick={() => openStore(null)}
+              className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title={modulesAbsent ? "Module store — some modules are not installed" : "Module store"}
+              data-testid="module-store-open"
+            >
+              <Package size={14} />
+              {modulesAbsent && (
+                <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-amber-500" />
+              )}
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              data-testid="theme-toggle"
+            >
+              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            {/* Item 105: one button for all sections — collapse everything if
+                ANY section is open, expand everything only once they are all
+                closed. Deliberately not a per-section memory: the point is to
+                de-clutter, and "open all" is the escape hatch back. */}
+            <button
+              onClick={() => setAllSectionsOpen(openSectionCount === 0)}
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title={openSectionCount > 0 ? "Collapse all sections" : "Expand all sections"}
+              data-testid="sidebar-sections-toggle"
+            >
+              {openSectionCount > 0 ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+            </button>
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title="Collapse sidebar"
+              data-testid="sidebar-collapse-toggle"
+            >
+              <PanelLeftClose size={14} />
+            </button>
           </div>
-          <div className="font-mono text-[10px] text-zinc-500" data-testid="active-count">
-            {totalActive} active
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto thin-scroll">
+          <SidebarSectionsContext.Provider value={sidebarSectionsCtx}>
+          <div className="flex-1 overflow-y-auto thin-scroll">
           {/* === 1. Base Volume === */}
-          <SidebarSection title="Base Volume" icon={ImageIcon} testId="section-base" defaultOpen={true}>
-            <div className="flex items-center justify-end px-1 pb-1">
-              <div className={`h-1.5 w-1.5 rounded-full ${viewerReady ? "bg-emerald-500" : "bg-amber-500"}`} title={viewerReady ? "WebGL ready" : "Loading"} />
-            </div>
-            <LayerControlAdvanced
-              layer={{ id: "mni152", name: baseLabel, description: BASE_VOLUME.description }}
-              visible={baseVisible}
-              opacity={baseOpacity}
-              colormap={baseColormap}
-              globalMin={baseOverlayMeta.global_min}
-              globalMax={baseOverlayMeta.global_max}
-              calMin={baseOverlayMeta.cal_min}
-              calMax={baseOverlayMeta.cal_max}
-              isSigned={false}
-              showColormap
-              onToggle={handleBaseVisibilityToggle}
-              onOpacityChange={handleBaseOpacity}
-              onColormapChange={handleBaseColormap}
-              onCalRangeChange={handleBaseCalRange}
-            />
-            <div className="flex items-center justify-between px-3 py-1.5 border border-t-0 border-[#27272A] bg-[#0a0a0a]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">colorbar</span>
-              <button
-                onClick={() => handleBaseColorbarToggle(null, !baseColorbarOn)}
-                className={`relative inline-flex h-4 w-8 transition-colors border ${
-                  baseColorbarOn ? "bg-white border-white" : "bg-transparent border-[#27272A]"
-                }`}
-                data-testid="toggle-base-colorbar"
-              >
-                <span className={`inline-block h-3 w-3 transition-transform ${baseColorbarOn ? "translate-x-4 bg-black" : "translate-x-0 bg-zinc-500"}`} />
-              </button>
-            </div>
-            <FileUploader
-              label="Use Custom Base Image"
-              description=".nii / .nii.gz / .mgz — replaces MNI152"
-              testId="upload-base-button"
-              onFile={handleBaseUpload}
-            />
-            <FileUploader
-              label="Import DICOM Series"
-              description="select a folder of .dcm files (or a .zip) — server-side dcm2niix"
-              testId="upload-dicom-button"
-              directory
-              accept=".dcm,.ima,.zip"
-              onFiles={handleDicomImport}
-            />
-
-            {/* DICOM staged progress bar */}
-            {dicomProgress && (
-              <div className="space-y-1" data-testid="dicom-progress">
-                <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-500">
-                  <span>
-                    {dicomProgress.stage === "upload" ? "Uploading" :
-                      dicomProgress.stage === "convert" ? "Converting (dcm2niix)" : "Loading series"}
-                  </span>
-                  {dicomProgress.stage === "upload" && (
-                    <span>{Math.round(dicomProgress.fraction * 100)}%</span>
-                  )}
-                </div>
-                <div className="h-1 w-full bg-[#27272A] overflow-hidden">
-                  <div
-                    className={`h-full bg-white transition-all ${dicomProgress.stage !== "upload" ? "animate-pulse" : ""}`}
-                    style={{ width: dicomProgress.stage === "upload" ? `${dicomProgress.fraction * 100}%` : "100%" }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* DICOM series picker (multi-series studies) */}
-            {dicomJob && (
-              <div className="space-y-1.5 border border-[#27272A] p-2" data-testid="dicom-series-picker">
-                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-500">
-                  {dicomJob.series.length} series — pick one
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-1">
-                  {dicomJob.series.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => loadDicomSeries(dicomJob.jobId, s)}
-                      className={`w-full text-left px-2 py-1.5 border hover:border-zinc-500 hover:text-white ${
-                        s.id === loadedSeriesId
-                          ? "bg-[#111827] border-emerald-700 text-white"
-                          : "bg-transparent border-[#27272A] text-zinc-300"
-                      }`}
-                      data-testid={`dicom-series-${s.id}`}
-                    >
-                      <div className="text-[11px] truncate">
-                        {s.id === loadedSeriesId && <span className="text-emerald-500">✓ </span>}
-                        {s.description || s.id}
-                      </div>
-                      <div className="font-mono text-[9px] text-zinc-600">
-                        {s.dims ? s.dims.join("×") : "?"} · {s.n_slices ?? "?"} slices · {(s.bytes / 1e6).toFixed(1)} MB
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => { setDicomJob(null); setLoadedSeriesId(null); }}
-                  className="w-full py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-zinc-500 border-[#27272A] hover:text-zinc-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-
-            {/* Download the currently-loaded DICOM series as NIfTI */}
-            {dicomDownload && (
-              <a
-                href={dicomSeriesDownloadUrl(dicomDownload.jobId, dicomDownload.seriesId)}
-                download={`${dicomDownload.seriesId}.nii.gz`}
-                title={`Download “${dicomDownload.name}” as NIfTI (.nii.gz)`}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-300 border-[#27272A] hover:text-white hover:border-zinc-500 no-underline"
-                data-testid="download-dicom-nifti"
-              >
-                <Download size={13} /> Download NIfTI
-              </a>
-            )}
-            {baseLabel !== BASE_VOLUME.name && (
-              <button
-                onClick={handleResetBase}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-300 border-[#27272A] hover:text-white hover:border-zinc-500"
-                data-testid="reset-base-button"
-              >
-                <RotateCcw size={12} />Reset to MNI Template
-              </button>
-            )}
-          </SidebarSection>
+          <BaseVolumeSection
+            viewerReady={viewerReady}
+            baseLabel={baseLabel}
+            baseVisible={baseVisible}
+            baseOpacity={baseOpacity}
+            baseColormap={baseColormap}
+            baseFullPath={baseFullPath}
+            baseOverlayMeta={baseOverlayMeta}
+            baseColorbarOn={baseColorbarOn}
+            histograms={histograms}
+            requestHistogram={requestHistogram}
+            handleBaseVisibilityToggle={handleBaseVisibilityToggle}
+            handleBaseOpacity={handleBaseOpacity}
+            handleBaseColormap={handleBaseColormap}
+            handleBaseCalRange={handleBaseCalRange}
+            handleBaseFullWindow={handleBaseFullWindow}
+            handleBaseAutoWindow={handleBaseAutoWindow}
+            handleBaseColorbarToggle={handleBaseColorbarToggle}
+            handleBaseUpload={handleBaseUpload}
+            handleDicomImport={handleDicomImport}
+            dicomProgress={dicomProgress}
+            dicomJob={dicomJob}
+            setDicomJob={setDicomJob}
+            loadedSeriesId={loadedSeriesId}
+            setLoadedSeriesId={setLoadedSeriesId}
+            loadDicomSeries={loadDicomSeries}
+            dicomDownload={dicomDownload}
+            handleResetBase={handleResetBase}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+          />
 
           {/* === 2. Lesion Masks === */}
-          <SidebarSection title="Load Lesion Mask" icon={Plus} testId="section-lesion" defaultOpen={false}
-            badge={lesionLayers.filter((l) => l.visible).length}>
-            <FileUploader label="Load Lesion Mask" description=".nii / .nii.gz / .mgz — overlaid in red"
-              variant="danger" testId="upload-lesion-button" onFile={(f) => addUserFile(f, "lesion")} />
-            {lesionLayers.length > 0 && (
-              <div className="mt-2">
-                <OneClickSummaryPanel
-                  viewerRef={viewerRef}
-                  lesionLayers={lesionLayers}
-                  standardAtlases={STANDARD_ATLASES}
-                  atlasLabelsRef={atlasLabelsRef}
-                  ensureAtlasLoaded={ensureAtlasLoaded}
-                  userFileCache={userFileCache}
-                  getPolarDiscDataUrl={() => polarAngleDiscToDataURL({
-                    colormap: retState.benson_polar_angle.colormap,
-                    arcSegments: polarOverlap.arcSegments,
-                    summaryText: polarOverlap.summary,
-                    baseLabel,
-                    eccenColormap: retState.benson_eccentricity.colormap,
-                    eccenArcSegments: eccenOverlap.arcSegments,
-                    eccenSummaryText: eccenOverlap.summary,
-                    eccenInverted,
-                  })}
-                  getVfMap2dDataUrl={async (lesionId) => {
-                    // Build the 2D VF map for the summary's OWN selected lesion —
-                    // independent of the Retinotopy panel's transient state
-                    // (selectedLesionIds / layer visibility). Ensure the Benson
-                    // atlases are loaded, sample the deficit grid for that lesion,
-                    // and force the deficit render gates on.
-                    const viewer = viewerRef.current;
-                    await ensureRetinotopyLoaded("benson_polar_angle", { silent: true });
-                    await ensureRetinotopyLoaded("benson_eccentricity", { silent: true });
-                    const pa = viewer?.getVolume?.("benson_polar_angle");
-                    const ec = viewer?.getVolume?.("benson_eccentricity");
-                    const lv = viewer?.getVolume?.(lesionId);
-                    const grid = (pa?.img && ec?.img && lv?.img)
-                      ? computeVoxelCounts2D(lv, pa, ec)
-                      : null;
-                    return await visualFieldMap2DDataURL({
-                      gridResult: grid,
-                      active: true,
-                      selectedCount: 1,
-                      thresholdMode: polarThresh.mode,
-                      thresholdMin: polarThresh.min,
-                    });
-                  }}
-                />
-              </div>
-            )}
-            <UserLayerList layers={lesionLayers} overlayMeta={overlayMeta} {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserRemove, handleCalRangeChange, handleIgnoreZeroChange, handleInvertThresholdChange }} />
-            {lesionLayers.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#27272A]">
-                <OverlapPanel
-                  viewerRef={viewerRef}
-                  lesionLayers={lesionLayers}
-                  atlasOptions={STANDARD_ATLASES.filter((a) => atlasState[a.id]?.visible)}
-                  atlasLabelsRef={atlasLabelsRef}
-                />
-                <div className="mt-3 pt-3 border-t border-[#27272A]">
-                  <LesionReportPanel
-                    viewerRef={viewerRef}
-                    lesionLayers={lesionLayers}
-                    standardAtlases={STANDARD_ATLASES}
-                    visibleAtlasIds={STANDARD_ATLASES.filter((a) => atlasState[a.id]?.visible).map((a) => a.id)}
-                    atlasLabelsRef={atlasLabelsRef}
-                    ensureAtlasLoaded={ensureAtlasLoaded}
-                    retinotopyLayers={ALL_RETINOTOPY_LAYERS
-                      .filter((l) => l.legendType === "polar" || l.legendType === "eccen")
-                      .map((l) => ({
-                        id: l.id,
-                        name: l.name,
-                        kind: l.legendType,
-                        illustrative: l.id.startsWith("wm_") || l.id.startsWith("lgn_") || l.id.startsWith("or_"),
-                        attribution: l.attribution || null,
-                      }))}
-                    getPolarDiscDataUrl={() => polarAngleDiscToDataURL({
-                      colormap: retState.benson_polar_angle.colormap,
-                      arcSegments: polarOverlap.arcSegments,
-                      summaryText: polarOverlap.summary,
-                      baseLabel,
-                      eccenColormap: retState.benson_eccentricity.colormap,
-                      eccenArcSegments: eccenOverlap.arcSegments,
-                      eccenSummaryText: eccenOverlap.summary,
-                      eccenInverted,
-                    })}
-                    getVfMap2dDataUrl={async () => {
-                      const el = bensonVfMap2dRef.current?.getSvgEl?.();
-                      if (el) return await visualFieldMap2DToDataURL(el);
-                      return await visualFieldMap2DDataURL({
-                        gridResult: benson2DGrid,
-                        active: polarActive || eccenActive,
-                        selectedCount: selectedLesionIds.size,
-                        thresholdMode: polarThresh.mode,
-                        thresholdMin: polarThresh.min,
-                      });
-                    }}
-                    getWmPolarDiscDataUrl={() => polarAngleDiscToDataURL({
-                      colormap: "polar_angle_360",
-                      arcSegments: wmPolarOverlap.arcSegments,
-                      summaryText: wmPolarOverlap.summary,
-                      baseLabel: "WM Retinotopy (population template)",
-                      eccenColormap: "warm",
-                      eccenArcSegments: wmEccenOverlap.arcSegments,
-                      eccenSummaryText: wmEccenOverlap.summary,
-                    })}
-                    getWmVfMap2dDataUrl={async () => {
-                      const el = wmVfMap2dRef.current?.getSvgEl?.();
-                      if (el) return await visualFieldMap2DToDataURL(el);
-                      return await visualFieldMap2DDataURL({
-                        gridResult: wm2DGrid,
-                        active: selectedLesionIds.size > 0,
-                        selectedCount: selectedLesionIds.size,
-                      });
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </SidebarSection>
+          <LesionMasksSection
+            lesionSectionOpen={lesionSectionOpen}
+            setLesionSectionOpen={setLesionSectionOpen}
+            lesionLayers={lesionLayers}
+            addUserFile={addUserFile}
+            viewerRef={viewerRef}
+            standardAtlases={standardAtlases}
+            ensureAtlasRegions={ensureAtlasRegions}
+            ensureAtlasLoaded={ensureAtlasLoaded}
+            userFileCache={userFileCache}
+            retState={retState}
+            polarOverlap={polarOverlap}
+            baseLabel={baseLabel}
+            eccenOverlap={eccenOverlap}
+            eccenInverted={eccenInverted}
+            ensureRetinotopyLoaded={ensureRetinotopyLoaded}
+            polarThresh={polarThresh}
+            overlayMeta={overlayMeta}
+            handleUserEdit={handleUserEdit}
+            handleUserDuplicate={handleUserDuplicate}
+            handleUserDownload={handleUserDownload}
+            handleUserToggle={handleUserToggle}
+            handleUserOpacity={handleUserOpacity}
+            handleUserColormap={handleUserColormap}
+            handleUserColormapInvert={handleUserColormapInvert}
+            handleUserClipChange={handleUserClipChange}
+            handleUserRemove={handleUserRemove}
+            handleCalRangeChange={handleCalRangeChange}
+            handleColorRangeChange={handleColorRangeChange}
+            handleAutoColorRange={handleAutoColorRange}
+            handleAutoThreshold={handleAutoThreshold}
+            handleIgnoreZeroChange={handleIgnoreZeroChange}
+            handleInvertThresholdChange={handleInvertThresholdChange}
+            histograms={histograms}
+            requestHistogram={requestHistogram}
+            thresholdVolumes={thresholdVolumes}
+            scheduleThresholdVolume={scheduleThresholdVolume}
+            atlasState={atlasState}
+            allRetinotopyLayers={ALL_RETINOTOPY_LAYERS}
+            bensonVfMap2dRef={bensonVfMap2dRef}
+            wmVfMap2dRef={wmVfMap2dRef}
+            benson2DGrid={benson2DGrid}
+            wm2DGrid={wm2DGrid}
+            polarActive={polarActive}
+            eccenActive={eccenActive}
+            selectedLesionIds={selectedLesionIds}
+            wmPolarOverlap={wmPolarOverlap}
+            wmEccenOverlap={wmEccenOverlap}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+          />
 
-          {/* === 2b. Add ROI (sphere) === */}
-          <SidebarSection title="Create ROI" icon={Target} testId="section-add-roi" defaultOpen={false}>
-            <AddROIPanel viewerRef={viewerRef} />
-          </SidebarSection>
-
-          {/* === 3. Custom ROIs === */}
-          <SidebarSection title="Upload ROI" icon={Layers} testId="section-roi" defaultOpen={false}
-            badge={roiLayers.filter((l) => l.visible).length}>
-            <FileUploader label="Load ROI" description=".nii / .nii.gz / .mgz — multi-ROI supported"
-              testId="upload-roi-button" onFile={(f) => addUserFile(f, "roi")} />
-            <UserLayerList layers={roiLayers} overlayMeta={overlayMeta} {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserRemove, handleCalRangeChange, handleIgnoreZeroChange, handleInvertThresholdChange }} />
+          {/* === 2a. Draw / Mask (freehand + spherical ROI in one editable drawing) === */}
+          <SidebarSection title="Draw Mask" icon={PencilRuler} testId="section-drawing"
+            open={drawingSectionOpen} onOpenChange={setDrawingSectionOpen}>
+            <DrawingPanel
+              viewerRef={viewerRef}
+              baseName={baseLabel}
+              crosshair={crosshair}
+              onToggleCrosshair={() => setCrosshair((v) => !v)}
+              onCrosshairOff={() => setCrosshair(false)}
+              onSetCrosshair={(v) => setCrosshair(v)}
+              onSaveDrawing={async (file, name) => {
+                const id = await addUserFile(file, "lesion", { name });
+                if (!id) return id;
+                setDrawingSectionOpen(false);
+                setLesionSectionOpen(true);
+                scrollSectionIntoView("section-lesion");
+                return id;
+              }}
+              clearNonce={clearNonce}
+              editingSaveName={editingSaveName}
+              editNonce={editNonce}
+              activeOrientation={activeOrientation}
+              brushMode={brushMode}
+              onBrushModeChange={setBrushMode}
+              onDrawingActiveChange={setDrawingActive}
+              onToolChange={setActiveTool}
+              scrollIntoView={() => scrollSectionIntoView("section-drawing")}
+              drawTogglePending={drawTogglePending}
+              onDrawToggleHandled={() => setDrawTogglePending(false)}
+            />
           </SidebarSection>
 
           {/* === 4. Activation Maps === */}
-          <SidebarSection title="Activation Maps" icon={FlaskConical} testId="section-activation" defaultOpen={false}
-            badge={activationLayers.filter((l) => l.visible).length}>
-            <FileUploader label="Load Activation Map(s)" description=".nii / .nii.gz — t-stat or z-score maps; multi-select supported"
-              testId="upload-activation-button" multiple
-              onFiles={async (files) => { for (const f of files) await addUserFile(f, "activation"); }}
-              onFile={(f) => addUserFile(f, "activation")} />
-            <UserLayerList
-              layers={activationLayers}
-              overlayMeta={overlayMeta}
-              labelAtlasOptions={STANDARD_ATLASES.map((a) => ({ id: a.id, name: a.name, short: a.short || a.id }))}
-              layerLabelAtlas={layerLabelAtlas}
-              onLabelAtlasChange={handleLayerLabelAtlasChange}
-              {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserRemove, handleCalRangeChange, handleIgnoreZeroChange, handleInvertThresholdChange }}
-            />
-            {activationLayers.length > 0 && (
-              <ClusterPanel
-                viewerRef={viewerRef}
-                activationLayers={activationLayers.filter((l) => l.visible)}
-                atlasOptions={STANDARD_ATLASES}
-                onSelectAtlas={(id) => handleLayerLabelAtlasChange(activationLayers[0]?.id, id)}
-                atlasLabelsRef={atlasLabelsRef}
-              />
-            )}
-          </SidebarSection>
+          <ActivationMapsSection
+            open={activationSectionOpen}
+            onOpenChange={setActivationSectionOpen}
+            autoExpandId={activationAutoExpandId}
+            onUploaded={setActivationAutoExpandId}
+            activationLayers={activationLayers}
+            addUserFile={addUserFile}
+            overlayMeta={overlayMeta}
+            layerLabelAtlas={layerLabelAtlas}
+            handleLayerLabelAtlasChange={handleLayerLabelAtlasChange}
+            handleUserToggle={handleUserToggle}
+            handleUserOpacity={handleUserOpacity}
+            handleUserColormap={handleUserColormap}
+            handleUserColormapInvert={handleUserColormapInvert}
+            handleUserClipChange={handleUserClipChange}
+            handleUserRemove={handleUserRemove}
+            handleCalRangeChange={handleCalRangeChange}
+            handleColorRangeChange={handleColorRangeChange}
+            handleAutoColorRange={handleAutoColorRange}
+            handleAutoThreshold={handleAutoThreshold}
+            handleIgnoreZeroChange={handleIgnoreZeroChange}
+            handleInvertThresholdChange={handleInvertThresholdChange}
+            histograms={histograms}
+            requestHistogram={requestHistogram}
+            thresholdVolumes={thresholdVolumes}
+            scheduleThresholdVolume={scheduleThresholdVolume}
+            viewerRef={viewerRef}
+            standardAtlases={standardAtlases}
+            atlasRegions={atlasRegions}
+            ensureAtlasLoaded={ensureAtlasLoaded}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+          />
+
+          {/* === 4a. Tractography (sits between Activation Maps and Tract Dissection) === */}
+          <TractographySection
+            open={tractSectionOpen}
+            onOpenChange={setTractSectionOpen}
+            autoExpandId={tractAutoExpandId}
+            tractLayers={tractLayers}
+            tractLoading={tractLoading}
+            tractLoadError={tractLoadError}
+            setTractLoadError={setTractLoadError}
+            handleTractUpload={handleTractUpload}
+            handleTractRemove={handleTractRemove}
+            handleTractColorMode={handleTractColorMode}
+            handleTractSolidColor={handleTractSolidColor}
+            handleTractOpacity={handleTractOpacity}
+            buildTractReportModelFor={buildTractReportModelFor}
+            tractRender={tractRender}
+            handleTractRenderChange={handleTractRenderChange}
+            handleTractVisible={handleTractVisible}
+            handleTractClip={handleTractClip}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+          />
 
           {/* === 4b. Tract Dissection === */}
-          <SidebarSection title="Tract Dissection" icon={GitBranch} testId="section-tract-dissect" defaultOpen={false}>
-            <TractDissectionPanel
-              viewerRef={viewerRef}
-              lesionLayers={lesionLayers}
-              userFileCache={userFileCache}
-            />
+          <SidebarSection title="Tract Dissection" icon={GitBranch} testId="section-tract-dissect" open={tractDissectSectionOpen} onOpenChange={setTractDissectSectionOpen} keepMounted>
+            {/* Needs the 673 MB whole-brain tractogram; without it the panel is
+                replaced by the module install prompt (see ModuleGate). */}
+            <ModuleGate capability="dissect" label="Tract dissection">
+              <TractDissectionPanel
+                viewerRef={viewerRef}
+                lesionLayers={lesionLayers}
+                userFileCache={userFileCache}
+                onSaveTract={(meshName, displayName, meta) => {
+                  handleSaveTract(meshName, displayName, meta);
+                  setTractAutoExpandId(meshName);
+                  setTractDissectSectionOpen(false);
+                  setTractSectionOpen(true);
+                  scrollSectionIntoView("section-tracts");
+                }}
+              />
+            </ModuleGate>
           </SidebarSection>
 
           {/* === 4c. Lesion Network Mapping (degree-adjusted) === */}
-          <SidebarSection title="Lesion Network Mapping" icon={Network} testId="section-lnm" defaultOpen={false}>
-            <DaLnMapperPanel
-              viewerRef={viewerRef}
-              lesionLayers={lesionLayers}
-              userFileCache={userFileCache}
-            />
-          </SidebarSection>
-
-          {/* === 5. Draw Lesion === */}
-          <SidebarSection title="Draw Lesion" icon={PencilRuler} testId="section-drawing" defaultOpen={false}>
-            <DrawingPanel viewerRef={viewerRef} baseName={baseLabel} />
+          <SidebarSection title="Lesion Network Mapping" icon={Network} testId="section-lnm" open={lnmSectionOpen} onOpenChange={setLnmSectionOpen} keepMounted>
+            {/* Needs the 131 MB normative connectome bundle. */}
+            <ModuleGate capability="lnm" label="Lesion network mapping">
+              <DaLnMapperPanel
+                viewerRef={viewerRef}
+                lesionLayers={lesionLayers}
+                userFileCache={userFileCache}
+                clearNonce={clearNonce}
+                onSaveActivation={async (file, name) => {
+                  const id = await handleSaveLnmActivation(file, name);
+                  if (id) setActivationAutoExpandId(id);
+                  setLnmSectionOpen(false);
+                  setActivationSectionOpen(true);
+                  scrollSectionIntoView("section-activation");
+                  return id;
+                }}
+              />
+            </ModuleGate>
           </SidebarSection>
 
           {/* === 5b. Measurements & Window === */}
           <SidebarSection title="Measurements & Window" icon={Ruler} testId="section-measure" defaultOpen={false}>
-            <MeasurePanel viewerRef={viewerRef} crosshairMM={crosshairMM} lesionLayers={lesionLayers} />
-          </SidebarSection>
-
-          {/* === 5c. Clip Plane === */}
-          <SidebarSection title="Clip Plane" icon={Scissors} testId="section-clip" defaultOpen={false}>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500 w-10 flex-shrink-0">depth</span>
-                <Slider value={[clipDepth]} min={-1} max={2} step={0.05}
-                  onValueChange={(v) => {
-                    setClipDepth(v[0]);
-                    setScrollTarget('Depth');
-                    scrollAdjustRef.current = (d) => setClipDepth((p) => Math.max(-1, Math.min(2, p + d * 0.05)));
-                  }} className="cursor-pointer flex-1" data-testid="clip-plane-slider" />
-                <span className="font-mono text-[10px] text-zinc-300 tabular-nums w-10 text-right">
-                  {clipDepth >= 2 ? "off" : clipDepth.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500 w-10 flex-shrink-0">az</span>
-                <Slider value={[clipAz]} min={-180} max={180} step={5}
-                  onValueChange={(v) => {
-                    setClipAz(v[0]);
-                    setScrollTarget('Az');
-                    scrollAdjustRef.current = (d) => setClipAz((p) => Math.max(-180, Math.min(180, p + d * 5)));
-                  }} className="cursor-pointer flex-1" data-testid="clip-az-slider" />
-                <span className="font-mono text-[10px] text-zinc-300 tabular-nums w-10 text-right">{clipAz}°</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500 w-10 flex-shrink-0">el</span>
-                <Slider value={[clipEl]} min={-90} max={90} step={5}
-                  onValueChange={(v) => {
-                    setClipEl(v[0]);
-                    setScrollTarget('El');
-                    scrollAdjustRef.current = (d) => setClipEl((p) => Math.max(-90, Math.min(90, p + d * 5)));
-                  }} className="cursor-pointer flex-1" data-testid="clip-el-slider" />
-                <span className="font-mono text-[10px] text-zinc-300 tabular-nums w-10 text-right">{clipEl}°</span>
-              </div>
-              <button
-                onClick={() => { setClipDepth(2); setClipAz(0); setClipEl(0); }}
-                className="font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-500 hover:text-white transition-colors"
-                data-testid="clip-plane-reset"
-              >reset</button>
-              <div className="font-mono text-[9px] text-zinc-600 leading-relaxed">
-                depth ≥ 2 = no clip · az rotates around vertical axis · el tilts the plane
-              </div>
-            </div>
+            <MeasurePanel viewerRef={viewerRef} crosshairMM={crosshairMM}
+              lesionLayers={lesionLayers} roiLayers={roiLayers} activationLayers={activationLayers}
+              measurements={measurements} setMeasurements={setMeasurements}
+              landmark={landmark} setLandmark={setLandmark}
+              pins={pins} setPins={setPins}
+              crosshairValues={crosshairValues} crosshairLabels={crosshairLabels} />
           </SidebarSection>
 
           {/* === 6. Atlases === */}
-          <SidebarSection title="Atlases" icon={Database} testId="section-atlases" defaultOpen={false}
-            badge={stdAtlasActive + customAtlases.filter((l) => l.visible).length}>
-            <div className="space-y-1.5">
-              {STANDARD_ATLASES.map((a) => (
-                <LayerControlAdvanced
-                  key={a.id}
-                  layer={a}
-                  visible={atlasState[a.id].visible}
-                  opacity={atlasState[a.id].opacity}
-                  colormap={atlasState[a.id].colormap}
-                  onToggle={handleAtlasToggle}
-                  onOpacityChange={handleAtlasOpacity}
-                  onColormapChange={handleAtlasColormap}
-                />
-              ))}
-            </div>
-            <div className="pt-2">
-              <FileUploader label="Add Custom Atlas" description=".nii / .nii.gz / .mgz — discrete labels"
-                testId="upload-atlas-button" onFile={(f) => addUserFile(f, "atlas")} />
-            </div>
-            <UserLayerList layers={customAtlases} overlayMeta={overlayMeta} {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserRemove, handleCalRangeChange, handleIgnoreZeroChange, handleInvertThresholdChange }} />
-          </SidebarSection>
+          <AtlasesSection
+            stdAtlasActive={stdAtlasActive}
+            customAtlases={customAtlases}
+            atlasState={atlasState}
+            handleAtlasToggle={handleAtlasToggle}
+            handleAtlasOpacity={handleAtlasOpacity}
+            handleAtlasColormap={handleAtlasColormap}
+            addUserFile={addUserFile}
+            overlayMeta={overlayMeta}
+            handleUserToggle={handleUserToggle}
+            handleUserOpacity={handleUserOpacity}
+            handleUserColormap={handleUserColormap}
+            handleUserColormapInvert={handleUserColormapInvert}
+            handleUserClipChange={handleUserClipChange}
+            handleUserRemove={handleUserRemove}
+            handleCalRangeChange={handleCalRangeChange}
+            handleColorRangeChange={handleColorRangeChange}
+            handleAutoColorRange={handleAutoColorRange}
+            handleAutoThreshold={handleAutoThreshold}
+            handleIgnoreZeroChange={handleIgnoreZeroChange}
+            handleInvertThresholdChange={handleInvertThresholdChange}
+            histograms={histograms}
+            requestHistogram={requestHistogram}
+            thresholdVolumes={thresholdVolumes}
+            scheduleThresholdVolume={scheduleThresholdVolume}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+            standardAtlases={standardAtlases}
+            atlasRegions={atlasRegions}
+            ensureAtlasRegions={ensureAtlasRegions}
+            reorderAtlases={reorderAtlases}
+            openAtlasManager={openAtlasManager}
+            handleAtlasClipChange={handleAtlasClipChange}
+            onAtlasNavigate={handleAtlasNavigate}
+            onAtlasRegionMask={handleAtlasRegionMask}
+            onAtlasRegionColors={handleAtlasRegionColors}
+            onAtlasIsolate={handleAtlasIsolate}
+            atlasIsolate={atlasIsolate}
+          />
 
           {/* === 7. Retinotopy === */}
-          <SidebarSection title="Retinotopy" icon={Eye} testId="section-retinotopy" defaultOpen={false} badge={retActive}>
-            <div className="space-y-1.5">
-              {RETINOTOPY_LAYERS.map((l) => {
-                const m = overlayMeta[l.id] || {};
-                return (
-                  <LayerControlAdvanced
-                    key={l.id}
-                    layer={l}
-                    visible={retState[l.id].visible}
-                    opacity={retState[l.id].opacity}
-                    colormap={retState[l.id].colormap}
-                    globalMin={m.global_min}
-                    globalMax={m.global_max}
-                    calMin={m.cal_min}
-                    calMax={m.cal_max}
-                    isSigned={m.isSigned}
-                    ignoreZeroVoxels={m.ignoreZeroVoxels}
-                    invertThreshold={m.invertThreshold}
-                    onToggle={handleRetToggle}
-                    onOpacityChange={handleRetOpacity}
-                    onColormapChange={handleRetColormap}
-                    onCalRangeChange={handleCalRangeChange}
-                    onIgnoreZeroChange={handleIgnoreZeroChange}
-                    onInvertThresholdChange={handleInvertThresholdChange}
-                    onRemove={() => retState[l.id].visible && handleRetToggle(l.id)}
-                    removable={retState[l.id].visible}
-                  />
-                );
-              })}
-            </div>
-
-
-            <div className="border border-[#27272A] bg-[#0a0a0a] p-4 space-y-3">
-              {/* Lesion-aware legend picker: shared between both wheels. Multi-select
-                  via checkboxes so the user can union several lesions or focus on one. */}
-              {lesionLayers.length > 0 && (
-                <div className="relative" data-testid="retinotopy-lesion-picker">
-                  <button
-                    type="button"
-                    onClick={() => setLesionPickerOpen((o) => !o)}
-                    className="w-full flex items-center justify-between px-2 py-1.5 border border-[#27272A] bg-[#050505] text-zinc-300 text-[11px] hover:text-white hover:border-zinc-500"
-                    data-testid="retinotopy-lesion-picker-toggle"
-                  >
-                    <span className="font-mono uppercase tracking-[0.15em] text-[10px]">
-                      Lesions for overlap
-                    </span>
-                    <span className="font-mono text-[10px] text-zinc-400">
-                      {selectedLesionIds.size} / {lesionLayers.length}
-                    </span>
-                  </button>
-                  {lesionPickerOpen && (
-                    <div className="mt-1 border border-[#27272A] bg-[#050505] divide-y divide-[#1a1a1a]">
-                      {lesionLayers.map((l) => {
-                        const checked = selectedLesionIds.has(l.id);
-                        return (
-                          <label
-                            key={l.id}
-                            className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-zinc-300 hover:text-white cursor-pointer"
-                            data-testid={`retinotopy-lesion-opt-${l.id}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleLesionSelected(l.id)}
-                              className="accent-zinc-200"
-                            />
-                            <span className="truncate font-mono">{l.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-zinc-500">
-                  cortical retinotopy
-                </span>
-                <button
-                  onClick={() => setBensonViewMode((v) => v === "2d" ? "classic" : "2d")}
-                  className="font-mono text-[9px] uppercase tracking-[0.15em] text-zinc-500 hover:text-zinc-200 border border-[#27272A] px-2 py-0.5"
-                >
-                  {bensonViewMode === "2d" ? "classic →" : "← 2D map"}
-                </button>
-              </div>
-              {bensonViewMode === "2d" ? (
-                <VisualFieldMap2D
-                  ref={bensonVfMap2dRef}
-                  gridResult={benson2DGrid}
-                  active={polarActive || eccenActive}
-                  selectedCount={selectedLesionIds.size}
-                  label="Cortical Retinotopy (Benson)"
-                  summaryText={polarOverlap.summary}
-                  thresholdMode={polarThresh.mode}
-                  thresholdMin={polarThresh.min}
-                  onThresholdModeChange={(mode) => setPolarThresh((p) => ({ ...p, mode }))}
-                  onThresholdMinChange={(min) => setPolarThresh((p) => ({ ...p, min }))}
-                  baseLabel={baseLabel}
-                />
-              ) : (
-                <>
-                  <PolarAngleDisc
-                    active={polarActive}
-                    colormap={retState.benson_polar_angle.colormap}
-                    arcSegments={polarOverlap.arcSegments}
-                    summaryText={polarOverlap.summary}
-                    thresholdMode={polarThresh.mode}
-                    thresholdMin={polarThresh.min}
-                    onThresholdModeChange={(mode) => setPolarThresh((p) => ({ ...p, mode }))}
-                    onThresholdMinChange={(min) => setPolarThresh((p) => ({ ...p, min }))}
-                    baseLabel={baseLabel}
-                    eccenColormap={retState.benson_eccentricity.colormap}
-                    eccenArcSegments={eccenOverlap.arcSegments}
-                    eccenSummaryText={eccenOverlap.summary}
-                    eccenInverted={eccenInverted}
-                  />
-                  <div className="my-3 h-px bg-[#27272A]" />
-                  <EccentricityBar
-                    active={eccenActive}
-                    colormap={retState.benson_eccentricity.colormap}
-                    arcSegments={eccenOverlap.arcSegments}
-                    summaryText={eccenOverlap.summary}
-                    thresholdMode={eccenThresh.mode}
-                    thresholdMin={eccenThresh.min}
-                    onThresholdModeChange={(mode) => setEccenThresh((p) => ({ ...p, mode }))}
-                    onThresholdMinChange={(min) => setEccenThresh((p) => ({ ...p, min }))}
-                    inverted={eccenInverted}
-                    onInvertToggle={handleEccenInvert}
-                  />
-                </>
-              )}
-              {/* White-matter (template) overlap — illustrative only. Uses the
-                  same polar/eccen thresholds as the cortical legend above. */}
-              <div className="my-3 h-px bg-[#27272A]" />
-              <div className="space-y-3" data-testid="wm-retinotopy-legend">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">
-                    brainlife · retinotopic connectivity template
-                  </div>
-                  {wmAvailable && (
-                    <button
-                      onClick={() => setWmInlineViewMode((v) => v === "2d" ? "classic" : "2d")}
-                      className="font-mono text-[9px] uppercase tracking-[0.15em] text-zinc-500 hover:text-zinc-200 border border-[#27272A] px-2 py-0.5"
-                    >
-                      {wmInlineViewMode === "2d" ? "classic →" : "← 2D map"}
-                    </button>
-                  )}
-                </div>
-                {wmAvailable ? (
-                  <>
-                    {wmInlineViewMode === "2d" ? (
-                      <VisualFieldMap2D
-                        ref={wmVfMap2dRef}
-                        gridResult={wm2DGrid}
-                        active={selectedLesionIds.size > 0}
-                        selectedCount={selectedLesionIds.size}
-                        label="WM Retinotopy (population template)"
-                        summaryText={wmPolarOverlap.summary}
-                        baseLabel="WM Retinotopy (population template)"
-                      />
-                    ) : (
-                      <>
-                        <PolarAngleDisc
-                          active={selectedLesionIds.size > 0}
-                          colormap="polar_angle_360"
-                          arcSegments={wmPolarOverlap.arcSegments}
-                          summaryText={wmPolarOverlap.summary}
-                          baseLabel="WM Retinotopy (population template)"
-                          eccenColormap="warm"
-                          eccenArcSegments={wmEccenOverlap.arcSegments}
-                          eccenSummaryText={wmEccenOverlap.summary}
-                        />
-                        <EccentricityBar
-                          active={selectedLesionIds.size > 0}
-                          colormap="warm"
-                          arcSegments={wmEccenOverlap.arcSegments}
-                          summaryText={wmEccenOverlap.summary}
-                        />
-                      </>
-                    )}
-                    <div className="font-mono text-[8px] text-zinc-600 leading-relaxed pt-1">
-                      Anatomical/illustrative · population template, not a validated clinical
-                      prediction · Amorosino et al. 2026 · brainlife.pub.67 (CC-BY)
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-[10px] text-zinc-500 leading-relaxed">
-                    White-matter retinotopy maps are loading. If they fail, ensure{" "}
-                    <span className="font-mono">wm_polar_angle.nii.gz</span> and{" "}
-                    <span className="font-mono">wm_eccentricity.nii.gz</span> are present in{" "}
-                    <span className="font-mono">public/atlases/</span>.
-                  </div>
-                )}
-              </div>
-            </div>
-          </SidebarSection>
-
-          {/* === 8. Tractography === */}
-          <SidebarSection title="Tractography" icon={Waypoints} testId="section-tracts" defaultOpen={false}
-            badge={tractLayers.filter((l) => l.visible).length}>
-            <FileUploader label="Load Tract File" description=".trk / .tck / .trx / .vtk / .gii / .mz3"
-              accept=".trk,.tck,.trx,.vtk,.gii,.mz3,.obj,.stl,.ply"
-              testId="upload-tract-button" onFile={handleTractUpload}
-              disabled={!!tractLoading} />
-            {tractLoading && (
-              <div className="border border-[#27272A] bg-[#0a0a0a] px-3 py-2.5 mt-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 size={11} className="animate-spin text-zinc-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-[12px] text-zinc-300">{tractLoading.name}</div>
-                    <div className="font-mono text-[10px] text-zinc-500 animate-pulse mt-0.5">{tractLoading.phase}</div>
-                  </div>
-                </div>
-                <div className="mt-2 h-px w-full bg-[#27272A] overflow-hidden">
-                  <div className="h-px bg-white/60 animate-pulse" style={{ width: "100%" }} />
-                </div>
-              </div>
-            )}
-            {tractLoadError && (
-              <div className="border border-[#FF3B30]/40 bg-[#0a0a0a] px-3 py-2.5 mt-2">
-                <div className="flex items-start gap-2">
-                  <AlertCircle size={11} className="text-[#FF3B30] mt-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] text-[#FF3B30]">Failed to load</div>
-                    <div className="font-mono text-[10px] text-zinc-500 mt-0.5 break-all">{tractLoadError.name}</div>
-                    <div className="font-mono text-[10px] text-zinc-400 mt-1 break-words">{tractLoadError.message}</div>
-                  </div>
-                  <button onClick={() => setTractLoadError(null)} className="text-zinc-600 hover:text-zinc-400 flex-shrink-0">
-                    <X size={11} />
-                  </button>
-                </div>
-              </div>
-            )}
-            {tractLayers.length > 0 && (
-              <div className="space-y-1.5 mt-2">
-                {tractLayers.map((t) => (
-                  <div key={t.id} className="border border-[#27272A] bg-[#0a0a0a] px-3 py-2.5" data-testid={`tract-${t.id}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-block h-3 w-3" style={{ background: t.direction
-                        ? "linear-gradient(45deg, #ff3b30, #34c759, #007aff)"
-                        : t.color }} />
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate text-[12px] text-zinc-200">{t.name}</div>
-                        <div className="font-mono text-[10px] text-zinc-500">{t.description}</div>
-                      </div>
-                      <button onClick={() => handleTractRemove(t.id)}
-                        className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 hover:text-[#FF3B30]"
-                        data-testid={`remove-${t.id}`}>remove</button>
-                    </div>
-                    <label className="flex items-center justify-between cursor-pointer mb-2">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">
-                        color by direction (DTI · RGB)
-                      </span>
-                      <button onClick={() => handleTractDirectionToggle(t.id, !t.direction)}
-                        className={`relative inline-flex h-4 w-8 transition-colors border ${
-                          t.direction ? "bg-white border-white" : "bg-transparent border-[#27272A]"
-                        }`}
-                        data-testid={`tract-direction-${t.id}`}>
-                        <span className={`inline-block h-3 w-3 transition-transform ${
-                          t.direction ? "translate-x-4 bg-black" : "translate-x-0 bg-zinc-500"
-                        }`} />
-                      </button>
-                    </label>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">opacity</span>
-                      <span className="font-mono text-[10px] text-zinc-300">{Math.round(t.opacity * 100)}%</span>
-                    </div>
-                    <Slider value={[t.opacity * 100]} max={100} step={1}
-                      onValueChange={(v) => handleTractOpacity(t.id, v[0] / 100)}
-                      data-testid={`opacity-${t.id}`} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </SidebarSection>
+          <RetinotopySection
+            retActive={retActive}
+            overlayMeta={overlayMeta}
+            retState={retState}
+            handleRetToggle={handleRetToggle}
+            handleRetOpacity={handleRetOpacity}
+            handleRetColormap={handleRetColormap}
+            handleCalRangeChange={handleCalRangeChange}
+            handleColorRangeChange={handleColorRangeChange}
+            handleAutoColorRange={handleAutoColorRange}
+            handleAutoThreshold={handleAutoThreshold}
+            handleIgnoreZeroChange={handleIgnoreZeroChange}
+            handleInvertThresholdChange={handleInvertThresholdChange}
+            histograms={histograms}
+            requestHistogram={requestHistogram}
+            thresholdVolumes={thresholdVolumes}
+            scheduleThresholdVolume={scheduleThresholdVolume}
+            lesionLayers={retinoLesionOptions}
+            lesionPickerOpen={lesionPickerOpen}
+            setLesionPickerOpen={setLesionPickerOpen}
+            selectedLesionIds={selectedLesionIds}
+            toggleLesionSelected={toggleLesionSelected}
+            bensonViewMode={bensonViewMode}
+            setBensonViewMode={setBensonViewMode}
+            bensonVfMap2dRef={bensonVfMap2dRef}
+            benson2DGrid={benson2DGrid}
+            polarOverlap={polarOverlap}
+            polarThresh={polarThresh}
+            setPolarThresh={setPolarThresh}
+            polarActive={polarActive}
+            baseLabel={baseLabel}
+            eccenOverlap={eccenOverlap}
+            eccenThresh={eccenThresh}
+            setEccenThresh={setEccenThresh}
+            eccenInverted={eccenInverted}
+            handleEccenInvert={handleEccenInvert}
+            eccenActive={eccenActive}
+            wmAvailable={wmAvailable}
+            wmVfMap2dRef={wmVfMap2dRef}
+            wm2DGrid={wm2DGrid}
+            wmPolarOverlap={wmPolarOverlap}
+            wmEccenOverlap={wmEccenOverlap}
+            layerNotes={layerNotes}
+            onNotesChange={handleNotesChange}
+          />
 
           {/* === 9. Longitudinal === */}
           <SidebarSection title="Longitudinal" icon={GitCompareArrows} testId="section-longitudinal" defaultOpen={false}>
@@ -1878,25 +2161,61 @@ export default function Dashboard() {
           </SidebarSection>
 
           <div className="px-5 py-4 mt-2">
-            <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-600 leading-relaxed">
+            <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-subtle leading-relaxed">
               Atlases: AAL · Harvard-Oxford · Jülich (white matter). Retinotopy: Benson 2014 + Wang 2015. Cerebellum excluded in retinotopy.
             </div>
           </div>
-        </div>
+          </div>
+          </SidebarSectionsContext.Provider>
+          </div>
       </aside>
+      {sidebarCollapsed && !focusMode && (
+        <button
+          onClick={() => setSidebarCollapsed(false)}
+          className="flex-shrink-0 w-6 flex flex-col items-center justify-center border-r border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-panel-hover transition-colors"
+          title="Expand sidebar"
+          data-testid="sidebar-expand-toggle"
+        >
+          <PanelLeftOpen size={14} />
+        </button>
+      )}
 
       {/* ============ MAIN VIEWER ============ */}
+      {/* bg-black is intentionally NOT theme-tokenized: the NiiVue canvas's
+          WebGL clear color is fixed dark (see NiivueViewer's `backColor`)
+          regardless of app theme — scan images are optimized for a dark
+          viewing background. A light container here would show as a pale
+          halo around the dark render. */}
       <main className="flex-1 flex flex-col min-h-0 min-w-0 bg-black relative" data-testid="viewer-main">
-        <div className="flex items-center justify-between gap-2 flex-wrap border-b border-[#27272A] bg-[#0a0a0a] px-4 py-2.5" data-testid="topbar">
+        {/* Focus/presentation mode: a single floating control to exit, no other chrome. */}
+        {focusMode && (
+          <button
+            onClick={() => setFocusMode(false)}
+            className="absolute top-2 right-2 z-20 flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] border border-white/20 bg-black/60 text-zinc-200 hover:text-white hover:border-white/50 transition-colors"
+            title="Exit focus mode (F)"
+            data-testid="focus-exit"
+          >
+            <Minimize2 size={12} /> Exit focus
+          </button>
+        )}
+        {focusMode ? null : topbarCollapsed ? (
+          <button
+            onClick={() => setTopbarCollapsed(false)}
+            className="flex w-full items-center justify-center gap-2 border-b border-border bg-panel py-1 text-muted-foreground hover:text-foreground hover:bg-panel-hover transition-colors"
+            title="Show toolbar"
+            data-testid="topbar-expand-toggle"
+          >
+            <PanelTopOpen size={13} />
+          </button>
+        ) : (
+        <div className="flex items-center justify-between gap-2 flex-wrap border-b border-border bg-panel px-4 py-2.5" data-testid="topbar">
           <div className="flex items-center gap-1 flex-wrap">
             {SLICE_MODES.map((m) => {
               const Icon = m.icon;
               const active = sliceType === m.id && !asymmetric;
               return (
                 <button key={m.id} onClick={() => { setAsymmetric(false); setSliceType(m.id); }}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
-                    active ? "bg-white text-black border-white" : "bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
-                  }`} data-testid={`slice-mode-${m.id}`}>
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border ${activeToggleCls(active)}`} data-testid={`slice-mode-${m.id}`}>
                   <Icon size={12} /><span>{m.label}</span>
                 </button>
               );
@@ -1904,62 +2223,118 @@ export default function Dashboard() {
             {/* Asymmetric: 1 large + 3 stacked side views */}
             <button
               onClick={() => setAsymmetric((v) => !v)}
-              className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
-                asymmetric ? "bg-white text-black border-white" : "bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
-              }`}
+              className={`w-full flex items-center justify-center gap-2 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border ${activeToggleCls(asymmetric)}`}
               data-testid="slice-mode-asymmetric"
               title="Asymmetric: one large + three stacked side views. Double-click a side to promote."
             >
               <Columns3 size={12} /><span>Asymmetric</span>
             </button>
+            {/* Radiological / neurological convention (flips axial+coronal + labels) */}
+            <button
+              onClick={() => setRadiological((v) => !v)}
+              className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
+                radiological ? "bg-panel-hover text-foreground border-muted-foreground" : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              }`}
+              data-testid="radiological-toggle"
+              title="Radiological convention: mirror axial & coronal (L/R swap). Off = neurological."
+            >
+              <FlipHorizontal2 size={12} /><span>{radiological ? "Radiological" : "Neurological"}</span>
+            </button>
+            {/* Left-drag mode: crosshair / windowing / pan */}
+            {/* Right-drag mode: left-click is always crosshair (when not
+                drawing); this toggle only changes what right-drag does. */}
+            {/* Right-drag mode: Zoom / Window / Pan (always clickable; clicking
+                any of them while drawing exits draw mode) + a locked 4th
+                "Right-drag: Erase" indicator while drawing is active. */}
+            <div className="flex items-center border border-border" data-testid="drag-mode-toggle">
+              {[
+                { id: "zoom", icon: ZoomIn, label: "Zoom" },
+                { id: "windowing", icon: Contrast, label: "Window" },
+                { id: "pan", icon: Move, label: "Pan" },
+              ].map((m) => {
+                const Icon = m.icon;
+                const active = dragMode === m.id;
+                return (
+                  <button key={m.id} onClick={() => {
+                      setDragMode(m.id);
+                      if (drawingActive) viewerRef.current?.setDrawingEnabled?.(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.1em] transition-colors ${
+                      active && !drawingActive ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                    data-testid={`drag-mode-${m.id}`}
+                    title={`Right-drag: ${m.label}`}>
+                    <Icon size={12} />
+                  </button>
+                );
+              })}
+              {/* 4th indicator: visible only in draw mode, locked to "Erase" */}
+              {drawingActive && (
+                <button
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.1em] bg-primary text-primary-foreground cursor-default"
+                  data-testid="drag-mode-draw-erase"
+                  title="Right-drag: Erase (active while drawing)"
+                  tabIndex={-1}
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+            {/* Jump the crosshair to a typed MNI coordinate. Routes through the
+                shared setCrosshairMM navigation primitive (same as the atlas
+                region buttons / visfAtlas jump / workspace restore). */}
+            <GotoMniInput current={crosshairMM} onGo={(x, y, z) => viewerRef.current?.setCrosshairMM?.(x, y, z)} />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setShowValidation(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
-              data-testid="open-atlas-validation"
-              title="View side-by-side verification of Benson 2014 / Wang 2015 atlases">
-              <BadgeCheck size={12} />Verify Atlas
+            <button
+              onClick={() => setFocusMode(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              data-testid="focus-mode-toggle"
+              title="Focus mode: hide all panels (F)"
+            >
+              <Minimize2 size={12} />Focus
+            </button>
+            <button
+              onClick={() => setShowShortcuts(true)}
+              className="flex h-[30px] w-8 items-center justify-center transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              data-testid="shortcuts-help-toggle"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard size={13} />
             </button>
             <button onClick={clearAllOverlays}
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-[#FF3B30] hover:border-[#FF3B30]"
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-destructive hover:border-destructive"
               data-testid="clear-all-overlays">
               <Trash2 size={12} />Clear All
             </button>
-            <button onClick={handleProximityWarnToggle}
-              className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
-                proximityWarn ? "bg-amber-500/20 text-amber-300 border-amber-600" : "bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
-              }`} data-testid="proximity-toggle"
-              title="Warn when the crosshair is within ~5mm of an eloquent white-matter tract (Jülich)">
-              <AlertTriangle size={12} />Eloquent Warn
-            </button>
-            <div className="relative">
+            <div className="relative" ref={crosshairSettingsRef}>
               <div className="flex">
                 <button onClick={() => setCrosshair((c) => !c)}
                   className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
-                    crosshair ? "bg-[#111111] text-white border-zinc-500" : "bg-transparent text-zinc-500 border-[#27272A] hover:text-white"
+                    crosshair ? "bg-panel-hover text-foreground border-muted-foreground" : "bg-transparent text-muted-foreground border-border hover:text-foreground"
                   }`} data-testid="crosshair-toggle">
                   <CrosshairIcon size={12} />Crosshair
                 </button>
                 <button
-                  onClick={() => setShowCrosshairSettings((v) => !v)}
-                  className="px-1.5 py-1.5 text-[9px] border border-l-0 border-[#27272A] text-zinc-500 hover:text-white transition-colors"
+                  onClick={() => { setShowCrosshairSettings((v) => !v); setShowClipSettings(false); }}
+                  className="px-1.5 py-1.5 text-[9px] border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
                   title="Crosshair style options"
                   data-testid="crosshair-settings-toggle"
                 >▾</button>
               </div>
               {showCrosshairSettings && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-52 border border-[#27272A] bg-[#0a0a0a] p-3 space-y-2.5 shadow-lg" data-testid="crosshair-settings-panel">
+                <div className="absolute right-0 top-full z-50 mt-1 w-52 border border-border bg-panel p-3 space-y-2.5 shadow-lg" data-testid="crosshair-settings-panel">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">thickness</span>
-                      <span className="font-mono text-[10px] text-zinc-300">{crosshairWidth}</span>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">thickness</span>
+                      <span className="font-mono text-[10px] text-foreground">{crosshairWidth}</span>
                     </div>
                     <Slider value={[crosshairWidth]} min={1} max={5} step={1}
                       onValueChange={(v) => setCrosshairWidth(v[0])}
                       className="cursor-pointer" data-testid="crosshair-width" />
                   </div>
                   <div className="space-y-1.5">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-zinc-500">color</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">color</span>
                     <div className="flex gap-1.5 flex-wrap">
                       {[
                         { key: "white",  bg: "bg-white"        },
@@ -1971,125 +2346,248 @@ export default function Dashboard() {
                         <button
                           key={key}
                           onClick={() => setCrosshairColor(key)}
-                          className={`h-5 w-5 ${bg} transition-opacity ${crosshairColor === key ? "ring-2 ring-white ring-offset-1 ring-offset-black" : "opacity-60 hover:opacity-100"}`}
+                          className={`h-5 w-5 ${bg} transition-opacity ${crosshairColor === key ? "ring-2 ring-foreground ring-offset-1 ring-offset-panel" : "opacity-60 hover:opacity-100"}`}
                           data-testid={`crosshair-color-${key}`}
                           title={key}
                         />
                       ))}
                     </div>
                   </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-border">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">orient. labels</span>
+                    <button
+                      onClick={() => setOrientationLabels((v) => !v)}
+                      className={`relative inline-flex h-4 w-8 transition-colors border ${
+                        orientationLabels ? "bg-primary border-primary" : "bg-transparent border-border"
+                      }`}
+                      data-testid="orientation-labels-toggle"
+                    >
+                      <span className={`inline-block h-3 w-3 transition-transform ${orientationLabels ? "translate-x-4 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"}`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="relative" data-testid="clip-plane-control" ref={clipSettingsRef}>
+              <div className="flex">
+                <button
+                  onClick={() => setClipEnabled((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border ${
+                    clipEnabled ? "bg-panel-hover text-foreground border-muted-foreground" : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+                  }`}
+                  data-testid="clip-plane-toggle"
+                  title="Clip plane — cut away part of the 3D render"
+                >
+                  <Scissors size={12} />Clip Plane
+                </button>
+                <button
+                  onClick={() => { setShowClipSettings((v) => !v); setShowCrosshairSettings(false); }}
+                  className="px-1.5 py-1.5 text-[9px] border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
+                  title="Clip plane options"
+                  data-testid="clip-plane-settings-toggle"
+                >▾</button>
+              </div>
+              {showClipSettings && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-64 border border-border bg-panel p-3 space-y-3 shadow-lg" data-testid="clip-plane-settings-panel">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground w-10 flex-shrink-0">depth</span>
+                    <Slider value={[clipDepth]} min={-0.6} max={0.6} step={0.02}
+                      onValueChange={(v) => setClipDepth(v[0])}
+                      className="cursor-pointer flex-1" data-testid="clip-plane-slider" />
+                    <span className="font-mono text-[10px] text-foreground tabular-nums w-10 text-right">
+                      {clipDepth.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground w-10 flex-shrink-0">az</span>
+                    <Slider value={[clipAz]} min={-180} max={180} step={5}
+                      onValueChange={(v) => setClipAz(v[0])}
+                      className="cursor-pointer flex-1" data-testid="clip-az-slider" />
+                    <span className="font-mono text-[10px] text-foreground tabular-nums w-10 text-right">{Math.round(clipAz)}°</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground w-10 flex-shrink-0">el</span>
+                    {/* Item 104: -180..180, not -90..90. The clip-plane normal
+                        is sph2cartDeg(az+180, el), whose period in elevation is
+                        360° — so only a full-turn range lets a sustained
+                        right-drag wrap seamlessly instead of sticking at a pole
+                        (a -90..90 fold would flip the plane to the far side). */}
+                    <Slider value={[clipEl]} min={-180} max={180} step={5}
+                      onValueChange={(v) => setClipEl(v[0])}
+                      className="cursor-pointer flex-1" data-testid="clip-el-slider" />
+                    <span className="font-mono text-[10px] text-foreground tabular-nums w-10 text-right">{Math.round(clipEl)}°</span>
+                  </div>
+                  <button
+                    onClick={() => { setClipDepth(0); setClipAz(0); setClipEl(0); }}
+                    className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="clip-plane-reset"
+                  >reset</button>
+                  <div className="font-mono text-[9px] text-subtle leading-relaxed">
+                    depth 0 = centered · az/el track the render's own rotation while dragged (right-drag) · Clip Plane button toggles on/off, values persist
+                  </div>
                 </div>
               )}
             </div>
             <button onClick={handleSaveWorkspace}
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
               data-testid="workspace-save" title="Save the current workspace (scan, overlays, settings) to a file">
               <Save size={12} />Save
             </button>
             <button onClick={handleOpenWorkspace}
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
               data-testid="workspace-open" title="Restore a saved workspace file">
               <FolderOpen size={12} />Open
             </button>
-            <button onClick={() => viewerRef.current?.saveScreenshot()}
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+            <button onClick={() => viewerRef.current?.saveScreenshot({ caption: baseLabel })}
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
               data-testid="screenshot-button">
               <Camera size={12} />Screenshot
             </button>
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] border border-[#27272A] text-zinc-500 select-none"
-              title={scrollTarget ? `Ctrl+scroll → ${scrollTarget} | Scroll → zoom` : 'Touch a slider to bind Ctrl+scroll to it. Scroll always zooms.'}
-              data-testid="scroll-mode-indicator"
+            <button
+              onClick={() => setTopbarCollapsed(true)}
+              className="flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title="Hide toolbar"
+              data-testid="topbar-collapse-toggle"
             >
-              <ZoomIn size={12} />
-              {scrollTarget ? `↕ Ctrl+${scrollTarget}` : '↕ Scroll'}
-            </div>
+              <PanelTopClose size={13} />
+            </button>
           </div>
         </div>
+        )}
 
-        <div className="border-b border-[#27272A] bg-[#050505] px-4 py-2">
-          <CrosshairInfo mm={crosshairMM} vox={crosshairVox} labels={crosshairLabels} values={crosshairValues} eloquent={proximityWarn ? crosshairEloquent : null} />
-        </div>
+        {!focusMode && (
+          <div className="border-b border-border bg-background px-4 py-2">
+            <CrosshairInfo mm={crosshairMM} vox={crosshairVox} labels={crosshairLabels} values={crosshairValues} />
+          </div>
+        )}
 
         <div ref={canvasWrapperRef} className="flex-1 relative min-h-0">
-          <NiivueViewer
-            ref={viewerRef}
-            baseVolume={BASE_VOLUME}
-            sliceType={sliceType}
-            onReady={() => { setViewerReady(true); refreshBaseOverlayMeta(); }}
-            onLocationChange={handleLocationChange}
-            onDoubleClickSlice={handleDoubleClickSlice}
-          />
+          {initialBaseVolume && (
+            <NiivueViewer
+              ref={viewerRef}
+              baseVolume={initialBaseVolume}
+              sliceType={sliceType}
+              activeOrientation={activeOrientation}
+              onReady={() => { setViewerReady(true); refreshBaseOverlayMeta(); }}
+              onLocationChange={handleLocationChange}
+              onDoubleClickSlice={handleDoubleClickSlice}
+              onClipRotateDelta={handleClipRotateDelta}
+              onFrameChange={handleFrameChange}
+              clipEnabled={clipEnabled}
+              tractRender={tractRender}
+              drawToolLabel={activeTool === "brush" ? `${brushMode} Brush/Erase` : ""}
+            />
+          )}
           <ColorBarStack entries={colorBarEntries} />
+          <FrameStepper frame={frameInfo.frame} nFrames={frameInfo.nFrames} onStepFrame={stepFrame} onSetFrame={setFrame} timeseriesData={timeseriesData} />
+          {loadBarVisible && (
+            // Covers the gap SplashScreen doesn't: a base-volume swap (e.g.
+            // a large 4D file) AFTER the window's initial load, where
+            // nothing else signals "still working". See loadBarPct's effect
+            // above for why this is a simulated, not measured, percentage.
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 pointer-events-none"
+              data-testid="base-loading-overlay"
+            >
+              <div className="flex flex-col items-center gap-2 bg-black/70 border border-white/15 rounded-lg px-4 py-3 w-56">
+                <span className="font-mono text-[11px] text-zinc-100">Loading volume…</span>
+                <div className="h-1 w-full bg-white/15 overflow-hidden rounded-full">
+                  <div
+                    className="h-full bg-zinc-100 transition-[width] ease-out"
+                    style={{ width: `${loadBarPct}%`, transitionDuration: loadBarPct >= 100 ? "150ms" : "300ms" }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="border-t border-[#27272A] bg-[#0a0a0a] px-4 py-2 flex items-center" data-testid="bottom-controls">
-          <div className="flex items-center gap-4 ml-auto font-mono text-[10px] text-zinc-500">
-            <div className="flex items-center gap-2">
-              <span className={`h-1.5 w-1.5 rounded-full ${viewerReady ? "bg-emerald-500" : "bg-amber-500"}`} />
-              <span>{viewerReady ? "WebGL ready" : "loading"}</span>
+        {!focusMode && (
+          <div className="border-t border-border bg-panel px-4 py-2 flex items-center" data-testid="bottom-controls">
+            <div className="flex items-center gap-4 ml-auto font-mono text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className={`h-1.5 w-1.5 rounded-full ${viewerReady ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span>{viewerReady ? "WebGL ready" : "loading"}</span>
+              </div>
+              <div><span className="text-subtle">overlays</span>{" "}<span className="text-foreground">{totalActive}</span></div>
             </div>
-            <div><span className="text-zinc-600">overlays</span>{" "}<span className="text-zinc-300">{totalActive}</span></div>
+          </div>
+        )}
+      </main>
+
+      {/* Module store overlay. Renders nothing until opened — from the sidebar
+          header button or from a ModuleGate install prompt (both go through
+          ModuleProvider's openStore). */}
+      <ModuleStore />
+
+      {/* Atlas manager overlay — installed list, 1-click catalog and the
+          import wizard. Renders nothing until opened (AtlasProvider's
+          openManager), from the Atlases section header or its empty state. */}
+      <AtlasManager onChanged={refreshAtlases} />
+
+      {/* Keyboard shortcuts help overlay */}
+      {showShortcuts && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
+          onClick={() => setShowShortcuts(false)}
+          data-testid="shortcuts-help"
+        >
+          <div
+            className="w-[380px] max-w-[90vw] border border-border bg-panel p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                <Keyboard size={14} className="text-muted-foreground" /> Keyboard shortcuts
+              </div>
+              <button onClick={() => setShowShortcuts(false)} className="text-muted-foreground hover:text-foreground" data-testid="shortcuts-help-close">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[11px]">
+              {[
+                ["↑ / ↓ · PgUp / PgDn", "Previous / next slice"],
+                ["Ctrl + scroll", "Zoom the 2D views"],
+                ["+ / −", "Zoom in / out"],
+                ["[ / ]", "Cycle slice layout"],
+                ["1 / 2 / 3", "Axial / Coronal / Sagittal view"],
+                ["0", "Reset zoom / pan"],
+                ["C", "Toggle crosshair"],
+                ["R", "Radiological / neurological"],
+                ["W", "Cycle drag mode (locate/window/pan)"],
+                ["F", "Focus mode"],
+                ["S", "Screenshot"],
+                ["D", "Toggle drawing mode"],
+                ["I", "Interpolate last 2 slices"],
+                ["Shift + I", "Interpolate all drawn slices"],
+                ["← / →", "Previous / next frame (4D)"],
+                ["?", "This help"],
+              ].map(([k, d]) => (
+                <React.Fragment key={k}>
+                  <kbd className="font-mono text-[10px] text-foreground bg-panel-hover border border-border px-1.5 py-0.5 self-start whitespace-nowrap">{k}</kbd>
+                  <span className="text-muted-foreground self-center">{d}</span>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
-      </main>
-      <AtlasValidationPanel open={showValidation} onOpenChange={setShowValidation} />
+      )}
     </div>
   );
 }
 
-const UserLayerList = ({
-  layers, overlayMeta,
-  handleUserToggle, handleUserOpacity, handleUserColormap, handleUserRemove,
-  handleCalRangeChange, handleIgnoreZeroChange, handleInvertThresholdChange,
-  labelAtlasOptions, layerLabelAtlas, onLabelAtlasChange,
-}) =>
-  layers.length === 0 ? null : (
-    <div className="space-y-1.5 mt-2">
-      {layers.map((l) => {
-        const m = overlayMeta?.[l.id] || {};
-        return (
-          <LayerControlAdvanced
-            key={l.id}
-            layer={l}
-            visible={l.visible}
-            opacity={l.opacity}
-            colormap={l.colormap}
-            globalMin={m.global_min}
-            globalMax={m.global_max}
-            calMin={m.cal_min}
-            calMax={m.cal_max}
-            isSigned={m.isSigned}
-            ignoreZeroVoxels={m.ignoreZeroVoxels}
-            invertThreshold={m.invertThreshold}
-            labelAtlasOptions={labelAtlasOptions}
-            labelAtlasId={layerLabelAtlas?.[l.id]}
-            onLabelAtlasChange={onLabelAtlasChange}
-            onToggle={handleUserToggle}
-            onOpacityChange={handleUserOpacity}
-            onColormapChange={handleUserColormap}
-            onCalRangeChange={handleCalRangeChange}
-            onIgnoreZeroChange={handleIgnoreZeroChange}
-            onInvertThresholdChange={handleInvertThresholdChange}
-            onRemove={handleUserRemove}
-            removable
-          />
-        );
-      })}
-    </div>
-  );
+// UserLayerList moved to components/UserLayerList.jsx (shared by the Lesion
+// Masks, Activation Maps, and Atlases sidebar sections).
 
 function typeLabel(t) {
   return { lesion: "Lesion", roi: "ROI", activation: "Activation", atlas: "Atlas" }[t] || "Layer";
 }
 
-function shortAtlas(name) {
-  return ({
-    aal: "AAL",
-    ho_cort: "HO Cort",
-    juelich: "Jülich",
-    destrieux: "Destrieux",
-  })[name] || name;
+// Display name for an atlas id, from the registry. The four-entry hardcoded
+// map this replaces named a fraction of the installed atlases and could never
+// know about one the user installed or imported.
+function shortAtlas(name, resolve) {
+  return resolve?.(name)?.short || name;
 }
 
 function shortLayerName(name) {
@@ -2100,11 +2598,10 @@ function shortLayerName(name) {
     benson_polar_angle: "PolarAng",
     benson_eccentricity: "Eccen",
     benson_visual_areas: "VArea",
-    visfAtlas: "visfAtlas",
   };
   if (map[name]) return map[name];
-  const sa = shortAtlas(name);
-  if (sa !== name) return sa;
+  // Atlas ids are resolved by the caller-facing shortAtlas(); here we only
+  // handle the fixed non-atlas layers plus user layers.
   // User-uploaded layers carry IDs like "user-1234567890". Trim ids.
   if (name.startsWith("user-")) return "User";
   return name.length > 12 ? name.slice(0, 12) + "…" : name;

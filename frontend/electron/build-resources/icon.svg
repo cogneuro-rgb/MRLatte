@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    MRLatte icon: a top-down latte cup whose crema surface is an axial brain
+    slice. Espresso rim / crema surface / foam brain palette, plus one red
+    accent dot (crosshair) nodding to the placeholder icon it replaces.
+    Designed to read as a filled warm circle-in-a-ring at 16px, resolving
+    into the brain slice (fissure + gyral strokes) at 48px+.
+  -->
+  <defs>
+    <clipPath id="cup">
+      <circle cx="256" cy="256" r="214" />
+    </clipPath>
+  </defs>
+
+  <!-- Cup rim, seen from above -->
+  <circle cx="256" cy="256" r="248" fill="#3B2416" />
+
+  <!-- Crema / coffee surface -->
+  <circle cx="256" cy="256" r="214" fill="#C89B6A" />
+
+  <g clip-path="url(#cup)">
+    <!-- Foam poured into an axial brain-slice shape -->
+    <path
+      d="M256 128
+         C 198 128 148 154 128 200
+         C 108 246 118 292 144 322
+         C 165 347 202 368 256 368
+         C 310 368 347 347 368 322
+         C 394 292 404 246 384 200
+         C 364 154 314 128 256 128 Z"
+      fill="#F2E3D0"
+    />
+
+    <!-- Interhemispheric fissure -->
+    <path d="M256 142 L256 356" stroke="#3B2416" stroke-width="11" stroke-linecap="round" />
+
+    <!-- Gyral strokes, left hemisphere -->
+    <path d="M162 192 Q188 202 177 227" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+    <path d="M152 252 Q179 262 168 287" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+    <path d="M174 305 Q200 311 194 331" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+
+    <!-- Gyral strokes, right hemisphere (mirrored) -->
+    <path d="M350 192 Q324 202 335 227" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+    <path d="M360 252 Q333 262 344 287" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+    <path d="M338 305 Q312 311 318 331" fill="none" stroke="#3B2416" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+  </g>
+
+  <!-- Crosshair accent -->
+  <circle cx="352" cy="176" r="17" fill="#E5484D" />
+</svg>

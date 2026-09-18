@@ -1,17 +1,21 @@
 #!/usr/bin/env python
-"""Isolated worker: One-Click Summary rendering + packaging.
+"""Isolated worker: One-Click Summary rendering + artifact manifest.
 
 Given a lesion mask plus the (already-computed) tract-dissection and DA-LNM
-outputs, this worker produces the visual/report artifacts and bundles the whole
-thing into a single ZIP:
+outputs, this worker produces the visual/report artifacts and declares exactly
+what it produced:
 
   * an optic-radiation / visual-pathway retinotopy check (lesion vs. named-tract
     atlas labels -- HCP1065, falling back to JHU),
   * brainsprite viewers of the lesion, the affected tracts, and the DA-LNM
     positive/negative network tails on MNI152 (nilearn view_img),
-  * a self-contained report.html tying together the client-computed atlas
-    overlap tables, the client-rendered 2D retinotopy disc, and the above,
-  * the ZIP itself (report + brainsprite + images + maps + CSV).
+  * an artifact manifest (rel/label/kind/bytes/group/default per file) so the
+    frontend can offer a selective-download picker instead of one big ZIP.
+
+Item 103: this worker no longer composes its own report.html. It returns the
+same underlying data (retinotopy finding, dissection/LNM info, asset URLs)
+in its JSON result instead, so the frontend (lib/report/) composes ONE report
+document reusing the same section builders Tract Dissection and LNM use.
 
 Called by server.py via subprocess for crash isolation (mirrors
 dissect_worker.py / lnm_worker.py -- a nilearn/matplotlib crash kills only this
@@ -23,18 +27,12 @@ Output: one JSON line on stdout; traceback to stderr on failure.
 """
 import base64
 import json
-import os
 import shutil
 import sys
-import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
 
-# Ensure this worker's own directory is importable when spawned under the isolated
-# embeddable Python (safe_path=True) used by the offline bundle, which does not
-# auto-add the script directory to sys.path. Defensive: keeps any sibling-module
-# import working the same as under a normal dev interpreter.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from worker_common import make_set_status as _make_set_status  # noqa: E402
 
 
 # Optic-radiation / posterior-thalamic-radiation label matcher (visual pathway).
@@ -43,7 +41,7 @@ def _is_visual_pathway(name: str) -> bool:
     return ("optic radiation" in n) or ("posterior thalamic radiation" in n)
 
 
-def _retinotopy_check(lesion_path, atlas_dir):
+def _retinotopy_check(lesion_path):
     """Voxel overlap of the lesion with visual white-matter tracts.
 
     Prefers HCP1065 named tracts; falls back to the JHU WM atlas. Returns a
@@ -52,47 +50,39 @@ def _retinotopy_check(lesion_path, atlas_dir):
     """
     import numpy as np
     import nibabel as nib
-    from nilearn.image import resample_to_img
+    from worker_common import resample_to_img
 
-    candidates = [
-        ("HCP1065_tracts.nii.gz", "HCP1065_tracts_labels.json"),
-        ("jhu_wm_atlas.nii.gz", "jhu_wm_labels.json"),
-    ]
-    atlas_dir = Path(atlas_dir)
-    atlas_nii = atlas_labels = None
-    for nii_name, lab_name in candidates:
-        if (atlas_dir / nii_name).exists() and (atlas_dir / lab_name).exists():
-            atlas_nii, atlas_labels = atlas_dir / nii_name, atlas_dir / lab_name
+    # Resolved through the atlas registry: a tract atlas may be uninstalled, and
+    # its folder name is no longer something this worker should know. First
+    # preference wins; the check is skipped (not failed) when neither is
+    # installed, which is why the fallback message is user-facing.
+    import atlas_registry
+    import atlas_labels as atlas_labels_mod
+
+    desc = None
+    for atlas_id in ("hcp1065_tracts", "jhu_wm"):
+        d = atlas_registry.resolve(atlas_id)
+        if d and Path(d["volumePath"]).exists() and Path(d["labelsPath"]).exists():
+            desc = d
             break
-    if atlas_nii is None:
+    if desc is None:
         return {"available": False, "intersects": False, "rows": [],
                 "finding": "Visual-pathway atlas not available on the server; "
                            "retinotopy tract check skipped.",
                 "atlas_name": None}
 
-    labels = json.loads(Path(atlas_labels).read_text())
-    # Two on-disk formats: a list of {"index", "name"} (current atlases) or a
-    # {"int-string": name} dict. Normalise both to {int: name}.
-    label_map = {}
-    if isinstance(labels, list):
-        for item in labels:
-            if isinstance(item, dict) and "index" in item:
-                try:
-                    label_map[int(item["index"])] = item.get("name", "")
-                except (ValueError, TypeError):
-                    continue
-    elif isinstance(labels, dict):
-        for k, v in labels.items():
-            try:
-                label_map[int(k)] = v if isinstance(v, str) else (v.get("name") if isinstance(v, dict) else str(v))
-            except (ValueError, TypeError):
-                continue
+    atlas_nii = Path(desc["volumePath"])
+    label_map = atlas_labels_mod.name_map(
+        atlas_labels_mod.read_labels_or_empty(desc["labelsPath"]))
 
     les_img = nib.load(str(lesion_path))
     atlas_img = nib.load(str(atlas_nii))
     # Resample the atlas onto the lesion grid (nearest -> labels stay integral).
+    # force_resample=True is REQUIRED for correctness — see worker_common.py's
+    # ho_overlap. False mis-places the atlas whenever it shares voxel sizes with
+    # the lesion grid, which silently corrupts the region-overlap table.
     atlas_r = resample_to_img(atlas_img, les_img, interpolation="nearest",
-                              copy_header=False, force_resample=False)
+                              copy_header=False, force_resample=True)
     les = np.asarray(les_img.dataobj)
     atl = np.asarray(atlas_r.dataobj).astype(int)
     les_mask = les > 0
@@ -128,7 +118,31 @@ def _retinotopy_check(lesion_path, atlas_dir):
                    "radiation in this atlas.")
 
     return {"available": True, "intersects": bool(rows), "rows": rows,
-            "finding": finding, "atlas_name": Path(atlas_nii).name}
+            "finding": finding, "atlas_name": desc["short"]}
+
+
+# Phase 1b: nilearn + matplotlib are the optional `reports-figures` module, not
+# part of the base install. Everything below is FIGURE-ONLY, so it may keep
+# using them — but it must degrade with a message rather than raise, matching
+# the availability probe in routers/summary.py (which reports
+# `{ok: False, reason: "Missing dependency: …"}` when the stack is absent).
+REPORTS_HINT = (
+    "the report figure renderer is not installed. Install the "
+    "'reports-figures' module (pip install -r backend/requirements-reports.txt) "
+    "to enable nilearn/matplotlib figures.")
+
+
+def _reports_stack():
+    """(nilearn.plotting, nilearn.datasets.load_mni152_template) with matplotlib
+    pinned to Agg. Raises RuntimeError carrying REPORTS_HINT if absent."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        from nilearn import plotting
+        from nilearn.datasets import load_mni152_template
+    except ImportError as e:
+        raise RuntimeError(f"Missing dependency: {e} — {REPORTS_HINT}") from e
+    return plotting, load_mni152_template
 
 
 def _brainsprite_html(img_path, out_path, title="Lesion on MNI152", cmap="autumn",
@@ -136,8 +150,7 @@ def _brainsprite_html(img_path, out_path, title="Lesion on MNI152", cmap="autumn
     """Interactive brainsprite of a NIfTI on MNI152; returns True on success."""
     try:
         import nibabel as nib
-        from nilearn import plotting
-        from nilearn.datasets import load_mni152_template
+        plotting, load_mni152_template = _reports_stack()
         try:
             bg = load_mni152_template(resolution=2)
         except TypeError:
@@ -154,237 +167,124 @@ def _brainsprite_html(img_path, out_path, title="Lesion on MNI152", cmap="autumn
         return False
 
 
-# --------------------------------------------------------------------------- #
-#  HTML report (light, print-friendly; mirrors the LNM/lesion report styling)
-# --------------------------------------------------------------------------- #
-_CSS = """
-*{box-sizing:border-box}
-body{font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;
-background:#f5f7fb;color:#1a2433;line-height:1.55;font-size:15px}
-.wrap{max-width:960px;margin:0 auto;padding:0 26px 56px}
-header{background:linear-gradient(135deg,#16324f 0%,#2563a8 100%);color:#fff;
-padding:30px 0 26px;box-shadow:0 2px 12px rgba(16,50,79,.18)}
-header .wrap{padding-bottom:0}
-header h1{font-size:23px;font-weight:600;margin:0 0 5px}
-header .sub{opacity:.9;font-size:13.5px;margin:0;font-family:ui-monospace,Consolas,monospace}
-.card{background:#fff;border:1px solid #e4e9f0;border-radius:12px;padding:20px 24px;
-margin:18px 0;box-shadow:0 1px 3px rgba(16,24,40,.05)}
-h2{font-size:16px;color:#16324f;margin:0 0 14px;font-weight:650;display:flex;
-align-items:center;gap:8px}
-h2 .tag{font-size:10.5px;font-weight:600;color:#fff;background:#0e7490;padding:2px 8px;
-border-radius:20px;letter-spacing:.04em;text-transform:uppercase}
-h3{font-size:12px;color:#475569;margin:16px 0 6px;font-weight:700;text-transform:uppercase;
-letter-spacing:.06em}
-h4{font-size:12.5px;color:#334155;margin:12px 0 4px;font-weight:650}
-table{border-collapse:collapse;width:100%;font-size:13.5px;margin:4px 0 10px}
-thead th{background:#16324f;color:#fff;text-align:left;padding:8px 12px;font-weight:600;
-font-size:12px}
-tbody td{padding:7px 12px;border-bottom:1px solid #e4e9f0}
-tbody td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
-tbody tr:nth-child(even){background:#f8fafc}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:4px 0}
-.stat{background:#f8fafc;border:1px solid #e4e9f0;border-radius:9px;padding:11px 15px}
-.stat .l{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
-.stat .v{font-size:19px;font-weight:650;color:#16324f;margin-top:3px;font-variant-numeric:tabular-nums}
-.stat .v small{font-size:12px;font-weight:500;color:#64748b}
-.finding{font-size:14px;color:#334155;background:#eef4fb;border-left:3px solid #2563a8;
-border-radius:0 8px 8px 0;padding:13px 18px;margin:8px 0}
-.viewer{width:100%;height:560px;border:1px solid #e4e9f0;border-radius:10px;overflow:hidden;
-background:#fff;margin:4px 0}
-.viewer iframe{width:100%;height:100%;border:0;display:block}
-img{max-width:100%;border:1px solid #e4e9f0;border-radius:8px;display:block;margin:6px 0}
-figure{margin:8px 0}figcaption{font-size:12.5px;color:#64748b;margin-top:6px}
-.muted{color:#64748b;font-size:13px}
-footer{color:#94a3b8;font-size:12px;text-align:center;padding:26px 0 0}
-"""
+def _write_overlap_csv(data_dir, overlap_model):
+    """Write data/atlas_overlap.csv from an overlap_model's atlasBreakdowns.
+    Returns True iff the file was written (i.e. there was at least one
+    breakdown row). A pure, unit-testable helper -- see
+    backend/tests/test_summary_overlap.py.
+
+    The optional leading `# engine: ...` comment line carries the same
+    provenance the frontend's provenance pill shows (see
+    lib/lesionReport.js::engineProvenanceLabel) -- safe as a comment line
+    only because nothing parses this file strictly (checked: no
+    csv.DictReader/pandas.read_csv consumer exists anywhere in the repo as
+    of this writing; re-check before removing the comment-safety assumption
+    this relies on)."""
+    breakdowns = (overlap_model or {}).get("atlasBreakdowns") or []
+    if not breakdowns:
+        return False
+    lines = []
+    prov = (overlap_model or {}).get("provenance") or {}
+    if prov:
+        engine = prov.get("engine", "unknown")
+        version = prov.get("version") or "?"
+        threshold = prov.get("threshold")
+        resampling = prov.get("resampling", "")
+        lines.append(f"# engine: {engine} {version} · threshold > {threshold} "
+                    f"· {resampling}".replace(",", " "))
+    lines.append("atlas,region,voxels,pct_of_lesion,pct_of_region")
+    for b in breakdowns:
+        an = str(b.get("atlasName", "")).replace(",", " ")
+        for r in b.get("rows", []) or []:
+            rn = str(r.get("regionName", "")).replace(",", " ")
+            lines.append(f"{an},{rn},{r.get('voxelCount',0)},"
+                         f"{r.get('percentOfLesion',0)},{r.get('percentOfRegion',0)}")
+    (data_dir / "atlas_overlap.csv").write_text("\n".join(lines))
+    return True
 
 
-def _esc(s):
-    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+def _artifact(out_dir, rel, label, kind, group, default):
+    """One entry for the worker's declared-artifacts manifest -- only included
+    when the file actually exists on disk, so the frontend's picker never
+    lists something the download route can't serve."""
+    if not rel:
+        return None
+    p = out_dir / rel
+    if not p.exists() or not p.is_file():
+        return None
+    return {"rel": rel, "label": label, "kind": kind, "bytes": p.stat().st_size,
+            "group": group, "default": default}
 
 
-def _num(v):
-    """Report display: floats -> 3 dp; ints / non-numeric pass through unchanged."""
-    if isinstance(v, bool) or isinstance(v, int):
-        return v
-    if isinstance(v, float):
-        return round(v, 3)
-    return v
+def _build_manifest(out_dir, ctx):
+    """Assemble the artifact manifest from what this run actually produced.
 
-
-def _stat(label, value, unit=""):
-    u = f" <small>{_esc(unit)}</small>" if unit else ""
-    return f'<div class="stat"><div class="l">{_esc(label)}</div><div class="v">{_esc(_num(value))}{u}</div></div>'
-
-
-def _atlas_table_html(breakdown):
-    rows = breakdown.get("rows", []) or []
-    name = breakdown.get("atlasName", "Atlas")
-    if not rows:
-        return f"<h3>{_esc(name)}</h3><p class='muted'>No overlap.</p>"
-    body = "".join(
-        f"<tr><td>{_esc(r.get('regionName',''))}</td>"
-        f"<td>{r.get('voxelCount',0)}</td>"
-        f"<td>{_num(r.get('percentOfLesion',0))}%</td>"
-        f"<td>{_num(r.get('percentOfRegion',0))}%</td></tr>"
-        for r in rows
-    )
-    return (f"<h3>{_esc(name)}</h3><table><thead><tr><th>Region</th><th>Voxels</th>"
-            f"<th>% of lesion</th><th>% of region</th></tr></thead><tbody>{body}</tbody></table>")
-
-
-def _affected_tracts_table_html(rows):
-    if not rows:
-        return '<p class="muted">No named tracts intersected.</p>'
-    body = "".join(
-        f"<tr><td>{_esc(r.get('name',''))}</td><td>{r.get('hit_voxels',0)}</td>"
-        f"<td>{_num(r.get('pct_region',0))}%</td><td>{_num(r.get('streamline_density',0))}</td></tr>"
-        for r in rows
-    )
-    return ("<table><thead><tr><th>Tract</th><th>Voxels hit</th>"
-            "<th>% of tract</th><th>Streamline density</th></tr></thead>"
-            f"<tbody>{body}</tbody></table>")
-
-
-def _yeo_table_html(title, rows, err=None):
-    if err:
-        return f"<h4>{_esc(title)}</h4><p class='muted'>Yeo-7 unavailable: {_esc(err)}</p>"
-    if not rows:
-        return f"<h4>{_esc(title)}</h4><p class='muted'>No voxels in this tail.</p>"
-    body = "".join(
-        f"<tr><td>{_esc(r['name'])}</td><td>{r['voxels']}</td>"
-        f"<td>{_num(r['pct'])}%</td><td>{_num(r['mean_t'])}</td></tr>"
-        for r in rows)
-    return (f"<h4>{_esc(title)}</h4><table><thead><tr><th>Network</th><th>Voxels</th>"
-            "<th>% of tail</th><th>Mean t</th></tr></thead>"
-            f"<tbody>{body}</tbody></table>")
-
-
-def _build_report_html(ctx):
-    cards = []
-
-    # Key statistics
-    vol = (ctx.get("overlap_model") or {}).get("volume") or {}
-    stats = []
-    if vol.get("cm3") is not None:
-        stats.append(_stat("Lesion volume", vol.get("cm3"), "cm³"))
-    if vol.get("voxelCount") is not None:
-        stats.append(_stat("Voxels", vol.get("voxelCount")))
-    cen = vol.get("centroidMM")
-    if isinstance(cen, (list, tuple)) and len(cen) == 3:
-        stats.append(_stat("Centroid (MNI)", f"{_num(cen[0])}, {_num(cen[1])}, {_num(cen[2])}", "mm"))
-    if stats:
-        cards.append('<section class="card"><h2>Key Statistics</h2>'
-                     f'<div class="grid">{"".join(stats)}</div></section>')
-
-    # Brainsprite
-    if ctx.get("brainsprite_file"):
-        cards.append(
-            '<section class="card"><h2>Lesion Viewer <span class="tag">brainsprite</span></h2>'
-            f'<div class="viewer"><iframe src="{_esc(ctx["brainsprite_file"])}"></iframe></div>'
-            '<p class="muted">Interactive MNI152 viewer — scroll to change slices, drag to reposition.</p>'
-            '</section>')
-
-    # Atlas overlap
-    breakdowns = (ctx.get("overlap_model") or {}).get("atlasBreakdowns") or []
-    if breakdowns:
-        tables = "".join(_atlas_table_html(b) for b in breakdowns)
-        cards.append(f'<section class="card"><h2>Atlas Overlap</h2>{tables}</section>')
-
-    # Tract dissection
-    if ctx.get("dissect_brainsprite") or ctx.get("dissect_info"):
-        di = ctx.get("dissect_info") or {}
-        sub = []
-        if di.get("n_selected_streamlines") is not None:
-            sub.append(_stat("Affected streamlines", di.get("n_selected_streamlines")))
-        if di.get("tract_volume_cm3") is not None:
-            sub.append(_stat("Tract volume", di.get("tract_volume_cm3"), "cm³"))
-        tract_rows = (di.get("atlas_overlap") or {}).get("hcp1065") or []
-        tracts_html = "<h3>Affected tracts</h3>" + _affected_tracts_table_html(tract_rows)
-        viewer = (
-            '<div class="viewer"><iframe src="'
-            f'{_esc(ctx["dissect_brainsprite"])}"></iframe></div>'
-            '<p class="muted">Interactive MNI152 viewer of streamlines passing through the lesion — '
-            'scroll to change slices, drag to reposition.</p>'
-            ) if ctx.get("dissect_brainsprite") else ""
-        cards.append('<section class="card"><h2>Tract Dissection</h2>'
-                     + (f'<div class="grid">{"".join(sub)}</div>' if sub else "")
-                     + tracts_html + viewer + '</section>')
-
-    # Lesion network mapping
-    if ctx.get("lnm_info") or ctx.get("lnm_bs_pos") or ctx.get("lnm_bs_neg"):
-        li = ctx.get("lnm_info") or {}
-        sub = []
-        if li.get("n_pos_thr") is not None:
-            sub.append(_stat("Positive voxels", li.get("n_pos_thr")))
-        if li.get("n_neg_thr") is not None:
-            sub.append(_stat("Negative voxels", li.get("n_neg_thr")))
-        if li.get("degree_corr_after") is not None:
-            sub.append(_stat("Degree corr (after)", li.get("degree_corr_after")))
-        views = ""
-        if ctx.get("lnm_bs_pos"):
-            views += (f'<div class="viewer"><iframe src="{_esc(ctx["lnm_bs_pos"])}"></iframe></div>'
-                      '<p class="muted">Positively-coupled network (correlated with the lesion) — '
-                      'interactive MNI152 viewer; scroll to change slices, drag to reposition.</p>')
-        if ctx.get("lnm_bs_neg"):
-            views += (f'<div class="viewer"><iframe src="{_esc(ctx["lnm_bs_neg"])}"></iframe></div>'
-                      '<p class="muted">Negatively-coupled network (anticorrelated) — '
-                      'interactive MNI152 viewer; scroll to change slices, drag to reposition.</p>')
-        # Yeo-7 functional networks affected (both tails, stacked below the viewers).
-        yeo = ""
-        nets = li.get("networks") or {}
-        if nets:
-            yeo = ('<h3>Functional networks (Yeo-7)</h3>'
-                   + _yeo_table_html("Positive (coupled) network",
-                                     nets.get("yeo_pos"), nets.get("yeo_err"))
-                   + _yeo_table_html("Negative (anticorrelated) network",
-                                     nets.get("yeo_neg"), nets.get("yeo_err")))
-        cards.append('<section class="card"><h2>Lesion Network Mapping '
-                     '<span class="tag">degree-adjusted</span></h2>'
-                     + (f'<div class="grid">{"".join(sub)}</div>' if sub else "")
-                     + views + yeo + '</section>')
-
-    # Retinotopy (kept last: the visual-pathway finding reads best after the
-    # anatomical/connectivity sections above it).
-    retino = ctx.get("retino") or {}
-    if retino:
-        disc = (f'<figure><img src="{_esc(ctx["retino_disc"])}" alt="Retinotopy visual-field map">'
-                '<figcaption>2D visual-field map — polar angle (color) × eccentricity (radius); '
-                'black = predicted VF deficit.</figcaption></figure>'
-                ) if ctx.get("retino_disc") else ""
-        tbl = ""
-        if retino.get("rows"):
-            body = "".join(
-                f"<tr><td>{_esc(r['name'])}</td><td>{r['hit_voxels']}</td>"
-                f"<td>{_num(r['pct_region'])}%</td><td>{_num(r['pct_lesion'])}%</td></tr>"
-                for r in retino["rows"])
-            tbl = ("<table><thead><tr><th>Visual-pathway tract</th><th>Voxels hit</th>"
-                   "<th>% of tract</th><th>% of lesion</th></tr></thead>"
-                   f"<tbody>{body}</tbody></table>")
-        cards.append('<section class="card"><h2>Retinotopy</h2>'
-                     f'<div class="finding">{_esc(retino.get("finding",""))}</div>'
-                     + tbl + disc + '</section>')
-
-    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    name = ctx.get("lesion_name") or "Lesion"
-    return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NeuroVue — MR LATTE Lesion Summary: {_esc(name)}</title><style>{_CSS}</style></head>
-<body><header><div class="wrap"><h1>MR LATTE Lesion Summary</h1>
-<p class="sub">{_esc(name)} · generated {generated}</p></div></header>
-<div class="wrap">{"".join(cards)}
-<footer>NeuroVue — automated summary. Illustrative / research use; not a clinical diagnosis.</footer>
-</div></body></html>"""
+    Pure function of (out_dir, ctx) -- unit-testable without the
+    nilearn/matplotlib reports stack, a real lesion, or a subprocess. `ctx`
+    carries the rel paths of the run-dependent artifacts (brainsprite viewers,
+    the retinotopy disc); the dissect/LNM maps and the overlap CSV have fixed
+    rel paths, so they're named directly. _artifact() drops anything that
+    doesn't exist on disk, so a skipped stage just produces a shorter list."""
+    return [a for a in (
+        _artifact(out_dir, ctx.get("brainsprite_file"),
+                 "Lesion viewer (interactive)", "html", "Viewers", True),
+        _artifact(out_dir, ctx.get("dissect_brainsprite"),
+                 "Affected tracts viewer (interactive)", "html", "Viewers", True),
+        _artifact(out_dir, ctx.get("lnm_bs_pos"),
+                 "Positive network viewer (interactive)", "html", "Viewers", True),
+        _artifact(out_dir, ctx.get("lnm_bs_neg"),
+                 "Negative network viewer (interactive)", "html", "Viewers", True),
+        _artifact(out_dir, ctx.get("retino_disc"),
+                 "Retinotopy disc (image)", "image", "Images", True),
+        _artifact(out_dir, "maps/affected_tracts.nii.gz",
+                 "Affected tracts (NIfTI)", "map", "Maps", False),
+        _artifact(out_dir, "maps/affected_tracts.trk",
+                 "Affected tracts (streamlines, .trk)", "map", "Maps", False),
+        _artifact(out_dir, "maps/network_pos_bin.nii.gz",
+                 "Positive network mask (NIfTI)", "map", "Maps", False),
+        _artifact(out_dir, "maps/network_neg_bin.nii.gz",
+                 "Negative network mask (NIfTI)", "map", "Maps", False),
+        _artifact(out_dir, "maps/lnm_thresh_cont.nii.gz",
+                 "Thresholded continuous network map (NIfTI)", "map", "Maps", False),
+        _artifact(out_dir, "maps/lnm_da.nii.gz",
+                 "Degree-adjusted network map (NIfTI)", "map", "Maps", False),
+        _artifact(out_dir, "data/atlas_overlap.csv",
+                 "Atlas overlap table (CSV)", "data", "Data", True),
+    ) if a is not None]
 
 
 def main():
     _real_stdout = sys.stdout
     sys.stdout = sys.stderr  # keep library chatter off the JSON channel
 
-    import matplotlib
-    matplotlib.use("Agg")
-
     cfg = json.loads(Path(sys.argv[1]).read_text())
+
+    # Extra sys.path entries from the parent (optional Python stacks like
+    # python-reports/python-validation in a full packaged build — see
+    # worker_common.extra_sys_path_for_worker for why PYTHONPATH can't carry
+    # these across the subprocess boundary). Must run before any import that
+    # might need them — in particular _reports_stack()/_brainsprite_html()
+    # below, which is exactly the import this worker silently swallows when
+    # it fails (see REPORTS_HINT).
+    for _p in cfg.get("sys_path") or []:
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
+
+    # Best-effort only: matplotlib is part of the optional reports stack. The
+    # retinotopy check, the maps and the manifest all work without it, so a
+    # missing plotting stack must not abort the whole worker — the figure
+    # helpers each re-check and report their own reason. Must stay BELOW the sys.path
+    # injection above: in a full build matplotlib lives in python-reports,
+    # which only reaches this process via cfg["sys_path"], so running this
+    # first would log "unavailable" on every run while the figures in fact
+    # render fine (_reports_stack pins Agg again anyway).
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+    except ImportError as e:
+        print(f"[summary] matplotlib unavailable ({e}); figures will be skipped — "
+              f"{REPORTS_HINT}", file=sys.stderr)
+
     lesion_path = Path(cfg["lesion_path"])
     out_dir = Path(cfg["output_dir"])
     atlas_dir = cfg["atlas_dir"]
@@ -399,10 +299,16 @@ def main():
 
     ctx = {"lesion_name": lesion_name, "overlap_model": cfg.get("overlap_model")}
 
+    # Item 105: optional live-progress channel, same contract as dissect_worker
+    # /lnm_worker (cfg["status_path"] absent => no-op). The One-Click Summary
+    # orchestrator maps this worker's 0..1 onto the tail of its own bar.
+    set_status = _make_set_status(cfg.get("status_path"))
+
     # ── Retinotopy visual-pathway check ──────────────────────────────────────
+    set_status("retino", 0.05, "Checking visual pathway…")
     if stages.get("retino", True):
         try:
-            ctx["retino"] = _retinotopy_check(lesion_path, atlas_dir)
+            ctx["retino"] = _retinotopy_check(lesion_path)
         except Exception as e:  # noqa: BLE001
             print(f"[summary] retino check failed: {e}", file=sys.stderr)
             ctx["retino"] = {"available": False, "intersects": False, "rows": [],
@@ -423,10 +329,12 @@ def main():
             print(f"[summary] disc decode failed: {e}", file=sys.stderr)
 
     # ── Brainsprite of the lesion on MNI ─────────────────────────────────────
+    set_status("brainsprite", 0.25, "Rendering lesion viewer…")
     if _brainsprite_html(lesion_path, out_dir / "brainsprite_lesion.html"):
         ctx["brainsprite_file"] = "brainsprite_lesion.html"
 
     # ── Tract dissection artefacts ───────────────────────────────────────────
+    set_status("dissect_assets", 0.45, "Packaging tract dissection…")
     dissect = cfg.get("dissect")
     if dissect and dissect.get("result_dir"):
         rd = Path(dissect["result_dir"])
@@ -443,6 +351,7 @@ def main():
             shutil.copy2(trk, maps_dir / "affected_tracts.trk")
 
     # ── DA-LNM maps + glass brains ───────────────────────────────────────────
+    set_status("lnm_assets", 0.60, "Packaging network maps…")
     lnm = cfg.get("lnm")
     if lnm and lnm.get("result_dir"):
         rd = Path(lnm["result_dir"])
@@ -466,37 +375,43 @@ def main():
                                  title="Negative network", cmap="winter",
                                  threshold=0.5, opacity=0.85):
                 ctx["lnm_bs_neg"] = "brainsprite_lnm_negative.html"
-        # Include the LNM's own full report for completeness, if present.
-        if (rd / "report.html").exists():
-            shutil.copy2(rd / "report.html", out_dir / "lnm_full_report.html")
-
     # ── Atlas overlap CSV ────────────────────────────────────────────────────
-    breakdowns = (cfg.get("overlap_model") or {}).get("atlasBreakdowns") or []
-    if breakdowns:
-        lines = ["atlas,region,voxels,pct_of_lesion,pct_of_region"]
-        for b in breakdowns:
-            an = str(b.get("atlasName", "")).replace(",", " ")
-            for r in b.get("rows", []) or []:
-                rn = str(r.get("regionName", "")).replace(",", " ")
-                lines.append(f"{an},{rn},{r.get('voxelCount',0)},"
-                             f"{r.get('percentOfLesion',0)},{r.get('percentOfRegion',0)}")
-        (data_dir / "atlas_overlap.csv").write_text("\n".join(lines))
+    set_status("csv", 0.85, "Writing atlas overlap table…")
+    _write_overlap_csv(data_dir, cfg.get("overlap_model"))
 
-    # ── Report HTML ──────────────────────────────────────────────────────────
-    (out_dir / "report.html").write_text(_build_report_html(ctx), encoding="utf-8")
+    # ── Artifact manifest (replaces the old zip-everything) ─────────────────
+    # The worker declares exactly what it produced -- rel path, human label,
+    # kind, size, picker group, and whether it's checked by default -- instead
+    # of zipping the whole out_dir (which swept in the uploaded lesion input
+    # and the internal status.json). The frontend lists these via
+    # /api/summary/artifacts/{job_id} and lets the user pick what to download
+    # through /api/summary/download/{job_id}. Only files that actually exist
+    # are included (see _artifact).
+    set_status("manifest", 0.92, "Finalizing artifacts…")
+    artifacts = _build_manifest(out_dir, ctx)
 
-    # ── ZIP everything ───────────────────────────────────────────────────────
-    zip_path = out_dir / "summary.zip"
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in sorted(out_dir.rglob("*")):
-            if p.is_file() and p.name != "summary.zip":
-                zf.write(p, p.relative_to(out_dir).as_posix())
+    # Item 103: absolute, servable URLs for every visual asset this worker
+    # produced, so the frontend (OneClickSummaryPanel) can compose the same
+    # sections lib/report/sections.js uses elsewhere (Open/Save), instead of
+    # this worker composing its own narrative HTML.
+    def asset_url(rel):
+        return f"/api/summary/result/{cfg['job_id']}/{rel}" if rel else None
 
     print(json.dumps({
         "ok": True,
-        "zip": f"/api/summary/result/{cfg['job_id']}/summary.zip",
-        "report": f"/api/summary/result/{cfg['job_id']}/report.html",
+        "artifacts": artifacts,
+        "lesion_name": lesion_name,
         "retino": ctx.get("retino"),
+        "dissect_info": ctx.get("dissect_info"),
+        "lnm_info": ctx.get("lnm_info"),
+        "overlap_model": ctx.get("overlap_model"),
+        "assets": {
+            "brainsprite_lesion": asset_url(ctx.get("brainsprite_file")),
+            "brainsprite_tracts": asset_url(ctx.get("dissect_brainsprite")),
+            "brainsprite_lnm_pos": asset_url(ctx.get("lnm_bs_pos")),
+            "brainsprite_lnm_neg": asset_url(ctx.get("lnm_bs_neg")),
+            "retino_disc": asset_url(ctx.get("retino_disc")),
+        },
     }), file=_real_stdout, flush=True)
 
 

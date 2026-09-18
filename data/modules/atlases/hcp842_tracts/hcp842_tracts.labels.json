@@ -1,0 +1,885 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Acoustic Radiation (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.04,
+    -33.33,
+    7.88
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Acoustic Radiation (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.96,
+    -32.59,
+    7.88
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Cortico Striatal Pathway (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -21.19,
+    28.62,
+    17.47
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Cortico Striatal Pathway (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    21.58,
+    24.19,
+    13.78
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Cortico Spinal Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.62,
+    -16.37,
+    35.17
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Cortico Spinal Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.22,
+    -13.42,
+    33.69
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Corticothalamic Pathway (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -23.4,
+    -22.27,
+    16.73
+   ]
+  },
+  {
+   "value": 8,
+   "name": "Corticothalamic Pathway (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    23.06,
+    -23.74,
+    13.05
+   ]
+  },
+  {
+   "value": 9,
+   "name": "Fornix (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.97,
+    -23.0,
+    14.52
+   ]
+  },
+  {
+   "value": 10,
+   "name": "Fornix (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.31,
+    -26.69,
+    14.52
+   ]
+  },
+  {
+   "value": 11,
+   "name": "Frontopontine Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -19.72,
+    13.87,
+    32.96
+   ]
+  },
+  {
+   "value": 12,
+   "name": "Frontopontine Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    21.58,
+    17.56,
+    40.33
+   ]
+  },
+  {
+   "value": 13,
+   "name": "Occipitopontine Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.56,
+    -53.24,
+    16.73
+   ]
+  },
+  {
+   "value": 14,
+   "name": "Occipitopontine Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    29.69,
+    -52.5,
+    18.95
+   ]
+  },
+  {
+   "value": 15,
+   "name": "Optic Radiation (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -25.62,
+    -68.73,
+    6.41
+   ]
+  },
+  {
+   "value": 16,
+   "name": "Optic Radiation (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    29.69,
+    -63.56,
+    10.83
+   ]
+  },
+  {
+   "value": 17,
+   "name": "Parietopontine Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -19.72,
+    -35.54,
+    50.66
+   ]
+  },
+  {
+   "value": 18,
+   "name": "Parietopontine Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.63,
+    -24.48,
+    51.39
+   ]
+  },
+  {
+   "value": 19,
+   "name": "Temporopontine Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -31.51,
+    -42.18,
+    8.62
+   ]
+  },
+  {
+   "value": 20,
+   "name": "Temporopontine Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    32.64,
+    -45.87,
+    10.1
+   ]
+  },
+  {
+   "value": 21,
+   "name": "Arcuate Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -49.95,
+    -29.64,
+    10.1
+   ]
+  },
+  {
+   "value": 22,
+   "name": "Arcuate Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    33.38,
+    5.76,
+    22.63
+   ]
+  },
+  {
+   "value": 23,
+   "name": "Cingulum (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -9.39,
+    5.02,
+    28.53
+   ]
+  },
+  {
+   "value": 24,
+   "name": "Cingulum (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    9.78,
+    0.59,
+    30.74
+   ]
+  },
+  {
+   "value": 25,
+   "name": "Extreme Capsule (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.04,
+    -24.48,
+    24.11
+   ]
+  },
+  {
+   "value": 26,
+   "name": "Extreme Capsule (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.43,
+    -29.64,
+    22.63
+   ]
+  },
+  {
+   "value": 27,
+   "name": "Frontal Aslant Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.88,
+    13.13,
+    32.96
+   ]
+  },
+  {
+   "value": 28,
+   "name": "Frontal Aslant Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.01,
+    15.34,
+    32.96
+   ]
+  },
+  {
+   "value": 29,
+   "name": "Inferior Fronto Occipital Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.78,
+    24.19,
+    -3.18
+   ]
+  },
+  {
+   "value": 30,
+   "name": "Inferior Fronto Occipital Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.22,
+    15.34,
+    -3.18
+   ]
+  },
+  {
+   "value": 31,
+   "name": "Inferior Longitudinal Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.68,
+    -35.54,
+    -9.08
+   ]
+  },
+  {
+   "value": 32,
+   "name": "Inferior Longitudinal Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.33,
+    -42.18,
+    -4.65
+   ]
+  },
+  {
+   "value": 33,
+   "name": "Middle Longitudinal Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.89,
+    -27.43,
+    9.36
+   ]
+  },
+  {
+   "value": 34,
+   "name": "Middle Longitudinal Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.66,
+    -23.74,
+    9.36
+   ]
+  },
+  {
+   "value": 35,
+   "name": "Superior Longitudinal Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.36,
+    -7.52,
+    32.22
+   ]
+  },
+  {
+   "value": 36,
+   "name": "Superior Longitudinal Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    37.07,
+    -2.36,
+    32.22
+   ]
+  },
+  {
+   "value": 37,
+   "name": "U Fiber (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -39.63,
+    -26.69,
+    35.17
+   ]
+  },
+  {
+   "value": 38,
+   "name": "U Fiber (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.54,
+    -20.79,
+    26.32
+   ]
+  },
+  {
+   "value": 39,
+   "name": "Uncinate Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -29.3,
+    13.87,
+    -17.93
+   ]
+  },
+  {
+   "value": 40,
+   "name": "Uncinate Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.96,
+    15.34,
+    -18.67
+   ]
+  },
+  {
+   "value": 41,
+   "name": "Vertical Occipital Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -31.51,
+    -78.31,
+    7.88
+   ]
+  },
+  {
+   "value": 42,
+   "name": "Vertical Occipital Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    31.91,
+    -76.84,
+    9.36
+   ]
+  },
+  {
+   "value": 43,
+   "name": "Anterior Commissure",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.53,
+    -14.15,
+    -6.13
+   ]
+  },
+  {
+   "value": 44,
+   "name": "Corpus Callosum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.88,
+    -20.05,
+    21.9
+   ]
+  },
+  {
+   "value": 45,
+   "name": "Posterior Commissure",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    0.93,
+    -26.69,
+    -0.97
+   ]
+  },
+  {
+   "value": 46,
+   "name": "Cerebellum (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -27.09,
+    -62.09,
+    -25.3
+   ]
+  },
+  {
+   "value": 47,
+   "name": "Cerebellum (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    27.48,
+    -62.83,
+    -25.3
+   ]
+  },
+  {
+   "value": 48,
+   "name": "Inferior Cerebellar Peduncle (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.13,
+    -58.4,
+    -28.99
+   ]
+  },
+  {
+   "value": 49,
+   "name": "Inferior Cerebellar Peduncle (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    9.78,
+    -59.88,
+    -30.46
+   ]
+  },
+  {
+   "value": 50,
+   "name": "Middle Cerebellar Peduncle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.65,
+    -48.08,
+    -22.35
+   ]
+  },
+  {
+   "value": 51,
+   "name": "Superior Cerebellar Peduncle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.75,
+    -30.38,
+    -17.93
+   ]
+  },
+  {
+   "value": 52,
+   "name": "Vermis",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -0.54,
+    -63.56,
+    -39.31
+   ]
+  },
+  {
+   "value": 53,
+   "name": "Central Tegmental Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.23,
+    -32.59,
+    -20.88
+   ]
+  },
+  {
+   "value": 54,
+   "name": "Central Tegmental Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.62,
+    -35.54,
+    -25.3
+   ]
+  },
+  {
+   "value": 55,
+   "name": "Dorsal Longitudinal Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.02,
+    -31.12,
+    -14.24
+   ]
+  },
+  {
+   "value": 56,
+   "name": "Dorsal Longitudinal Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.15,
+    -29.64,
+    -12.77
+   ]
+  },
+  {
+   "value": 57,
+   "name": "Lateral Lemniscus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.65,
+    -37.75,
+    -24.56
+   ]
+  },
+  {
+   "value": 58,
+   "name": "Lateral Lemniscus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    9.78,
+    -37.02,
+    -26.04
+   ]
+  },
+  {
+   "value": 59,
+   "name": "Medial Lemniscus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -9.39,
+    -26.69,
+    -18.67
+   ]
+  },
+  {
+   "value": 60,
+   "name": "Medial Lemniscus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.52,
+    -25.95,
+    -17.19
+   ]
+  },
+  {
+   "value": 61,
+   "name": "Medial Longitudinal Fasciculus (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -2.75,
+    -34.8,
+    -23.83
+   ]
+  },
+  {
+   "value": 62,
+   "name": "Medial Longitudinal Fasciculus (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    3.15,
+    -32.59,
+    -20.14
+   ]
+  },
+  {
+   "value": 63,
+   "name": "Rubrospinal Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -5.7,
+    -34.8,
+    -25.3
+   ]
+  },
+  {
+   "value": 64,
+   "name": "Rubrospinal Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.83,
+    -35.54,
+    -26.78
+   ]
+  },
+  {
+   "value": 65,
+   "name": "Spinothalamic Tract (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -9.39,
+    -32.59,
+    -19.4
+   ]
+  },
+  {
+   "value": 66,
+   "name": "Spinothalamic Tract (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.52,
+    -29.64,
+    -21.62
+   ]
+  },
+  {
+   "value": 67,
+   "name": "CNII (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -17.5,
+    -13.42,
+    -9.82
+   ]
+  },
+  {
+   "value": 68,
+   "name": "CNII (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    15.68,
+    -10.47,
+    -11.29
+   ]
+  },
+  {
+   "value": 69,
+   "name": "CNIII (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -7.92,
+    -8.26,
+    -22.35
+   ]
+  },
+  {
+   "value": 70,
+   "name": "CNIII (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    7.57,
+    -10.47,
+    -21.62
+   ]
+  },
+  {
+   "value": 71,
+   "name": "CNIV (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -16.03,
+    -14.89,
+    -24.56
+   ]
+  },
+  {
+   "value": 72,
+   "name": "CNIV (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    20.85,
+    -15.63,
+    -23.83
+   ]
+  },
+  {
+   "value": 73,
+   "name": "CNV (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -13.08,
+    -31.12,
+    -33.41
+   ]
+  },
+  {
+   "value": 74,
+   "name": "CNV (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    13.47,
+    -29.64,
+    -33.41
+   ]
+  },
+  {
+   "value": 75,
+   "name": "CNVII (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.67,
+    -31.85,
+    -38.58
+   ]
+  },
+  {
+   "value": 76,
+   "name": "CNVII (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    25.27,
+    -31.85,
+    -37.84
+   ]
+  },
+  {
+   "value": 77,
+   "name": "CNVIII (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -7.18,
+    -49.55,
+    -20.14
+   ]
+  },
+  {
+   "value": 78,
+   "name": "CNVIII (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.31,
+    -48.82,
+    -20.88
+   ]
+  },
+  {
+   "value": 79,
+   "name": "CNX (L)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -15.29,
+    -36.28,
+    -47.43
+   ]
+  },
+  {
+   "value": 80,
+   "name": "CNX (R)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    14.95,
+    -38.49,
+    -48.16
+   ]
+  }
+ ]
+}

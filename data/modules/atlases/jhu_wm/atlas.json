@@ -1,0 +1,25 @@
+{
+ "schemaVersion": 1,
+ "id": "jhu_wm",
+ "aliases": [
+  "jhu"
+ ],
+ "name": "JHU · White-Matter Labels",
+ "short": "JHU WM",
+ "description": "ICBM-DTI-81 white-matter parcellation",
+ "kind": "tracts",
+ "space": "MNI152",
+ "volume": "jhu_wm.nii.gz",
+ "labels": "jhu_wm.labels.json",
+ "colormap": "random",
+ "opacity": 0.7,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Mori et al."
+ }
+}

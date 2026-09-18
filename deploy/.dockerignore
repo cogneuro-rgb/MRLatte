@@ -1,0 +1,53 @@
+# Keep the build context small and reproducible. Without this, the ~2.8 GB of
+# scratch neuroimaging data and node_modules would be sent to the Docker daemon.
+
+.git
+**/node_modules
+frontend/build
+frontend/dist-electron
+**/__pycache__
+**/*.pyc
+
+# Local agent / tooling state
+.claude
+.playwright-mcp
+
+# Scratch neuroimaging data & generated outputs
+DTI
+Lesion_Resliced_MNI_108_patients
+output_*
+
+# Scratch screenshots & one-off artifacts
+longitudinal-*.png
+step-base.jpeg
+*.nvws.json
+
+# Dev-only frontend env (prod build uses the Dockerfile ENV / .env.production)
+frontend/.env
+frontend/.env.local
+frontend/.env.development*
+
+# Secrets — never bake dev credentials into the image
+backend/.env
+.env
+
+# Dev virtual environment (deps are installed fresh from requirements.txt)
+backend/.venv
+
+# Patient-derived compute outputs — never bake patient data into an image.
+# The Dockerfile does `COPY backend/ ./backend/`, so anything left in these
+# directories on the build machine would ship inside the image. They are all
+# runtime output, recreated on demand, and none of it belongs in a build
+# context (CLAUDE.md §6: nothing under backend/*_results/ or backend/*_jobs/
+# ever reaches a remote). Add new job/result directories here as they appear.
+backend/lesion_jobs
+backend/dissect_jobs
+backend/lnm_jobs
+backend/dicom_results
+backend/lnm_results
+backend/roi_results
+backend/summary_results
+backend/tract_results
+
+# Plans / docs not needed in the image
+*.md

@@ -1,0 +1,500 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "lh_mFus_faces",
+   "hemi": null,
+   "color": [
+    255,
+    0,
+    0
+   ],
+   "centroidMM": [
+    -37.41,
+    -45.13,
+    -15.72
+   ]
+  },
+  {
+   "value": 2,
+   "name": "lh_pFus_faces",
+   "hemi": null,
+   "color": [
+    160,
+    0,
+    0
+   ],
+   "centroidMM": [
+    -38.15,
+    -65.04,
+    -15.72
+   ]
+  },
+  {
+   "value": 3,
+   "name": "lh_IOG_faces",
+   "hemi": null,
+   "color": [
+    222,
+    45,
+    38
+   ],
+   "centroidMM": [
+    -38.89,
+    -73.15,
+    -8.34
+   ]
+  },
+  {
+   "value": 4,
+   "name": "lh_OTS_bodies",
+   "hemi": null,
+   "color": [
+    0,
+    230,
+    0
+   ],
+   "centroidMM": [
+    -44.79,
+    -47.34,
+    -14.98
+   ]
+  },
+  {
+   "value": 5,
+   "name": "lh_ITG_bodies",
+   "hemi": null,
+   "color": [
+    237,
+    248,
+    233
+   ],
+   "centroidMM": [
+    -47.0,
+    -73.89,
+    -0.23
+   ]
+  },
+  {
+   "value": 6,
+   "name": "lh_MTG_bodies",
+   "hemi": null,
+   "color": [
+    116,
+    196,
+    118
+   ],
+   "centroidMM": [
+    -48.48,
+    -62.09,
+    12.31
+   ]
+  },
+  {
+   "value": 7,
+   "name": "lh_LOS_bodies",
+   "hemi": null,
+   "color": [
+    49,
+    163,
+    84
+   ],
+   "centroidMM": [
+    -42.58,
+    -77.58,
+    13.78
+   ]
+  },
+  {
+   "value": 8,
+   "name": "lh_pOTS_characters",
+   "hemi": null,
+   "color": [
+    9,
+    9,
+    9
+   ],
+   "centroidMM": [
+    -44.05,
+    -62.83,
+    -8.34
+   ]
+  },
+  {
+   "value": 9,
+   "name": "lh_IOS_haracters",
+   "hemi": null,
+   "color": [
+    237,
+    248,
+    233
+   ],
+   "centroidMM": [
+    -36.68,
+    -82.74,
+    -9.08
+   ]
+  },
+  {
+   "value": 10,
+   "name": "lh_CoS_places",
+   "hemi": null,
+   "color": [
+    84,
+    39,
+    143
+   ],
+   "centroidMM": [
+    -27.83,
+    -46.6,
+    -5.39
+   ]
+  },
+  {
+   "value": 11,
+   "name": "lh_hMT_motion",
+   "hemi": null,
+   "color": [
+    254,
+    217,
+    118
+   ],
+   "centroidMM": [
+    -44.05,
+    -70.2,
+    10.1
+   ]
+  },
+  {
+   "value": 12,
+   "name": "lh_v1d_retinotopic",
+   "hemi": null,
+   "color": [
+    198,
+    219,
+    239
+   ],
+   "centroidMM": [
+    -6.44,
+    -93.06,
+    3.46
+   ]
+  },
+  {
+   "value": 13,
+   "name": "lh_v2d_retinotopic",
+   "hemi": null,
+   "color": [
+    158,
+    202,
+    225
+   ],
+   "centroidMM": [
+    -13.08,
+    -98.23,
+    12.31
+   ]
+  },
+  {
+   "value": 14,
+   "name": "lh_v3d_retinotopic",
+   "hemi": null,
+   "color": [
+    107,
+    174,
+    214
+   ],
+   "centroidMM": [
+    -24.88,
+    -93.06,
+    13.78
+   ]
+  },
+  {
+   "value": 15,
+   "name": "lh_v1v_retinotopic",
+   "hemi": null,
+   "color": [
+    66,
+    146,
+    198
+   ],
+   "centroidMM": [
+    -5.7,
+    -85.69,
+    -2.44
+   ]
+  },
+  {
+   "value": 16,
+   "name": "lh_v2v_retinotopic",
+   "hemi": null,
+   "color": [
+    33,
+    113,
+    181
+   ],
+   "centroidMM": [
+    -10.87,
+    -79.79,
+    -9.08
+   ]
+  },
+  {
+   "value": 17,
+   "name": "lh_v3v_retinotopic",
+   "hemi": null,
+   "color": [
+    8,
+    69,
+    148
+   ],
+   "centroidMM": [
+    -20.45,
+    -76.1,
+    -9.08
+   ]
+  },
+  {
+   "value": 18,
+   "name": "rh_mFus_faces",
+   "hemi": null,
+   "color": [
+    255,
+    0,
+    0
+   ],
+   "centroidMM": [
+    40.76,
+    -37.02,
+    -17.93
+   ]
+  },
+  {
+   "value": 19,
+   "name": "rh_pFus_faces",
+   "hemi": null,
+   "color": [
+    160,
+    0,
+    0
+   ],
+   "centroidMM": [
+    40.76,
+    -58.4,
+    -13.5
+   ]
+  },
+  {
+   "value": 20,
+   "name": "rh_IOG_faces",
+   "hemi": null,
+   "color": [
+    222,
+    45,
+    38
+   ],
+   "centroidMM": [
+    39.28,
+    -80.53,
+    -8.34
+   ]
+  },
+  {
+   "value": 21,
+   "name": "rh_OTS_bodies",
+   "hemi": null,
+   "color": [
+    0,
+    230,
+    0
+   ],
+   "centroidMM": [
+    43.71,
+    -45.87,
+    -14.24
+   ]
+  },
+  {
+   "value": 22,
+   "name": "rh_ITG_bodies",
+   "hemi": null,
+   "color": [
+    237,
+    248,
+    233
+   ],
+   "centroidMM": [
+    46.66,
+    -67.25,
+    -3.18
+   ]
+  },
+  {
+   "value": 23,
+   "name": "rh_MTG_bodies",
+   "hemi": null,
+   "color": [
+    116,
+    196,
+    118
+   ],
+   "centroidMM": [
+    51.82,
+    -59.14,
+    10.1
+   ]
+  },
+  {
+   "value": 24,
+   "name": "rh_LOS_bodies",
+   "hemi": null,
+   "color": [
+    49,
+    163,
+    84
+   ],
+   "centroidMM": [
+    46.66,
+    -73.15,
+    11.57
+   ]
+  },
+  {
+   "value": 25,
+   "name": "rh_CoS_places",
+   "hemi": null,
+   "color": [
+    84,
+    39,
+    143
+   ],
+   "centroidMM": [
+    27.48,
+    -45.13,
+    -6.87
+   ]
+  },
+  {
+   "value": 26,
+   "name": "rh_TOS_places",
+   "hemi": null,
+   "color": [
+    117,
+    107,
+    177
+   ],
+   "centroidMM": [
+    35.59,
+    -79.05,
+    21.9
+   ]
+  },
+  {
+   "value": 27,
+   "name": "rh_hMT_motion",
+   "hemi": null,
+   "color": [
+    254,
+    217,
+    118
+   ],
+   "centroidMM": [
+    46.66,
+    -65.04,
+    6.41
+   ]
+  },
+  {
+   "value": 28,
+   "name": "rh_v1d_retinotopic",
+   "hemi": null,
+   "color": [
+    198,
+    219,
+    239
+   ],
+   "centroidMM": [
+    9.05,
+    -90.85,
+    7.15
+   ]
+  },
+  {
+   "value": 29,
+   "name": "rh_v2d_retinotopic",
+   "hemi": null,
+   "color": [
+    158,
+    202,
+    225
+   ],
+   "centroidMM": [
+    14.21,
+    -96.75,
+    13.78
+   ]
+  },
+  {
+   "value": 30,
+   "name": "rh_v3d_retinotopic",
+   "hemi": null,
+   "color": [
+    107,
+    174,
+    214
+   ],
+   "centroidMM": [
+    25.27,
+    -93.8,
+    17.47
+   ]
+  },
+  {
+   "value": 31,
+   "name": "rh_v1v_retinotopic",
+   "hemi": null,
+   "color": [
+    66,
+    146,
+    198
+   ],
+   "centroidMM": [
+    7.57,
+    -84.21,
+    0.51
+   ]
+  },
+  {
+   "value": 32,
+   "name": "rh_v2v_retinotopic",
+   "hemi": null,
+   "color": [
+    33,
+    113,
+    181
+   ],
+   "centroidMM": [
+    11.26,
+    -79.05,
+    -6.13
+   ]
+  },
+  {
+   "value": 33,
+   "name": "rh_v3v_retinotopic",
+   "hemi": null,
+   "color": [
+    8,
+    69,
+    148
+   ],
+   "centroidMM": [
+    18.63,
+    -75.36,
+    -9.82
+   ]
+  }
+ ]
+}

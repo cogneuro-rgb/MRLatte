@@ -1,0 +1,16 @@
+# OPTIONAL retinotopy-validation stack — the `validation-neuropythy` module in
+# modules/manifest.json (type: python-package, tier: optional).
+#
+# ~33 MB. Install ONLY if you want the Benson/Wang round-trip validation
+# endpoint (GET /api/validation/round-trip), which regenerates the retinotopy
+# atlases from the surface templates and compares them to the shipped volumes.
+#
+# Nothing else needs neuropythy. Every other feature — the retinotopy SECTION,
+# the shipped Benson/Wang atlases, tract dissection, DA-LNM — runs on the base
+# install (see requirements-frozen.txt). The one endpoint that uses this stack
+# degrades with an actionable message when it is absent; the UI probes it via
+# GET /api/modules -> the `validation-neuropythy` module.
+#
+#   pip install -r backend/requirements-validation.txt
+
+neuropythy>=0.12

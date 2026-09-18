@@ -349,13 +349,13 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
     <div className="flex flex-col gap-1.5">
       {/* Stats bar */}
       {active && selectedCount > 0 && (
-        <div className="font-mono text-[9px] text-zinc-400 text-center leading-tight">
+        <div className="font-mono text-[9px] text-muted-foreground text-center leading-tight">
           Total: {totalVx.toLocaleString()} vx&nbsp;&nbsp;|&nbsp;&nbsp;within {maxEcc}°:{" "}
           {withinVx.toLocaleString()} vx
         </div>
       )}
       {(!active || selectedCount === 0) && (
-        <div className="font-mono text-[9px] text-zinc-600 text-center">
+        <div className="font-mono text-[9px] text-subtle text-center">
           select a lesion to see VF deficit
         </div>
       )}
@@ -373,7 +373,7 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
 
       {/* Max-eccentricity slider */}
       <div className="flex items-center gap-2 px-1">
-        <span className="font-mono text-[9px] text-zinc-600 uppercase tracking-[0.15em] shrink-0">max ecc</span>
+        <span className="font-mono text-[9px] text-subtle uppercase tracking-[0.15em] shrink-0">max ecc</span>
         <Slider
           value={[maxEcc]}
           min={5}
@@ -382,7 +382,7 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
           onValueChange={(v) => setMaxEcc(v[0])}
           className="cursor-pointer flex-1"
         />
-        <span className="font-mono text-[9px] text-zinc-400 tabular-nums w-6 text-right">{maxEcc}°</span>
+        <span className="font-mono text-[9px] text-muted-foreground tabular-nums w-6 text-right">{maxEcc}°</span>
       </div>
 
       {/* Threshold control (Any overlap / Min voxels) + affected-ranges summary */}
@@ -399,7 +399,7 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
       <div className="flex justify-center pt-1">
         <button
           type="button"
-          className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+          className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
           onClick={() => exportVisualFieldMap2DPng(svgRef.current, baseLabel || label)}
           data-testid="vfmap-export-btn"
         >

@@ -3,8 +3,9 @@
 
 Runs the DA-LNM Connectome pipeline on a lesion mask: seed-to-voxel stat map
 (t or Fisher-z), optional degree adjustment, optional randomized-lesion
-specificity filtering, Harvard-Oxford + Yeo-7 atlas labelling (via nilearn
-datasets), and an optional self-contained HTML report. Called by server.py via
+specificity filtering, tail voxel counts, and optional report figures (nilearn
++ matplotlib, only when the optional `reports-figures` module is installed —
+the compute path above needs numpy/nibabel/scipy only). Called by server.py via
 subprocess for crash isolation (mirrors dissect_worker.py -- a numpy/nibabel
 crash kills only this process).
 
@@ -15,17 +16,11 @@ Usage: python lnm_worker.py <config_json_path>
 Output: one JSON line on stdout; traceback to stderr on failure.
 """
 import json
-import os
 import sys
 from pathlib import Path
 
-# The offline bundle runs this worker under the embeddable Python interpreter,
-# which is isolated (sys.flags.safe_path=True) and does NOT auto-add this script's
-# own directory to sys.path. Without this, `from lnm_backend import …` (in main)
-# fails with ModuleNotFoundError even though lnm_backend.py sits right beside this
-# file. A normal dev interpreter adds the script dir automatically, so this only
-# bit the packaged app.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from worker_common import make_set_status as _make_set_status  # noqa: E402
 
 
 def main():
@@ -36,6 +31,15 @@ def main():
 
     config_path = Path(sys.argv[1])
     cfg = json.loads(config_path.read_text())
+
+    # Extra sys.path entries from the parent (optional Python stacks like
+    # python-reports/python-validation in a full packaged build — see
+    # worker_common.extra_sys_path_for_worker for why PYTHONPATH can't carry
+    # these across the subprocess boundary). Must run before any import that
+    # might need them.
+    for _p in cfg.get("sys_path") or []:
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
     lesion_path     = Path(cfg["lesion_path"])
     result_id       = cfg["result_id"]
@@ -56,12 +60,24 @@ def main():
     seed            = int(cfg.get("seed", 0))
     top             = int(cfg.get("top", 15))
     make_html       = bool(cfg.get("make_html", True))
+    # Optional live-progress channel (job mode); no-op when absent (sync/summary).
+    # Stage bands (item 99): specificity is by far the slowest phase (nperm
+    # randomized-lesion permutations), so it owns most of the bar — the other
+    # four stages are comparatively instant and just need to visibly tick.
+    set_status      = _make_set_status(cfg.get("status_path"))
+    set_status("load", 0.06, "Loading connectome bundle…")
 
     import numpy as np
     import nibabel as nib
+    # lnm_backend.py is a sibling of this worker. When launched via subprocess
+    # under the offline installer's embeddable Python, the ._pth file controls
+    # sys.path and does NOT auto-add the script's own directory, so a bare
+    # `import lnm_backend` fails with ModuleNotFoundError (dev works only because
+    # normal Python prepends the script dir). Add it explicitly.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from lnm_backend import (
         Connectome, pool_indices, region_tables, t_threshold,
-        static_png, mosaic_png, interactive_html, build_html,
+        static_png, mosaic_png, interactive_html,
     )
 
     c = Connectome(str(bundle_path))
@@ -82,7 +98,6 @@ def main():
     neg_bin_path     = result_dir / "network_neg_bin.nii.gz"
     spec_zscore_path = result_dir / "specificity_zscore.nii.gz"
     spec_net_path    = result_dir / "specificity_network.nii.gz"
-    report_path      = result_dir / "report.html"
 
     try:
         les_idx = c._load_lesion(str(lesion_path))
@@ -92,6 +107,7 @@ def main():
         sys.exit(1)
 
     vvox = int(les_idx.sum())
+    set_status("seed", 0.12, "Computing seed-to-voxel map…")
     stat, raw, rb, ra = c.stat_for_indices(les_idx, degree_adjust, metric)
     stat = c._mask_brain(stat); raw = c._mask_brain(raw)
 
@@ -107,8 +123,18 @@ def main():
     if run_spec:
         rng = np.random.default_rng(seed)
         pool = pool_indices(c, sampling_mask)
+        # Map permutation progress into the 0.12–0.88 band of the overall bar
+        # (item 99) — specificity is the slowest phase by far, so it gets most
+        # of the bar's range instead of the previous 0.40–0.80 (40%). chunk=4
+        # (down from the default 8) makes progress_cb fire twice as often for
+        # a visibly smoother fill; it only changes how often progress is
+        # reported, not the RNG draw order or null accumulation.
+        def _spec_progress(done, total):
+            frac = (done / total) if total else 1.0
+            set_status("specificity", 0.12 + 0.76 * frac,
+                       f"Specificity permutations {done}/{total}…")
         spec = c.specificity(stat, vvox, degree_adjust, metric, tc, nperm,
-                             pool, alpha, fdr, rng)
+                             pool, alpha, fdr, rng, chunk=4, progress_cb=_spec_progress)
         pos_bin = spec["sig_pos"]; neg_bin = spec["sig_neg"]  # post-specificity
         sig = spec["sig_pos"] | spec["sig_neg"]
         main_vec = np.where(sig, stat, 0.0)
@@ -124,6 +150,7 @@ def main():
     disp_max = max(disp_max, float(tc) + 1.0)
 
     # -- region statistics on the PRIMARY result (specificity net if present) --
+    set_status("regions", 0.88, "Labelling regions…")
     tables = region_tables(c._to_img(main_vec), tc, top=top, use_atlases=True)
 
     def _rows(rows):
@@ -139,29 +166,30 @@ def main():
             networks[f"{key}_pos"] = _rows(tables.get(f"{key}_pos", []))
             networks[f"{key}_neg"] = _rows(tables.get(f"{key}_neg", []))
 
+    # Item 103: this worker no longer composes report.html itself (that moved
+    # to the frontend's lib/report/ — one HTML-generation owner for every
+    # report type). It still renders the same nilearn visuals (interactive
+    # MNI viewer, falling back to a static mosaic/section PNG) and returns
+    # them directly in the JSON result so the frontend can embed them via
+    # lib/report/sections.js::buildLnmImagesSection exactly as this worker's
+    # own report.html used to.
+    images = None
     if make_html:
-        imgs = {}
+        set_status("render", 0.92, "Rendering figures…")
         primary_img = c._to_img(main_vec)
-        imgs["primary_iframe"], imgs["primary_err"] = interactive_html(
-            primary_img, tc, lesion_path=str(lesion_path))
-        if not imgs["primary_iframe"]:
-            imgs["primary_png"], _ = mosaic_png(primary_img, tc, lesion_path=str(lesion_path))
-        imgs["support_iframe"], imgs["support_iframe_err"] = interactive_html(
-            c._to_img(cont), tc, lesion_path=str(lesion_path))
-        if not imgs["support_iframe"]:
-            imgs["support"], imgs["support_err"] = static_png(
+        primary_iframe, primary_err = interactive_html(primary_img, tc, lesion_path=str(lesion_path))
+        primary_png = None
+        if not primary_iframe:
+            primary_png, _ = mosaic_png(primary_img, tc, lesion_path=str(lesion_path))
+        support_iframe, support_err = interactive_html(c._to_img(cont), tc, lesion_path=str(lesion_path))
+        support_png = None
+        if not support_iframe:
+            support_png, support_err = static_png(
                 c._to_img(cont), tc, "Thresholded network on MNI152", lesion_path=str(lesion_path))
-        summary = {
-            "lesion": lesion_path.name, "lesion_voxels": vvox,
-            "N": c.N, "D": c.D, "adjusted": degree_adjust,
-            "metric": metric, "tc": tc, "thr_note": thr_note,
-            "n_pos_thr": n_pos_thr, "n_neg_thr": n_neg_thr,
-            "r_before": rb, "r_after_str": ("%.3f" % ra) if ra is not None else "n/a",
-            "spec": (dict(nperm=nperm, alpha=alpha, fdr=fdr,
-                          n_sig_pos=spec["n_sig_pos"], n_sig_neg=spec["n_sig_neg"])
-                     if spec else None),
+        images = {
+            "primary": {"iframe": primary_iframe, "png": primary_png, "err": primary_err},
+            "support": {"iframe": support_iframe, "png": support_png, "err": support_err},
         }
-        build_html(summary, tables, imgs, str(report_path))
 
     files = {
         "raw":         f"/api/lnm/result/{result_id}/lnm_raw.nii.gz",
@@ -174,8 +202,6 @@ def main():
     if spec is not None:
         files["spec_zscore"] = f"/api/lnm/result/{result_id}/specificity_zscore.nii.gz"
         files["spec_net"] = f"/api/lnm/result/{result_id}/specificity_network.nii.gz"
-    if make_html:
-        files["html"] = f"/api/lnm/result/{result_id}/report.html"
 
     print(json.dumps({
         "id": result_id,
@@ -196,6 +222,10 @@ def main():
         "display": {"cal_min": float(tc), "cal_max": round(disp_max, 2)},
         "files": files,
         "networks": networks,
+        # Item 103: figures for the frontend's own report composition
+        # (lib/report/sections.js::buildLnmImagesSection) — replaces the
+        # backend-composed report.html this worker used to write.
+        "images": images,
     }), file=_real_stdout, flush=True)
     sys.exit(0)
 

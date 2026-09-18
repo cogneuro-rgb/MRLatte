@@ -1,5 +1,6 @@
 import React from "react";
 import { donutArcPath } from "@/lib/svgArc";
+import { activeToggleCls } from "@/lib/buttonVariants";
 
 // Curated CSS gradients matching niivue colormap names. Used by PolarAngleDisc.
 const COLORMAP_GRADIENTS = {
@@ -254,7 +255,7 @@ function buildPolarAngleDiscCanvas({
   ctx.textAlign = 'center';
   ctx.font = '10px monospace';
   ctx.fillStyle = '#888888';
-  ctx.fillText((baseLabel || 'NeuroVue') + ' · ' + new Date().toLocaleString(), cx, fy);
+  ctx.fillText((baseLabel || 'MRLatte') + ' · ' + new Date().toLocaleString(), cx, fy);
 
   return canvas;
 }
@@ -293,12 +294,7 @@ export const ThresholdFooter = ({
   if (!showFooter) return null;
 
   const mode = thresholdMode === "min" ? "min" : "any";
-  const btn = (active) =>
-    `py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors ${
-      active
-        ? "bg-white text-black border-white"
-        : "bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
-    }`;
+  const btn = (active) => `py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors ${activeToggleCls(active)}`;
 
   return (
     <div className="w-full flex flex-col gap-1.5 px-2">
@@ -330,7 +326,7 @@ export const ThresholdFooter = ({
                 const n = parseInt(e.target.value, 10);
                 onThresholdMinChange?.(Number.isFinite(n) ? Math.max(1, n) : 1);
               }}
-              className="w-16 bg-[#0a0a0a] border border-[#27272A] text-[10px] text-zinc-200 px-1.5 py-1 font-mono"
+              className="w-16 bg-panel border border-border text-[10px] text-foreground px-1.5 py-1 font-mono"
               data-testid={`${testIdPrefix}-thresh-min-input`}
             />
           )}
@@ -338,7 +334,7 @@ export const ThresholdFooter = ({
       )}
       {summaryText && (
         <div
-          className="font-mono text-[10px] text-zinc-400 leading-snug"
+          className="font-mono text-[10px] text-muted-foreground leading-snug"
           data-testid={`${testIdPrefix}-summary`}
         >
           {summaryText}
@@ -410,13 +406,13 @@ export const PolarAngleDisc = ({
             ))}
           </svg>
         )}
-        <div className="absolute rounded-full bg-[#050505]"
+        <div className="absolute rounded-full bg-background"
           style={{ width: size * 0.45, height: size * 0.45, top: 20 + size * 0.275, left: 28 + size * 0.275 }} />
         <div className="absolute z-10 text-center"
           style={{ top: 20 + size * 0.32, left: 28 + size * 0.225, width: size * 0.55 }}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">polar</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">angle</div>
-          <div className="font-mono text-[8px] tracking-[0.15em] text-zinc-600 mt-0.5">{colormap}</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">polar</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">angle</div>
+          <div className="font-mono text-[8px] tracking-[0.15em] text-subtle mt-0.5">{colormap}</div>
         </div>
         {ticks.map((t) => {
           const rad = ((t.angle - 90) * Math.PI) / 180;
@@ -426,13 +422,13 @@ export const PolarAngleDisc = ({
             <div key={t.angle}
               className="absolute flex flex-col items-center leading-none"
               style={{ left: cx, top: cy, transform: "translate(-50%, -50%)" }}>
-              <span className="font-mono text-[10px] text-zinc-200">{t.label}</span>
-              <span className="font-mono text-[8px] text-zinc-500 mt-0.5">{t.deg}</span>
+              <span className="font-mono text-[10px] text-foreground">{t.label}</span>
+              <span className="font-mono text-[8px] text-muted-foreground mt-0.5">{t.deg}</span>
             </div>
           );
         })}
       </div>
-      <div className="font-mono text-[9px] text-zinc-600 uppercase tracking-[0.2em] text-center px-4 leading-relaxed">
+      <div className="font-mono text-[9px] text-subtle uppercase tracking-[0.2em] text-center px-4 leading-relaxed">
         LH cortex · right hemifield (0–180°) <br/> RH cortex · left hemifield (180–360°)
       </div>
       <ThresholdFooter
@@ -445,7 +441,7 @@ export const PolarAngleDisc = ({
       />
       <button
         type="button"
-        className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+        className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
         onClick={() => exportPolarAngleDiscPng({
           colormap, arcSegments, summaryText, baseLabel,
           eccenColormap, eccenArcSegments, eccenSummaryText, eccenInverted,
@@ -507,8 +503,8 @@ export const EccentricityBar = ({
 
   const invertBtnCls = `py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors ${
     inverted
-      ? "bg-white text-black border-white"
-      : "bg-transparent text-zinc-400 border-[#27272A] hover:text-white hover:border-zinc-500"
+      ? "bg-primary text-primary-foreground border-primary"
+      : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
   }`;
 
   // Tick values and their proportional positions along the 0–90° bar.
@@ -521,7 +517,7 @@ export const EccentricityBar = ({
 
   return (
     <div className="flex flex-col gap-2 py-2" data-testid="eccen-legend">
-      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         <span>eccentricity ({colormap})</span>
         <div className="flex items-center gap-1">
           <span>°visual angle</span>
@@ -563,7 +559,7 @@ export const EccentricityBar = ({
       </div>
       {/* Tick labels pinned to their proportional positions (0°=0%, 20°=22%, 40°=44%, 60°=67%).
           Previously used justify-between which spaced them evenly at 0/33/67/100% — incorrect. */}
-      <div className="relative h-4 font-mono text-[10px] text-zinc-400">
+      <div className="relative h-4 font-mono text-[10px] text-muted-foreground">
         {TICKS.map(({ deg, label }) => (
           <span
             key={deg}

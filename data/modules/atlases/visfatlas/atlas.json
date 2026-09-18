@@ -1,0 +1,25 @@
+{
+ "schemaVersion": 1,
+ "id": "visfatlas",
+ "aliases": [
+  "visfAtlas"
+ ],
+ "name": "visfAtlas · Maastricht Functional",
+ "short": "visfAtlas",
+ "description": "33 ROIs across higher visual cortex (FFA / PPA / EBA / hMT / V1-V3 d·v)",
+ "kind": "parcellation",
+ "space": "MNI152",
+ "volume": "visfatlas.nii.gz",
+ "labels": "visfatlas.labels.json",
+ "colormap": "random",
+ "opacity": 0.85,
+ "ignoreZeroVoxels": true,
+ "lateralized": true,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Rosenke et al. 2020"
+ }
+}

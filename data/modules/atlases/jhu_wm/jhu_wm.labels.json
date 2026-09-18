@@ -1,0 +1,533 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "Middle cerebellar peduncle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    11.0,
+    -38.0,
+    -39.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "Pontine crossing tract",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -29.0,
+    -31.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "Genu of corpus callosum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    0.0,
+    26.0,
+    7.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "Body of corpus callosum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -5.0,
+    27.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "Splenium of corpus callosum",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -42.0,
+    17.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "Fornix (column and body)",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    1.0,
+    -6.0,
+    13.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "Corticospinal tract R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    7.0,
+    -25.0,
+    -33.0
+   ]
+  },
+  {
+   "value": 8,
+   "name": "Corticospinal tract L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -25.0,
+    -33.0
+   ]
+  },
+  {
+   "value": 9,
+   "name": "Medial lemniscus R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -37.0,
+    -33.0
+   ]
+  },
+  {
+   "value": 10,
+   "name": "Medial lemniscus L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -5.0,
+    -37.0,
+    -33.0
+   ]
+  },
+  {
+   "value": 11,
+   "name": "Inferior cerebellar peduncle R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    9.0,
+    -44.0,
+    -37.0
+   ]
+  },
+  {
+   "value": 12,
+   "name": "Inferior cerebellar peduncle L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -44.0,
+    -37.0
+   ]
+  },
+  {
+   "value": 13,
+   "name": "Superior cerebellar peduncle R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    7.0,
+    -42.0,
+    -25.0
+   ]
+  },
+  {
+   "value": 14,
+   "name": "Superior cerebellar peduncle L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -42.0,
+    -25.0
+   ]
+  },
+  {
+   "value": 15,
+   "name": "Cerebral peduncle R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    13.0,
+    -18.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 16,
+   "name": "Cerebral peduncle L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -12.0,
+    -18.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 17,
+   "name": "Anterior limb of internal capsule R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.0,
+    8.0,
+    8.0
+   ]
+  },
+  {
+   "value": 18,
+   "name": "Anterior limb of internal capsule L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -17.0,
+    7.0,
+    8.0
+   ]
+  },
+  {
+   "value": 19,
+   "name": "Posterior limb of internal capsule R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    20.0,
+    -13.0,
+    8.0
+   ]
+  },
+  {
+   "value": 20,
+   "name": "Posterior limb of internal capsule L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -19.0,
+    -13.0,
+    8.0
+   ]
+  },
+  {
+   "value": 21,
+   "name": "Retrolenticular part of internal capsule R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    32.0,
+    -29.0,
+    6.0
+   ]
+  },
+  {
+   "value": 22,
+   "name": "Retrolenticular part of internal capsule L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.0,
+    -29.0,
+    6.0
+   ]
+  },
+  {
+   "value": 23,
+   "name": "Anterior corona radiata R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    28.0,
+    10.0
+   ]
+  },
+  {
+   "value": 24,
+   "name": "Anterior corona radiata L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -21.0,
+    28.0,
+    10.0
+   ]
+  },
+  {
+   "value": 25,
+   "name": "Superior corona radiata R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    -8.0,
+    30.0
+   ]
+  },
+  {
+   "value": 26,
+   "name": "Superior corona radiata L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -23.0,
+    -8.0,
+    30.0
+   ]
+  },
+  {
+   "value": 27,
+   "name": "Posterior corona radiata R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    25.0,
+    -38.0,
+    28.0
+   ]
+  },
+  {
+   "value": 28,
+   "name": "Posterior corona radiata L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -38.0,
+    28.0
+   ]
+  },
+  {
+   "value": 29,
+   "name": "Posterior thalamic radiation (incl. optic radiation) R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    -55.0,
+    7.0
+   ]
+  },
+  {
+   "value": 30,
+   "name": "Posterior thalamic radiation (incl. optic radiation) L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -33.0,
+    -55.0,
+    7.0
+   ]
+  },
+  {
+   "value": 31,
+   "name": "Sagittal stratum (incl. ILF and IFOF) R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    -32.0,
+    -9.0
+   ]
+  },
+  {
+   "value": 32,
+   "name": "Sagittal stratum (incl. ILF and IFOF) L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -39.0,
+    -31.0,
+    -9.0
+   ]
+  },
+  {
+   "value": 33,
+   "name": "External capsule R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    31.0,
+    0.0,
+    2.0
+   ]
+  },
+  {
+   "value": 34,
+   "name": "External capsule L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.0,
+    0.0,
+    2.0
+   ]
+  },
+  {
+   "value": 35,
+   "name": "Cingulum (cingulate gyrus) R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    7.0,
+    -11.0,
+    33.0
+   ]
+  },
+  {
+   "value": 36,
+   "name": "Cingulum (cingulate gyrus) L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -7.0,
+    -10.0,
+    33.0
+   ]
+  },
+  {
+   "value": 37,
+   "name": "Cingulum (hippocampus) R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    -29.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 38,
+   "name": "Cingulum (hippocampus) L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -20.0,
+    -32.0,
+    -13.0
+   ]
+  },
+  {
+   "value": 39,
+   "name": "Fornix (cres) / Stria terminalis R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    29.0,
+    -24.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 40,
+   "name": "Fornix (cres) / Stria terminalis L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    -24.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 41,
+   "name": "Superior longitudinal fasciculus R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    -26.0,
+    26.0
+   ]
+  },
+  {
+   "value": 42,
+   "name": "Superior longitudinal fasciculus L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -35.0,
+    -26.0,
+    26.0
+   ]
+  },
+  {
+   "value": 43,
+   "name": "Superior fronto-occipital fasciculus R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    21.0,
+    2.0,
+    21.0
+   ]
+  },
+  {
+   "value": 44,
+   "name": "Superior fronto-occipital fasciculus L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -20.0,
+    2.0,
+    21.0
+   ]
+  },
+  {
+   "value": 45,
+   "name": "Uncinate fasciculus R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    1.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 46,
+   "name": "Uncinate fasciculus L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -33.0,
+    -1.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 47,
+   "name": "Tapetum R",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.0,
+    -45.0,
+    14.0
+   ]
+  },
+  {
+   "value": 48,
+   "name": "Tapetum L",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -27.0,
+    -47.0,
+    14.0
+   ]
+  }
+ ]
+}

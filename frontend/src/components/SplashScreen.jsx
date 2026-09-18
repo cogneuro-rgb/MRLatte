@@ -108,9 +108,14 @@ export default function SplashScreen({ ready }) {
           className="w-40 h-40 select-none pointer-events-none object-contain"
         />
         <div className="w-40">
-          <div className="h-1 w-full bg-[#050505]/15 overflow-hidden">
+          {/* Fixed black, NOT theme-tokenized: the splash background above is
+              deliberately always white (brand/loading screen, independent of
+              app theme — see bg-white on the root), so the bar needs a color
+              that stays visible against it regardless of theme. bg-background
+              would go white-on-white in light mode. */}
+          <div className="h-1 w-full bg-black/15 overflow-hidden">
             <div
-              className="h-full bg-[#050505] transition-[width] ease-out"
+              className="h-full bg-black transition-[width] ease-out"
               style={{
                 width: `${barPct}%`,
                 transitionDuration: `${barPct >= 100 ? SNAP_MS : CLIMB_MS}ms`,
@@ -122,7 +127,7 @@ export default function SplashScreen({ ready }) {
 
       {origin && (
         <div
-          className="fixed rounded-full bg-[#050505] transition-transform ease-out"
+          className="fixed rounded-full bg-background transition-transform ease-out"
           style={{
             left: origin.x,
             top: origin.y,

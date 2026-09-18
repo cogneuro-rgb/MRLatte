@@ -55,6 +55,70 @@ export function tractResultUrl(relPath) {
   return `${apiBase}${relPath}`;
 }
 
+// ── Pollable job variants (progress bar) ────────────────────────────────────
+// Same compute as dissectTract/dissectBetween, but kicked off as a background
+// job that streams staged progress. Mirrors summary.js's shapes.
+
+/** Start a single-lesion dissection job. @returns {Promise<{job_id}>} */
+export async function startDissection(lesionFile, { name = "", atlas = "harvard_oxford" } = {}) {
+  const fd = new FormData();
+  fd.append("file", lesionFile, lesionFile.name);
+  if (name) fd.append("name", name);
+  fd.append("atlas", atlas);
+  const r = await fetch(`${apiBase}/api/tracts/dissect/start`, { method: "POST", body: fd });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+/** Start a between-two-lesions dissection job. @returns {Promise<{job_id}>} */
+export async function startBetween(
+  fileA,
+  fileB,
+  { nameA = "", nameB = "", modeA = "through", modeB = "through", atlas = "harvard_oxford" } = {},
+) {
+  const fd = new FormData();
+  fd.append("file_a", fileA, fileA.name);
+  fd.append("file_b", fileB, fileB.name);
+  if (nameA) fd.append("name_a", nameA);
+  if (nameB) fd.append("name_b", nameB);
+  fd.append("mode_a", modeA);
+  fd.append("mode_b", modeB);
+  fd.append("atlas", atlas);
+  const r = await fetch(`${apiBase}/api/tracts/dissect/between/start`, { method: "POST", body: fd });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+/** Poll a dissection job. Returns { stage, message, progress, done, error, result? }. */
+export async function dissectionStatus(jobId) {
+  const r = await fetch(`${apiBase}/api/tracts/dissect/status/${jobId}`);
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+/** Cancel a running dissection job (kills the worker). Safe after done. */
+export async function cancelDissection(jobId) {
+  const r = await fetch(`${apiBase}/api/tracts/dissect/cancel/${jobId}`, { method: "POST" });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail || detail; } catch { /* keep status */ }
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
 /**
  * Find streamlines that connect two lesion masks (pass through both).
  *

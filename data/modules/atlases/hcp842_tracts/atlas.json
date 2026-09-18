@@ -1,0 +1,26 @@
+{
+ "schemaVersion": 1,
+ "id": "hcp842_tracts",
+ "aliases": [
+  "hcp842"
+ ],
+ "name": "HCP842 · Named White-Matter Tracts",
+ "short": "HCP842",
+ "description": "DSI Studio HCP842 population tractography atlas · 80 named bundles",
+ "kind": "tracts",
+ "space": "MNI152",
+ "volume": "hcp842_tracts.nii.gz",
+ "labels": "hcp842_tracts.labels.json",
+ "colormap": "random",
+ "opacity": 0.7,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Yeh et al. (DSI Studio)"
+ },
+ "tracts4d": "hcp842_tracts.tracts4d.nii.gz"
+}

@@ -1,0 +1,691 @@
+{
+  "schemaVersion": 1,
+  "generated": "built by tools/scripts/build_atlas_catalog.py",
+  "notes": [
+    "Every URL is pinned to a commit SHA, never a branch: the bytes an install downloads cannot change after this file was generated.",
+    "`bytes` is checked against what actually arrives (with tolerance); there are no pre-pinned sha256 digests. The observed hash is recorded in atlases.state.json at install time so a later verify can still detect local corruption.",
+    "`atlasId` is the folder the atlas installs into. Entries whose id ends in _neuroparc are a second copy of an atlas MRLatte already ships, in a different space/resolution — installing one does not replace the shipped atlas."
+  ],
+  "atlases": [
+    {
+      "catalogId": "aal_neuroparc",
+      "atlasId": "aal_neuroparc",
+      "name": "AAL · Whole Brain",
+      "short": "AAL",
+      "kind": "parcellation",
+      "description": "Automated Anatomical Labeling · 116 cortical and subcortical regions",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/AAL_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 53480
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/AAL.csv",
+        "bytes": 4030,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/AAL_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 29680,
+        "format": "neuroparc-json"
+      },
+      "bytes": 87190
+    },
+    {
+      "catalogId": "aicha",
+      "atlasId": "aicha",
+      "name": "AICHA · Functional Homotopic",
+      "short": "AICHA",
+      "kind": "parcellation",
+      "description": "384 functionally homotopic regions (Joliot 2015)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/AICHAJoliot2015_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 71612
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/AICHA.csv",
+        "bytes": 11429,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/AICHAJoliot2015_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 94711,
+        "format": "neuroparc-json"
+      },
+      "bytes": 177752
+    },
+    {
+      "catalogId": "brodmann",
+      "atlasId": "brodmann",
+      "name": "Brodmann Areas",
+      "short": "Brodmann",
+      "kind": "parcellation",
+      "description": "Classical cytoarchitectonic areas",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Brodmann_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 51863
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Brodmann.csv",
+        "bytes": 819,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Brodmann_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 10445,
+        "format": "neuroparc-json"
+      },
+      "bytes": 63127
+    },
+    {
+      "catalogId": "desikan",
+      "atlasId": "desikan",
+      "name": "Desikan-Killiany",
+      "short": "Desikan",
+      "kind": "parcellation",
+      "description": "68 cortical regions from the FreeSurfer aparc parcellation",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Desikan_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 58395
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Desikan.csv",
+        "bytes": 1929,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Desikan_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 17686,
+        "format": "neuroparc-json"
+      },
+      "bytes": 78010
+    },
+    {
+      "catalogId": "destrieux_neuroparc",
+      "atlasId": "destrieux_neuroparc",
+      "name": "Destrieux · aparc.a2009s",
+      "short": "Destrieux",
+      "kind": "parcellation",
+      "description": "148 sulco-gyral cortical regions",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Destrieux_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 54426
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Destrieux.csv",
+        "bytes": 2267,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Destrieux_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 19125,
+        "format": "neuroparc-json"
+      },
+      "bytes": 75818
+    },
+    {
+      "catalogId": "glasser",
+      "atlasId": "glasser",
+      "name": "Glasser · HCP-MMP1",
+      "short": "Glasser",
+      "kind": "parcellation",
+      "description": "360 multimodal cortical parcels (HCP-MMP1, Glasser 2016)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Glasser_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 70428
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Glasser.csv",
+        "bytes": 3973,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Glasser_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 43386,
+        "format": "neuroparc-json"
+      },
+      "bytes": 117787
+    },
+    {
+      "catalogId": "hammersmith",
+      "atlasId": "hammersmith",
+      "name": "Hammersmith",
+      "short": "Hammersmith",
+      "kind": "parcellation",
+      "description": "83 manually delineated anatomical regions",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Hammersmith_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 47180
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Hammersmith.csv",
+        "bytes": 2313,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Hammersmith_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 20922,
+        "format": "neuroparc-json"
+      },
+      "bytes": 70415
+    },
+    {
+      "catalogId": "harvard_oxford_cort_neuroparc",
+      "atlasId": "harvard_oxford_cort_neuroparc",
+      "name": "Harvard-Oxford · Cortical",
+      "short": "HO Cort",
+      "kind": "parcellation",
+      "description": "48 cortical regions · max-prob threshold 25%",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/HarvardOxfordcort-maxprob-thr25_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 45211
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/HarvardOxfordcort-maxprob.csv",
+        "bytes": 1633,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/HarvardOxfordcort-maxprob-thr25_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 12746,
+        "format": "neuroparc-json"
+      },
+      "bytes": 59590
+    },
+    {
+      "catalogId": "harvard_oxford_sub_neuroparc",
+      "atlasId": "harvard_oxford_sub_neuroparc",
+      "name": "Harvard-Oxford · Subcortical",
+      "short": "HO Sub",
+      "kind": "parcellation",
+      "description": "21 subcortical structures · max-prob threshold 25%",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/HarvardOxfordsub-maxprob-thr25_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 41964
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/HarvardOxfordsub-maxprob.csv",
+        "bytes": 446,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/HarvardOxfordsub-maxprob-thr25_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 5688,
+        "format": "neuroparc-json"
+      },
+      "bytes": 48098
+    },
+    {
+      "catalogId": "jhu_neuroparc",
+      "atlasId": "jhu_neuroparc",
+      "name": "JHU · White Matter",
+      "short": "JHU",
+      "kind": "tracts",
+      "description": "ICBM-DTI-81 white-matter parcellation",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/JHU_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 16935
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/JHU.csv",
+        "bytes": 1428,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/JHU_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 12366,
+        "format": "neuroparc-json"
+      },
+      "bytes": 30729
+    },
+    {
+      "catalogId": "juelich_neuroparc",
+      "atlasId": "juelich_neuroparc",
+      "name": "Jülich · Cyto/Myeloarchitectonic",
+      "short": "Jülich",
+      "kind": "parcellation",
+      "description": "Probabilistic cyto- and myelo-architectonic regions",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Juelich_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 34039
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Juelich.csv",
+        "bytes": 3473,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Juelich_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 26285,
+        "format": "neuroparc-json"
+      },
+      "bytes": 63797
+    },
+    {
+      "catalogId": "princeton_visual",
+      "atlasId": "princeton_visual",
+      "name": "Princeton Visual Areas",
+      "short": "Princeton",
+      "kind": "parcellation",
+      "description": "Topographic visual areas",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Princetonvisual-top_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 10420
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Princetonvisual.csv",
+        "bytes": 506,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Princetonvisual-top_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 11288,
+        "format": "neuroparc-json"
+      },
+      "bytes": 22214
+    },
+    {
+      "catalogId": "yeo7_neuroparc",
+      "atlasId": "yeo7_neuroparc",
+      "name": "Yeo-7 · Functional Networks",
+      "short": "Yeo-7",
+      "kind": "networks",
+      "description": "Seven cortical resting-state networks (tight mask)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Yeo-7_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 58494
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Yeo-7.csv",
+        "bytes": 143,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Yeo-7_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 2326,
+        "format": "neuroparc-json"
+      },
+      "bytes": 60963
+    },
+    {
+      "catalogId": "yeo7_liberal",
+      "atlasId": "yeo7_liberal",
+      "name": "Yeo-7 · Functional Networks (liberal)",
+      "short": "Yeo-7 lib",
+      "kind": "networks",
+      "description": "Seven cortical resting-state networks (liberal mask)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Yeo-7-liberal_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 48284
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Yeo-7-liberal.csv",
+        "bytes": 143,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Yeo-7-liberal_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 2342,
+        "format": "neuroparc-json"
+      },
+      "bytes": 50769
+    },
+    {
+      "catalogId": "yeo17",
+      "atlasId": "yeo17",
+      "name": "Yeo-17 · Functional Networks",
+      "short": "Yeo-17",
+      "kind": "networks",
+      "description": "Seventeen cortical resting-state networks (tight mask)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Yeo-17_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 60718
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Yeo-17.csv",
+        "bytes": 331,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Yeo-17_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 4702,
+        "format": "neuroparc-json"
+      },
+      "bytes": 65751
+    },
+    {
+      "catalogId": "yeo17_liberal",
+      "atlasId": "yeo17_liberal",
+      "name": "Yeo-17 · Functional Networks (liberal)",
+      "short": "Yeo-17 lib",
+      "kind": "networks",
+      "description": "Seventeen cortical resting-state networks (liberal mask)",
+      "space": "MNI152NLin6",
+      "source": "neuroparc",
+      "sourceUrl": "https://github.com/neurodata/neuroparc",
+      "license": {
+        "spdx": "NOASSERTION",
+        "attribution": "Redistributed by neuroparc (neurodata/neuroparc). Each atlas remains under its original authors' terms — see the source link before publishing derived figures."
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Yeo-17-liberal_space-MNI152NLin6_res-2x2x2.nii.gz",
+        "bytes": 52857
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Anatomical-labels-csv/Yeo-17-liberal.csv",
+        "bytes": 331,
+        "format": "csv"
+      },
+      "metadata": {
+        "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Metadata-json/Yeo-17-liberal_space-MNI152NLin6_res-2x2x2.json",
+        "bytes": 4719,
+        "format": "neuroparc-json"
+      },
+      "bytes": 57907
+    },
+    {
+      "catalogId": "schaefer200",
+      "atlasId": "schaefer200",
+      "name": "Schaefer 200 · 7 Networks",
+      "short": "Schaefer 200",
+      "kind": "parcellation",
+      "description": "200 cortical parcels grouped into the Yeo-7 networks",
+      "space": "MNI152NLin6",
+      "source": "cbig",
+      "sourceUrl": "https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI",
+      "license": {
+        "spdx": "MIT",
+        "attribution": "Schaefer, Kong, Gordon, Laumann, Zuo, Holmes, Eickhoff & Yeo 2018, Cerebral Cortex"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+        "bytes": 59537
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/freeview_lut/Schaefer2018_200Parcels_7Networks_order.txt",
+        "bytes": 8482,
+        "format": "lut"
+      },
+      "bytes": 68019
+    },
+    {
+      "catalogId": "schaefer300",
+      "atlasId": "schaefer300",
+      "name": "Schaefer 300 · 7 Networks",
+      "short": "Schaefer 300",
+      "kind": "parcellation",
+      "description": "300 cortical parcels grouped into the Yeo-7 networks",
+      "space": "MNI152NLin6",
+      "source": "cbig",
+      "sourceUrl": "https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI",
+      "license": {
+        "spdx": "MIT",
+        "attribution": "Schaefer, Kong, Gordon, Laumann, Zuo, Holmes, Eickhoff & Yeo 2018, Cerebral Cortex"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/Schaefer2018_300Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+        "bytes": 64685
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/freeview_lut/Schaefer2018_300Parcels_7Networks_order.txt",
+        "bytes": 12814,
+        "format": "lut"
+      },
+      "bytes": 77499
+    },
+    {
+      "catalogId": "schaefer400",
+      "atlasId": "schaefer400",
+      "name": "Schaefer 400 · 7 Networks",
+      "short": "Schaefer 400",
+      "kind": "parcellation",
+      "description": "400 cortical parcels grouped into the Yeo-7 networks",
+      "space": "MNI152NLin6",
+      "source": "cbig",
+      "sourceUrl": "https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI",
+      "license": {
+        "spdx": "MIT",
+        "attribution": "Schaefer, Kong, Gordon, Laumann, Zuo, Holmes, Eickhoff & Yeo 2018, Cerebral Cortex"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+        "bytes": 69474
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/freeview_lut/Schaefer2018_400Parcels_7Networks_order.txt",
+        "bytes": 17152,
+        "format": "lut"
+      },
+      "bytes": 86626
+    },
+    {
+      "catalogId": "schaefer1000",
+      "atlasId": "schaefer1000",
+      "name": "Schaefer 1000 · 7 Networks",
+      "short": "Schaefer 1000",
+      "kind": "parcellation",
+      "description": "1000 cortical parcels grouped into the Yeo-7 networks",
+      "space": "MNI152NLin6",
+      "source": "cbig",
+      "sourceUrl": "https://github.com/ThomasYeoLab/CBIG/tree/master/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI",
+      "license": {
+        "spdx": "MIT",
+        "attribution": "Schaefer, Kong, Gordon, Laumann, Zuo, Holmes, Eickhoff & Yeo 2018, Cerebral Cortex"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/Schaefer2018_1000Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+        "bytes": 87326
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/e8dce1db88c28ecf81cfb1633c3de0debe935ee9/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/MNI/freeview_lut/Schaefer2018_1000Parcels_7Networks_order.txt",
+        "bytes": 43241,
+        "format": "lut"
+      },
+      "bytes": 130567
+    },
+    {
+      "catalogId": "tian_s1",
+      "atlasId": "tian_s1",
+      "name": "Tian Subcortex · Scale I",
+      "short": "Tian S1",
+      "kind": "parcellation",
+      "description": "16 subcortical structures · Melbourne Subcortical Atlas",
+      "space": "MNI152NLin6",
+      "source": "subcortex",
+      "sourceUrl": "https://github.com/yetianmed/subcortex",
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Tian, Margulies, Breakspear & Zalesky 2020, Nature Neuroscience"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S1_3T_1mm.nii.gz",
+        "bytes": 39427
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S1_3T_label.txt",
+        "bytes": 113,
+        "format": "text"
+      },
+      "bytes": 39540
+    },
+    {
+      "catalogId": "tian_s2",
+      "atlasId": "tian_s2",
+      "name": "Tian Subcortex · Scale II",
+      "short": "Tian S2",
+      "kind": "parcellation",
+      "description": "32 subcortical structures · Melbourne Subcortical Atlas",
+      "space": "MNI152NLin6",
+      "source": "subcortex",
+      "sourceUrl": "https://github.com/yetianmed/subcortex",
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Tian, Margulies, Breakspear & Zalesky 2020, Nature Neuroscience"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S2_3T_1mm.nii.gz",
+        "bytes": 40632
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S2_3T_label.txt",
+        "bytes": 285,
+        "format": "text"
+      },
+      "bytes": 40917
+    },
+    {
+      "catalogId": "tian_s3",
+      "atlasId": "tian_s3",
+      "name": "Tian Subcortex · Scale III",
+      "short": "Tian S3",
+      "kind": "parcellation",
+      "description": "50 subcortical structures · Melbourne Subcortical Atlas",
+      "space": "MNI152NLin6",
+      "source": "subcortex",
+      "sourceUrl": "https://github.com/yetianmed/subcortex",
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Tian, Margulies, Breakspear & Zalesky 2020, Nature Neuroscience"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S3_3T_1mm.nii.gz",
+        "bytes": 41787
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S3_3T_label.txt",
+        "bytes": 533,
+        "format": "text"
+      },
+      "bytes": 42320
+    },
+    {
+      "catalogId": "tian_s4",
+      "atlasId": "tian_s4",
+      "name": "Tian Subcortex · Scale IV",
+      "short": "Tian S4",
+      "kind": "parcellation",
+      "description": "54 subcortical structures · Melbourne Subcortical Atlas",
+      "space": "MNI152NLin6",
+      "source": "subcortex",
+      "sourceUrl": "https://github.com/yetianmed/subcortex",
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Tian, Margulies, Breakspear & Zalesky 2020, Nature Neuroscience"
+      },
+      "volume": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S4_3T_1mm.nii.gz",
+        "bytes": 41880
+      },
+      "labels": {
+        "url": "https://raw.githubusercontent.com/yetianmed/subcortex/dcad93421ea8021d6c5738df0a915a2223cd82aa/Group-Parcellation/3T/Subcortex-Only/Tian_Subcortex_S4_3T_label.txt",
+        "bytes": 591,
+        "format": "text"
+      },
+      "bytes": 42471
+    }
+  ]
+}

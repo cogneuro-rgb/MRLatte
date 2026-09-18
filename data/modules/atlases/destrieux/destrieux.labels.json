@@ -1,0 +1,1647 @@
+{
+ "schemaVersion": 1,
+ "regions": [
+  {
+   "value": 1,
+   "name": "L G_and_S_frontomargin",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    57.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 2,
+   "name": "L G_and_S_occipital_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    -81.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 3,
+   "name": "L G_and_S_paracentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -33.0,
+    68.0
+   ]
+  },
+  {
+   "value": 4,
+   "name": "L G_and_S_subcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -56.0,
+    -11.0,
+    16.0
+   ]
+  },
+  {
+   "value": 5,
+   "name": "L G_and_S_transv_frontopol",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    63.0,
+    0.0
+   ]
+  },
+  {
+   "value": 6,
+   "name": "L G_and_S_cingul-Ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    39.0,
+    10.0
+   ]
+  },
+  {
+   "value": 7,
+   "name": "L G_and_S_cingul-Mid-Ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    15.0,
+    36.0
+   ]
+  },
+  {
+   "value": 8,
+   "name": "L G_and_S_cingul-Mid-Post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -11.0,
+    42.0
+   ]
+  },
+  {
+   "value": 9,
+   "name": "L G_cingul-Post-dorsal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    -39.0,
+    32.0
+   ]
+  },
+  {
+   "value": 10,
+   "name": "L G_cingul-Post-ventral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    -49.0,
+    6.0
+   ]
+  },
+  {
+   "value": 11,
+   "name": "L G_cuneus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -81.0,
+    18.0
+   ]
+  },
+  {
+   "value": 12,
+   "name": "L G_front_inf-Opercular",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    11.0,
+    10.0
+   ]
+  },
+  {
+   "value": 13,
+   "name": "L G_front_inf-Orbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    31.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 14,
+   "name": "L G_front_inf-Triangul",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    31.0,
+    6.0
+   ]
+  },
+  {
+   "value": 15,
+   "name": "L G_front_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    31.0,
+    34.0
+   ]
+  },
+  {
+   "value": 16,
+   "name": "L G_front_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    25.0,
+    48.0
+   ]
+  },
+  {
+   "value": 17,
+   "name": "L G_Ins_lg_and_S_cent_ins",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    -7.0,
+    0.0
+   ]
+  },
+  {
+   "value": 18,
+   "name": "L G_insular_short",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    9.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 19,
+   "name": "L G_occipital_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    -83.0,
+    12.0
+   ]
+  },
+  {
+   "value": 20,
+   "name": "L G_occipital_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -89.0,
+    28.0
+   ]
+  },
+  {
+   "value": 21,
+   "name": "L G_oc-temp_lat-fusifor",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -34.0,
+    -53.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 22,
+   "name": "L G_oc-temp_med-Lingual",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -10.0,
+    -73.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 23,
+   "name": "L G_oc-temp_med-Parahip",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -19.0,
+    -24.0
+   ]
+  },
+  {
+   "value": 24,
+   "name": "L G_orbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    33.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 25,
+   "name": "L G_pariet_inf-Angular",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -42.0,
+    -67.0,
+    38.0
+   ]
+  },
+  {
+   "value": 26,
+   "name": "L G_pariet_inf-Supramar",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -56.0,
+    -37.0,
+    32.0
+   ]
+  },
+  {
+   "value": 27,
+   "name": "L G_parietal_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -22.0,
+    -61.0,
+    58.0
+   ]
+  },
+  {
+   "value": 28,
+   "name": "L G_postcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -23.0,
+    56.0
+   ]
+  },
+  {
+   "value": 29,
+   "name": "L G_precentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -9.0,
+    52.0
+   ]
+  },
+  {
+   "value": 30,
+   "name": "L G_precuneus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    -57.0,
+    42.0
+   ]
+  },
+  {
+   "value": 31,
+   "name": "L G_rectus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -6.0,
+    39.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 32,
+   "name": "L G_subcallosal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    15.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 33,
+   "name": "L G_temp_sup-G_T_transv",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -48.0,
+    -19.0,
+    8.0
+   ]
+  },
+  {
+   "value": 34,
+   "name": "L G_temp_sup-Lateral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -58.0,
+    -11.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 35,
+   "name": "L G_temp_sup-Plan_polar",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    3.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 36,
+   "name": "L G_temp_sup-Plan_tempo",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -58.0,
+    -37.0,
+    18.0
+   ]
+  },
+  {
+   "value": 37,
+   "name": "L G_temporal_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -52.0,
+    -35.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 38,
+   "name": "L G_temporal_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -60.0,
+    -31.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 39,
+   "name": "L Lat_Fis-ant-Horizont",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    31.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 40,
+   "name": "L Lat_Fis-ant-Vertical",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    21.0,
+    8.0
+   ]
+  },
+  {
+   "value": 41,
+   "name": "L Lat_Fis-post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    -33.0,
+    18.0
+   ]
+  },
+  {
+   "value": 42,
+   "name": "L Medial_wall",
+   "hemi": null,
+   "color": null,
+   "centroidMM": null
+  },
+  {
+   "value": 43,
+   "name": "L Pole_occipital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -20.0,
+    -99.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 44,
+   "name": "L Pole_temporal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -34.0,
+    7.0,
+    -36.0
+   ]
+  },
+  {
+   "value": 45,
+   "name": "L S_calcarine",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -16.0,
+    -67.0,
+    6.0
+   ]
+  },
+  {
+   "value": 46,
+   "name": "L S_central",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    -21.0,
+    46.0
+   ]
+  },
+  {
+   "value": 47,
+   "name": "L S_cingul-Marginalis",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -37.0,
+    48.0
+   ]
+  },
+  {
+   "value": 48,
+   "name": "L S_circular_insula_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.0,
+    21.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 49,
+   "name": "L S_circular_insula_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    -13.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 50,
+   "name": "L S_circular_insula_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -36.0,
+    7.0,
+    12.0
+   ]
+  },
+  {
+   "value": 51,
+   "name": "L S_collat_transv_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    -21.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 52,
+   "name": "L S_collat_transv_post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    -79.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 53,
+   "name": "L S_front_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    23.0,
+    22.0
+   ]
+  },
+  {
+   "value": 54,
+   "name": "L S_front_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    43.0,
+    20.0
+   ]
+  },
+  {
+   "value": 55,
+   "name": "L S_front_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -24.0,
+    19.0,
+    44.0
+   ]
+  },
+  {
+   "value": 56,
+   "name": "L S_interm_prim-Jensen",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    -53.0,
+    32.0
+   ]
+  },
+  {
+   "value": 57,
+   "name": "L S_intrapariet_and_P_trans",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.0,
+    -59.0,
+    40.0
+   ]
+  },
+  {
+   "value": 58,
+   "name": "L S_oc_middle_and_Lunatus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -30.0,
+    -87.0,
+    4.0
+   ]
+  },
+  {
+   "value": 59,
+   "name": "L S_oc_sup_and_transversal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    -81.0,
+    20.0
+   ]
+  },
+  {
+   "value": 60,
+   "name": "L S_occipital_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -69.0,
+    2.0
+   ]
+  },
+  {
+   "value": 61,
+   "name": "L S_oc-temp_lat",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    -51.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 62,
+   "name": "L S_oc-temp_med_and_Lingual",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    -49.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 63,
+   "name": "L S_orbital_lateral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -40.0,
+    41.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 64,
+   "name": "L S_orbital_med-olfact",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -12.0,
+    23.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 65,
+   "name": "L S_orbital-H_Shaped",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -26.0,
+    37.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 66,
+   "name": "L S_parieto_occipital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -14.0,
+    -67.0,
+    24.0
+   ]
+  },
+  {
+   "value": 67,
+   "name": "L S_pericallosal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -4.0,
+    -5.0,
+    30.0
+   ]
+  },
+  {
+   "value": 68,
+   "name": "L S_postcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -38.0,
+    -35.0,
+    46.0
+   ]
+  },
+  {
+   "value": 69,
+   "name": "L S_precentral-inf-part",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -44.0,
+    3.0,
+    28.0
+   ]
+  },
+  {
+   "value": 70,
+   "name": "L S_precentral-sup-part",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -28.0,
+    -9.0,
+    54.0
+   ]
+  },
+  {
+   "value": 71,
+   "name": "L S_suborbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -8.0,
+    39.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 72,
+   "name": "L S_subparietal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -12.0,
+    -49.0,
+    36.0
+   ]
+  },
+  {
+   "value": 73,
+   "name": "L S_temporal_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -54.0,
+    -37.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 74,
+   "name": "L S_temporal_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    -41.0,
+    4.0
+   ]
+  },
+  {
+   "value": 75,
+   "name": "L S_temporal_transverse",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    -50.0,
+    -25.0,
+    4.0
+   ]
+  },
+  {
+   "value": 76,
+   "name": "R G_and_S_frontomargin",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    59.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 77,
+   "name": "R G_and_S_occipital_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -79.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 78,
+   "name": "R G_and_S_paracentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -33.0,
+    68.0
+   ]
+  },
+  {
+   "value": 79,
+   "name": "R G_and_S_subcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    56.0,
+    -11.0,
+    16.0
+   ]
+  },
+  {
+   "value": 80,
+   "name": "R G_and_S_transv_frontopol",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    16.0,
+    63.0,
+    0.0
+   ]
+  },
+  {
+   "value": 81,
+   "name": "R G_and_S_cingul-Ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    39.0,
+    8.0
+   ]
+  },
+  {
+   "value": 82,
+   "name": "R G_and_S_cingul-Mid-Ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    17.0,
+    36.0
+   ]
+  },
+  {
+   "value": 83,
+   "name": "R G_and_S_cingul-Mid-Post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -11.0,
+    42.0
+   ]
+  },
+  {
+   "value": 84,
+   "name": "R G_cingul-Post-dorsal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -39.0,
+    34.0
+   ]
+  },
+  {
+   "value": 85,
+   "name": "R G_cingul-Post-ventral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    -51.0,
+    8.0
+   ]
+  },
+  {
+   "value": 86,
+   "name": "R G_cuneus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -79.0,
+    20.0
+   ]
+  },
+  {
+   "value": 87,
+   "name": "R G_front_inf-Opercular",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    9.0,
+    10.0
+   ]
+  },
+  {
+   "value": 88,
+   "name": "R G_front_inf-Orbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    48.0,
+    33.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 89,
+   "name": "R G_front_inf-Triangul",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    29.0,
+    8.0
+   ]
+  },
+  {
+   "value": 90,
+   "name": "R G_front_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    33.0,
+    32.0
+   ]
+  },
+  {
+   "value": 91,
+   "name": "R G_front_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    27.0,
+    46.0
+   ]
+  },
+  {
+   "value": 92,
+   "name": "R G_Ins_lg_and_S_cent_ins",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    -5.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 93,
+   "name": "R G_insular_short",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    11.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 94,
+   "name": "R G_occipital_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    -81.0,
+    14.0
+   ]
+  },
+  {
+   "value": 95,
+   "name": "R G_occipital_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    20.0,
+    -85.0,
+    34.0
+   ]
+  },
+  {
+   "value": 96,
+   "name": "R G_oc-temp_lat-fusifor",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    -51.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 97,
+   "name": "R G_oc-temp_med-Lingual",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    12.0,
+    -67.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 98,
+   "name": "R G_oc-temp_med-Parahip",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    -15.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 99,
+   "name": "R G_orbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.0,
+    33.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 100,
+   "name": "R G_pariet_inf-Angular",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    -61.0,
+    40.0
+   ]
+  },
+  {
+   "value": 101,
+   "name": "R G_pariet_inf-Supramar",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    58.0,
+    -33.0,
+    32.0
+   ]
+  },
+  {
+   "value": 102,
+   "name": "R G_parietal_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    22.0,
+    -55.0,
+    62.0
+   ]
+  },
+  {
+   "value": 103,
+   "name": "R G_postcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    -23.0,
+    56.0
+   ]
+  },
+  {
+   "value": 104,
+   "name": "R G_precentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -7.0,
+    52.0
+   ]
+  },
+  {
+   "value": 105,
+   "name": "R G_precuneus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    -59.0,
+    44.0
+   ]
+  },
+  {
+   "value": 106,
+   "name": "R G_rectus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    33.0,
+    -20.0
+   ]
+  },
+  {
+   "value": 107,
+   "name": "R G_subcallosal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    6.0,
+    15.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 108,
+   "name": "R G_temp_sup-G_T_transv",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    48.0,
+    -17.0,
+    8.0
+   ]
+  },
+  {
+   "value": 109,
+   "name": "R G_temp_sup-Lateral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    60.0,
+    -9.0,
+    -4.0
+   ]
+  },
+  {
+   "value": 110,
+   "name": "R G_temp_sup-Plan_polar",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    7.0,
+    -18.0
+   ]
+  },
+  {
+   "value": 111,
+   "name": "R G_temp_sup-Plan_tempo",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    58.0,
+    -31.0,
+    18.0
+   ]
+  },
+  {
+   "value": 112,
+   "name": "R G_temporal_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    54.0,
+    -33.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 113,
+   "name": "R G_temporal_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    62.0,
+    -27.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 114,
+   "name": "R Lat_Fis-ant-Horizont",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    29.0,
+    2.0
+   ]
+  },
+  {
+   "value": 115,
+   "name": "R Lat_Fis-ant-Vertical",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    46.0,
+    21.0,
+    10.0
+   ]
+  },
+  {
+   "value": 116,
+   "name": "R Lat_Fis-post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    -27.0,
+    18.0
+   ]
+  },
+  {
+   "value": 117,
+   "name": "R Medial_wall",
+   "hemi": null,
+   "color": null,
+   "centroidMM": null
+  },
+  {
+   "value": 118,
+   "name": "R Pole_occipital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.0,
+    -95.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 119,
+   "name": "R Pole_temporal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    38.0,
+    7.0,
+    -36.0
+   ]
+  },
+  {
+   "value": 120,
+   "name": "R S_calcarine",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.0,
+    -65.0,
+    6.0
+   ]
+  },
+  {
+   "value": 121,
+   "name": "R S_central",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    -19.0,
+    46.0
+   ]
+  },
+  {
+   "value": 122,
+   "name": "R S_cingul-Marginalis",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    14.0,
+    -37.0,
+    48.0
+   ]
+  },
+  {
+   "value": 123,
+   "name": "R S_circular_insula_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    32.0,
+    23.0,
+    -6.0
+   ]
+  },
+  {
+   "value": 124,
+   "name": "R S_circular_insula_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -11.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 125,
+   "name": "R S_circular_insula_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    7.0,
+    12.0
+   ]
+  },
+  {
+   "value": 126,
+   "name": "R S_collat_transv_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    -21.0,
+    -26.0
+   ]
+  },
+  {
+   "value": 127,
+   "name": "R S_collat_transv_post",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    -79.0,
+    -8.0
+   ]
+  },
+  {
+   "value": 128,
+   "name": "R S_front_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    40.0,
+    25.0,
+    22.0
+   ]
+  },
+  {
+   "value": 129,
+   "name": "R S_front_middle",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    41.0,
+    22.0
+   ]
+  },
+  {
+   "value": 130,
+   "name": "R S_front_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    24.0,
+    19.0,
+    46.0
+   ]
+  },
+  {
+   "value": 131,
+   "name": "R S_interm_prim-Jensen",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    -45.0,
+    32.0
+   ]
+  },
+  {
+   "value": 132,
+   "name": "R S_intrapariet_and_P_trans",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.0,
+    -57.0,
+    44.0
+   ]
+  },
+  {
+   "value": 133,
+   "name": "R S_oc_middle_and_Lunatus",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    34.0,
+    -83.0,
+    8.0
+   ]
+  },
+  {
+   "value": 134,
+   "name": "R S_oc_sup_and_transversal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    -77.0,
+    22.0
+   ]
+  },
+  {
+   "value": 135,
+   "name": "R S_occipital_ant",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    -67.0,
+    4.0
+   ]
+  },
+  {
+   "value": 136,
+   "name": "R S_oc-temp_lat",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    -51.0,
+    -14.0
+   ]
+  },
+  {
+   "value": 137,
+   "name": "R S_oc-temp_med_and_Lingual",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    30.0,
+    -49.0,
+    -10.0
+   ]
+  },
+  {
+   "value": 138,
+   "name": "R S_orbital_lateral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    42.0,
+    41.0,
+    -2.0
+   ]
+  },
+  {
+   "value": 139,
+   "name": "R S_orbital_med-olfact",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    14.0,
+    23.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 140,
+   "name": "R S_orbital-H_Shaped",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    26.0,
+    35.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 141,
+   "name": "R S_parieto_occipital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    18.0,
+    -69.0,
+    26.0
+   ]
+  },
+  {
+   "value": 142,
+   "name": "R S_pericallosal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    4.0,
+    -3.0,
+    30.0
+   ]
+  },
+  {
+   "value": 143,
+   "name": "R S_postcentral",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    36.0,
+    -33.0,
+    48.0
+   ]
+  },
+  {
+   "value": 144,
+   "name": "R S_precentral-inf-part",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    44.0,
+    5.0,
+    30.0
+   ]
+  },
+  {
+   "value": 145,
+   "name": "R S_precentral-sup-part",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    28.0,
+    -9.0,
+    54.0
+   ]
+  },
+  {
+   "value": 146,
+   "name": "R S_suborbital",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    8.0,
+    41.0,
+    -12.0
+   ]
+  },
+  {
+   "value": 147,
+   "name": "R S_subparietal",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    10.0,
+    -49.0,
+    38.0
+   ]
+  },
+  {
+   "value": 148,
+   "name": "R S_temporal_inf",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    -35.0,
+    -16.0
+   ]
+  },
+  {
+   "value": 149,
+   "name": "R S_temporal_sup",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    50.0,
+    -39.0,
+    4.0
+   ]
+  },
+  {
+   "value": 150,
+   "name": "R S_temporal_transverse",
+   "hemi": null,
+   "color": null,
+   "centroidMM": [
+    52.0,
+    -23.0,
+    6.0
+   ]
+  }
+ ]
+}

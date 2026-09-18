@@ -71,7 +71,7 @@ export function getColormapLUT(name) {
  * Useful for drawing a slider's "active" region inside the threshold handles.
  */
 export function colormapGradient(name, opts = {}) {
-  const { steps = 16, frac0 = 0, frac1 = 1, direction = "to right" } = opts;
+  const { steps = 16, frac0 = 0, frac1 = 1, direction = "to right", invert = false } = opts;
   const lut = getColormapLUT(name);
   if (!lut) return `linear-gradient(${direction}, #444, #888)`;
   const total = Math.floor(lut.length / 4);
@@ -79,10 +79,47 @@ export function colormapGradient(name, opts = {}) {
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
     const lutT = frac0 + t * (frac1 - frac0);
-    const idx = Math.max(0, Math.min(total - 1, Math.round(lutT * (total - 1))));
+    // Item 55 follow-up: mirror invertLut()'s index-reversal (out[i] =
+    // lut[n-1-i]) so this gradient (LayerControlAdvanced's swatch/ramp,
+    // ColorBarStack's on-canvas bar) matches the actually-rendered, possibly
+    // colormap-inverted volume instead of always showing the raw LUT.
+    const sampleT = invert ? 1 - lutT : lutT;
+    const idx = Math.max(0, Math.min(total - 1, Math.round(sampleT * (total - 1))));
     const o = idx * 4;
     const r = lut[o], g = lut[o + 1], b = lut[o + 2];
     stops.push(`rgb(${r},${g},${b}) ${(t * 100).toFixed(1)}%`);
+  }
+  return `linear-gradient(${direction}, ${stops.join(", ")})`;
+}
+
+/**
+ * CSS gradient of the true value→colour function across the full [gMin, gMax]
+ * axis, given a colour-scaling window [colorMinFrac, colorMaxFrac] (both 0..1
+ * of that axis). Below colorMinFrac the ramp is flat at the colormap's bottom
+ * colour; above colorMaxFrac it's flat at the top colour; in between it ramps.
+ * This is exactly what the dual-threshold colour-range slider must depict.
+ */
+export function colormapRampGradient(name, colorMinFrac, colorMaxFrac, opts = {}) {
+  const { steps = 24, direction = "to right", invert = false } = opts;
+  const lut = getColormapLUT(name);
+  if (!lut) return `linear-gradient(${direction}, #444, #888)`;
+  const total = Math.floor(lut.length / 4);
+  const lo = Math.max(0, Math.min(1, Math.min(colorMinFrac, colorMaxFrac)));
+  const hi = Math.max(0, Math.min(1, Math.max(colorMinFrac, colorMaxFrac)));
+  const span = hi - lo;
+  const rgbAt = (t) => {
+    // Same invertLut()-mirroring index reversal as colormapGradient above.
+    const sampleT = invert ? 1 - t : t;
+    const idx = Math.max(0, Math.min(total - 1, Math.round(sampleT * (total - 1))));
+    const o = idx * 4;
+    return `rgb(${lut[o]},${lut[o + 1]},${lut[o + 2]})`;
+  };
+  const stops = [];
+  for (let i = 0; i < steps; i++) {
+    const p = i / (steps - 1);              // 0..1 across the element (data axis)
+    // Map data-axis position p to a colormap position, clamped outside [lo,hi].
+    const t = span <= 0 ? (p < lo ? 0 : 1) : Math.max(0, Math.min(1, (p - lo) / span));
+    stops.push(`${rgbAt(t)} ${(p * 100).toFixed(1)}%`);
   }
   return `linear-gradient(${direction}, ${stops.join(", ")})`;
 }

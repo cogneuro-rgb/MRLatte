@@ -1,0 +1,28 @@
+{
+ "schemaVersion": 1,
+ "id": "yeo7",
+ "aliases": [
+  "yeo2011",
+  "yeo"
+ ],
+ "name": "Yeo-7 · Functional Networks",
+ "short": "Yeo-7",
+ "description": "Seven cortical resting-state networks (liberal mask)",
+ "kind": "networks",
+ "space": "MNI152",
+ "volume": "yeo7.nii.gz",
+ "labels": "yeo7.labels.json",
+ "colormap": "random",
+ "opacity": 0.55,
+ "ignoreZeroVoxels": true,
+ "lateralized": false,
+ "derivedFrom": null,
+ "tracts4d": null,
+ "origin": {
+  "kind": "builtin"
+ },
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "attribution": "Yeo, Krienen et al. 2011"
+ }
+}
