@@ -9,5 +9,6 @@
     { "from": "../../MRLatte-build/MRLatte/frontend_build", "to": "frontend_build" },
     { "from": "../../MRLatte-build/MRLatte/python-reports", "to": "python-reports" },
     { "from": "../../MRLatte-build/MRLatte/python-validation", "to": "python-validation" }
-  ]
+  ],
+  "win": { "artifactName": "MRLatte-Setup-${version}-full-${arch}.${ext}" }
 }

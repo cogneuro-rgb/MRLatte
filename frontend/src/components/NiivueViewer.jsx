@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } f
 import { Niivue, NVMesh, NVImage, SLICE_TYPE, MULTIPLANAR_TYPE, SHOW_RENDER, PEN_TYPE, DRAG_MODE, NVUtilities } from "@niivue/niivue";
 import { toast } from "sonner";
 import { VISFATLAS_COLORMAP } from "@/lib/visfAtlasColormap";
-import { interpolateSlices, computeErasedFootprint } from "@/lib/drawInterpolate";
+import { interpolateSlices, computeErasedFootprint, planeGeom, extractSliceMask } from "@/lib/drawInterpolate";
 import { DrawHistory, rleEncode, rleDecode } from "@/lib/drawHistory";
 import { histogram as computeHistogram } from "@/lib/volumeAnalysis";
 import { thresholdedVolume } from "@/lib/measure";
@@ -25,6 +25,10 @@ import { createSegmentationApi } from "@/lib/viewer/segmentation";
 import { createDrawingApi } from "@/lib/viewer/drawingApi";
 import { createPointerMath } from "@/lib/viewer/pointerMath";
 import { createZoomMath } from "@/lib/viewer/zoomMath";
+
+// How long the active-tile highlight stays visible after the last interaction
+// before fading out (see tileHighlightVisible below).
+const TILE_HIGHLIGHT_IDLE_MS = 2000;
 
 const NiivueViewer = forwardRef(function NiivueViewer(
   { baseVolume, sliceType = "multiplanar", activeOrientation = 0, onReady, onLocationChange, onError, onDoubleClickSlice, onClipRotateDelta, onFrameChange, clipEnabled = false, tractRender = DEFAULT_TRACT_RENDER, drawToolLabel = "" },
@@ -180,10 +184,10 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // the capture-phase blocker in the setup effect.
   const toolModeRef = useRef("pen");
   // Brush painting / erase mode: "3D" (true-3D sphere stamp) | "2D" (flat disc
-  // stamp on the current 2D slice). Default is "3D" for multiplanar/asymmetric
-  // views and "2D" for single-slice views; Dashboard switches it automatically
-  // when sliceType changes, and DrawingPanel's toggle can override it.
-  const brushModeRef = useRef("3D");
+  // stamp on the current 2D slice). Overall default is "2D"; Dashboard
+  // switches it automatically when sliceType CHANGES (multiplanar/asymmetric
+  // -> 3D, single-slice -> 2D), and DrawingPanel's toggle can override it.
+  const brushModeRef = useRef("2D");
   // isTrue3DTool is assembled below (lib/viewer/pointerMath.js) once ctxRef exists.
   // Right-drag behaviour toggle: "zoom" (default, our own custom drag-zoom) |
   // "windowing" | "pan" (both handled natively by NiiVue once mouseEventConfig
@@ -234,22 +238,69 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // applyZoomFactor / resetAllZoom are assembled below (lib/viewer/zoomMath.js)
   // once ctxRef and setSingleFillZoom exist.
 
-  // The two most-recent DISTINCT slices sharing the latest stroke's
-  // orientation AND tool ("pen" or "cutout" — item 70), or null if fewer than
-  // two exist. Interpolation only makes sense between two parallel slices of
-  // the same view drawn with the same tool: Pen fills a label, Cutout carves a
-  // void, and the two must not be mixed (a Pen shape and a Cutout footprint
-  // aren't comparable).
+  // SMALL-FIXES (item 2 investigation): a lastDraws entry can go stale
+  // without ever being removed from lastDraws itself — drawUndo/drawRedo
+  // (drawingApi.js) restore an older/newer bitmap WHOLESALE and never touch
+  // lastDraws, and a right-click erase deliberately never records into
+  // lastDraws at all (see the rightErase comment in the setup effect below,
+  // "an erase drag isn't a drawn slice"). Either way, an entry can end up
+  // claiming a slice is "drawn" when the LIVE bitmap now disagrees.
+  // interpolateSlices() already detects an empty mask and rejects the pair
+  // as "disconnected", but by then it's too late: the gap is silently
+  // skipped AND the phantom entry keeps poisoning the GENUINE gap on its
+  // other side too, since it's still used as an anchor. Checked here against
+  // the live bitmap, using the same in-plane geometry interpolateSlices
+  // itself uses (planeGeom/extractSliceMask, exported from drawInterpolate.js
+  // for exactly this).
+  function entryStillValid(nv, entry) {
+    const dims = nv?.back?.dims;
+    const nx = dims?.[1], ny = dims?.[2], nz = dims?.[3];
+    if (!nv || !nx || !ny || !nz || !nv.drawBitmap) return false;
+    const geom = planeGeom(entry.axCorSag, nx, ny, nz);
+    if ((entry.tool || "pen") === "cutout") {
+      // A void entry's "shape" is the erased footprint captured at commit
+      // time (computeErasedFootprint) — erased voxels read as plain 0,
+      // indistinguishable from untouched background, so the bitmap can't be
+      // read back for this the way a Pen shape can. Still valid as long as
+      // AT LEAST ONE footprint voxel is still actually 0 in the live bitmap;
+      // if undo/redo restored real content there, the erase itself no
+      // longer holds and this entry can't be trusted as a void anchor.
+      if (!entry.footprint) return false;
+      const { w, h, at } = geom;
+      for (let v = 0; v < h; v++) {
+        for (let u = 0; u < w; u++) {
+          if (entry.footprint[u + w * v] && nv.drawBitmap[at(u, v, entry.slice)] === 0) return true;
+        }
+      }
+      return false;
+    }
+    return extractSliceMask(nv.drawBitmap, geom, entry.slice).some(Boolean);
+  }
+
+  // The two most-recent DISTINCT slices sharing the latest STILL-VALID
+  // stroke's orientation AND tool ("pen" or "cutout" — item 70), or null if
+  // fewer than two exist. Interpolation only makes sense between two
+  // parallel slices of the same view drawn with the same tool: Pen fills a
+  // label, Cutout carves a void, and the two must not be mixed (a Pen shape
+  // and a Cutout footprint aren't comparable).
   function interpolatablePair() {
+    const nv = nvRef.current;
     const hist = lastDraws.current;
     if (hist.length < 2) return null;
-    const axCorSag = hist[hist.length - 1].axCorSag;
-    const tool = hist[hist.length - 1].tool || "pen";
+    // Walk back past any trailing stale entries (undone/erased since being
+    // recorded) so "the latest stroke" means the latest one that's actually
+    // still there.
+    let end = hist.length - 1;
+    while (end >= 0 && !entryStillValid(nv, hist[end])) end--;
+    if (end < 1) return null;
+    const axCorSag = hist[end].axCorSag;
+    const tool = hist[end].tool || "pen";
     const seen = [];
-    for (let i = hist.length - 1; i >= 0 && seen.length < 2; i--) {
+    for (let i = end; i >= 0 && seen.length < 2; i--) {
       const d = hist[i];
       if (d.axCorSag !== axCorSag) continue;
       if ((d.tool || "pen") !== tool) continue;
+      if (!entryStillValid(nv, d)) continue;
       if (seen.some((s) => s.slice === d.slice)) continue;
       seen.push(d);
     }
@@ -268,22 +319,74 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // One entry per distinct drawn slice index for a given orientation (0
   // axial / 1 coronal / 2 sagittal), most-recently-drawn tool/label/footprint
   // wins per slice, sorted ascending by slice. Feeds "Interpolate All" (item
-  // 62/70).
+  // 62/70). Self-heals lastDraws in place: any entry for THIS orientation
+  // that's gone stale (see entryStillValid) is dropped from lastDraws itself,
+  // not just from this result, so later calls don't keep re-discovering it.
   function distinctSliceEntriesForOrientation(axCorSag) {
-    const bySlice = new Map();
+    const nv = nvRef.current;
+    const kept = [];
+    let dropped = false;
     for (const d of lastDraws.current) {
+      if (d.axCorSag === axCorSag && !entryStillValid(nv, d)) { dropped = true; continue; }
+      kept.push(d);
+    }
+    if (dropped) lastDraws.current = kept;
+    const bySlice = new Map();
+    for (const d of kept) {
       if (d.axCorSag !== axCorSag) continue;
       bySlice.set(d.slice, d); // lastDraws is chronological — later writes win
     }
     return [...bySlice.values()].sort((a, b) => a.slice - b.slice);
   }
 
+  // Auto = the most recent DRAWN (Pen/Cutout) stroke's orientation that's
+  // still actually present in the live bitmap — NOT the app's last-clicked
+  // tile (activeOrientationRef). A plain click/scroll that only moves the
+  // crosshair (nv.onLocationChange -> Dashboard's handleLocationChange ->
+  // setActiveOrientation) used to silently retarget "Interpolate All" at
+  // whichever tile was clicked last, even with zero new drawing — this was
+  // the main cause of it intermittently targeting the wrong view. See
+  // resolveInterpolateAllOrientation just below.
+  function autoStrokeOrientation() {
+    const nv = nvRef.current;
+    const hist = lastDraws.current;
+    for (let i = hist.length - 1; i >= 0; i--) {
+      if (entryStillValid(nv, hist[i])) return hist[i].axCorSag;
+    }
+    return null;
+  }
+
+  // Manual override for "Interpolate All"'s target orientation (set via
+  // drawingApi.js's setInterpolateAllOrientation, driven by DrawingPanel's
+  // split-button dropdown) — null means Auto. Deliberately NOT persisted to
+  // localStorage/the workspace file: nothing else in the Draw panel is
+  // either (tool, brush radius, pen value, opacity all reset every session),
+  // and Auto is a safe, almost-always-right fallback for a fresh session
+  // since it just tracks whatever gets drawn next. It DOES survive the Draw
+  // section being collapsed/reopened, since this ref lives on the viewer
+  // (NiivueViewer stays mounted across that), not on DrawingPanel itself.
+  const interpolateAllOrientationOverrideRef = useRef(null);
+
+  // THE single resolver for "Interpolate All"'s target orientation — used by
+  // both the button (via interpolateAllDrawnSlices, drawingApi.js) and its
+  // Shift+I keyboard shortcut (Dashboard.jsx), which both ultimately call
+  // that same interpolateAllDrawnSlices(). One function, not two copies, so
+  // the two paths can never disagree (item 3).
+  function resolveInterpolateAllOrientation() {
+    const override = interpolateAllOrientationOverrideRef.current;
+    return (override === 0 || override === 1 || override === 2) ? override : autoStrokeOrientation();
+  }
+
   // Pushes interpolate-eligibility ("last 2" AND "all") to the Draw panel.
-  // Called after every committed stroke AND whenever the app's active/last-
-  // interacted orientation changes — switching tiles can flip "All"'s validity
-  // (and its button label) even with no new drawing.
+  // Called after every committed stroke, whenever the app's active/last-
+  // interacted orientation changes (kept for other consumers of
+  // activeOrientation), and whenever the manual orientation override changes.
   const emitInterpolateState = () => {
-    const orientation = activeOrientationRef.current;
+    const autoOrientation = autoStrokeOrientation();
+    const manualOrientation = interpolateAllOrientationOverrideRef.current;
+    const orientation = (manualOrientation === 0 || manualOrientation === 1 || manualOrientation === 2)
+      ? manualOrientation
+      : autoOrientation;
     const entries =
       orientation != null && orientation >= 0 && orientation <= 2
         ? distinctSliceEntriesForOrientation(orientation)
@@ -291,7 +394,10 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     drawCommitCb.current?.({
       canInterpolate: !!interpolatablePair(),
       canInterpolateAll: entries.length >= 2,
-      activeOrientation: orientation,
+      activeOrientation: activeOrientationRef.current,
+      resolvedOrientation: orientation,
+      autoOrientation,
+      manualOrientation,
     });
   };
 
@@ -303,6 +409,9 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // (avoids stale closure — same pattern as onDoubleClickSliceRef).
   const sliceTypeRef = useRef(sliceType);
   React.useEffect(() => { sliceTypeRef.current = sliceType; }, [sliceType]);
+  // Live mosaic strip { axis, count, gapMM, centerMM } while one is shown,
+  // else null — see setMosaic in lib/viewer/layout.js.
+  const mosaicRef = useRef(null);
 
   // Side-panel overlay state for asymmetric mode hover UX.
   const [sideLayout, setSideLayout] = useState([]);
@@ -318,6 +427,21 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // stepping currently targets, whenever more than one tile is visible
   // (Multi/Asymmetric layouts — single-view modes have nothing to highlight).
   const [activeTileRect, setActiveTileRect] = useState(null);
+  // The highlight fades out after TILE_HIGHLIGHT_IDLE_MS of no interaction, so
+  // it's visible while working in the views but gone from a Windows screenshot
+  // (Win+Shift+S / Snipping Tool capture this DOM overlay; the in-app
+  // screenshot never includes it, since that reads the GL canvas only).
+  // Moving the crosshair or switching the active view brings it back.
+  // pokeTileHighlight only touches a state setter and a ref, both stable, so
+  // it stays correct inside nv.onLocationChange's mount-time closure.
+  const [tileHighlightVisible, setTileHighlightVisible] = useState(false);
+  const tileHighlightTimerRef = useRef(null);
+  const pokeTileHighlight = () => {
+    setTileHighlightVisible(true);
+    clearTimeout(tileHighlightTimerRef.current);
+    tileHighlightTimerRef.current = setTimeout(() => setTileHighlightVisible(false), TILE_HIGHLIGHT_IDLE_MS);
+  };
+  useEffect(() => () => clearTimeout(tileHighlightTimerRef.current), []);
   const activeOrientationRef = useRef(activeOrientation);
   useEffect(() => {
     activeOrientationRef.current = activeOrientation;
@@ -339,12 +463,17 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     const st = orientation === 0 ? SLICE_TYPE.AXIAL : orientation === 1 ? SLICE_TYPE.CORONAL : SLICE_TYPE.SAGITTAL;
     const entry = nv.customLayout.find((e) => e.sliceType === st);
     setActiveTileRect(entry ? entry.position : null);
+    if (entry) pokeTileHighlight();
   };
 
   // Per-tile slice-index readout (e.g. "Ax 84/182") in the corner of each
   // visible 2D tile. Recomputed on every location change (crosshair move),
   // not just orientation switches, so the numbers stay live while scrolling.
   const [tileSliceInfo, setTileSliceInfo] = useState([]);
+  // Mosaic strip's single side marker ({ text: "L"|"R", position }) — one
+  // letter for the whole strip instead of niivue's per-tile letters. Set
+  // alongside the mosaic readouts in updateTileSliceInfo, null otherwise.
+  const [mosaicSide, setMosaicSide] = useState(null);
   // Drawing mode on/off — mirrored from setDrawingEnabled so the on-canvas
   // "DRAW MODE" indicator is always correct regardless of who toggles it.
   const [drawingActive, setDrawingActive] = useState(false);
@@ -384,7 +513,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       redrawRafRef, pendingVolumeUpdateRef,
       lastDraws, drawHistory, pendingStrokeSnapshot,
       brushRadiusRef, toolModeRef, brushModeRef, rightDragModeRef,
-      sliceTypeRef, sideLayoutRef, activeOrientationRef,
+      sliceTypeRef, mosaicRef, sideLayoutRef, activeOrientationRef, interpolateAllOrientationOverrideRef,
       singleFillZoomRef, resizeCanvasRef,
     });
   }
@@ -398,6 +527,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   const { applyZoomFactor, resetAllZoom } = createZoomMath(ctxRef.current, { setSingleFillZoom, scheduleRedraw });
 
   const updateTileSliceInfo = () => {
+    setMosaicSide(null); // re-set below only while a mosaic strip is showing
     const nv = nvRef.current;
     const dims = nv?.back?.dims;
     if (!nv || !dims) { setTileSliceInfo([]); return; }
@@ -409,6 +539,34 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     const indices = { axial: Math.round(vox[2]), coronal: Math.round(vox[1]), sagittal: Math.round(vox[0]) };
     const labels = { axial: "Ax", coronal: "Cor", sagittal: "Sag" };
     const stToOrientation = { [SLICE_TYPE.AXIAL]: "axial", [SLICE_TYPE.CORONAL]: "coronal", [SLICE_TYPE.SAGITTAL]: "sagittal" };
+
+    if (mosaicRef.current) {
+      // Mosaic strip: one readout per tile, read off niivue's own screenSlices
+      // (drawMosaic records where each tile sits and which slice it sampled).
+      const cw = nv.gl?.canvas?.width || 1, ch = nv.gl?.canvas?.height || 1;
+      const tiles = (nv.screenSlices || []).filter((s) => stToOrientation[s.axCorSag]);
+      setTileSliceInfo(tiles.map((s, i) => {
+        const o = stToOrientation[s.axCorSag];
+        const [x, y, w, h] = s.leftTopWidthHeight;
+        const idx = Math.min(totals[o] - 1, Math.max(0, Math.floor(s.sliceFrac * totals[o])));
+        return { key: `mosaic-${i}`, position: [x / cw, y / ch, w / cw, h / ch], text: `${labels[o]} ${idx + 1}/${totals[o]}` };
+      }));
+      // One L/R letter at the strip's left edge naming the patient side shown
+      // there. Axial/coronal tiles are mirrored in radiological convention
+      // (niivue's draw2DMain), so their left edge is R there and L otherwise.
+      // Sagittal tiles have no L/R in-plane, but the strip itself runs in
+      // ascending x — its left end is always the patient's left. Follows the
+      // orientation-labels toggle, like niivue's own per-tile letters.
+      if (tiles.length && nv.opts.isOrientationTextVisible) {
+        const [x, y, , h] = tiles[0].leftTopWidthHeight;
+        const sag = tiles[0].axCorSag === SLICE_TYPE.SAGITTAL;
+        setMosaicSide({
+          text: !sag && nv.opts.isRadiologicalConvention ? "R" : "L",
+          position: [x / cw, y / ch, 0, h / ch],
+        });
+      }
+      return;
+    }
 
     let tiles = [];
     if (nv.customLayout?.length) {
@@ -637,6 +795,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       try { onLocationChangeRef.current?.(data); } catch (_e) {}
       recomputeMeasure2D();
       updateTileSliceInfo();
+      pokeTileHighlight();
     };
 
     // Fires for every REAL frame change — our own stepper (frameApi.setFrame),
@@ -693,9 +852,27 @@ const NiivueViewer = forwardRef(function NiivueViewer(
               });
             } catch (_e) { /* footprint capture is best-effort */ }
           }
+          // SMALL-FIXES (item 2 root cause): de-duplicate by (orientation,
+          // slice) — a later stroke on an already-tracked slice replaces its
+          // entry in place instead of appending a second one, so repeated
+          // strokes on the same slice don't burn through the cap below.
+          // Was previously capped at 8 TOTAL strokes across every
+          // orientation combined; any workflow drawing more than a handful
+          // of slices (the exact case "Interpolate All" exists for) quietly
+          // evicted the oldest slices from tracking, so
+          // distinctSliceEntriesForOrientation() never saw them and
+          // interpolateAllDrawnSlices() skipped gaps involving them with no
+          // toast at all — the pair was never even attempted. 400 covers any
+          // realistic session (more than any scan's largest voxel
+          // dimension) while still bounding memory: each entry is small
+          // except a Cutout's footprint mask (one slice's worth of bytes,
+          // the same order of magnitude the draw bitmap itself already
+          // costs per slice).
           const hist = lastDraws.current;
+          const dupIdx = hist.findIndex((d) => d.axCorSag === entry.axCorSag && d.slice === entry.slice);
+          if (dupIdx !== -1) hist.splice(dupIdx, 1);
           hist.push(entry);
-          if (hist.length > 8) hist.shift();
+          if (hist.length > 400) hist.shift();
         }
         // Bitmap-diff guard: a stroke that started (pointerdown fired, so a
         // snapshot exists) but never actually painted anything — e.g. a
@@ -1605,6 +1782,9 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       coronal: SLICE_TYPE.CORONAL,
       sagittal: SLICE_TYPE.SAGITTAL,
       render: SLICE_TYPE.RENDER,
+      // The mosaic string (setMosaic, pushed by Dashboard right after this)
+      // overrides the slice type while it's set; AXIAL is just a 2D fallback.
+      mosaic: SLICE_TYPE.AXIAL,
     };
     // "multiplanar" always uses our own grid layout (see MULTIPLANAR_GRID_LAYOUT);
     // single-view modes use niivue's native rendering (no customLayout needed).
@@ -1783,7 +1963,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     ...createMeshApi(ctxRef.current, { scheduleRedraw }),
 
     // View & navigation: crosshair, clip plane, zoom/pan, slice stepping (lib/viewer/navigation.js).
-    ...createNavigationApi(ctxRef.current, { scheduleRedraw, applyZoomFactor, resetAllZoom }),
+    ...createNavigationApi(ctxRef.current, { scheduleRedraw, applyZoomFactor, resetAllZoom, updateTileSliceInfo }),
 
     // 4D frame stepping for the base volume (lib/viewer/frameApi.js).
     ...createFrameApi(ctxRef.current, { scheduleRedraw }),
@@ -1798,13 +1978,22 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // interpolation, load/save (lib/viewer/drawingApi.js).
     ...createDrawingApi(ctxRef.current, {
       setDrawingActive, snapshotForUndo, emitHistory,
-      interpolatablePair, distinctSliceEntriesForOrientation, rasterizeSphere,
+      interpolatablePair, distinctSliceEntriesForOrientation,
+      resolveInterpolateAllOrientation, emitInterpolateState, rasterizeSphere,
     }),
     // Brush mode (2D/3D) setter — updates brushModeRef, which the pointer
     // handlers read live on every event.
     setBrushMode: (mode) => {
-      brushModeRef.current = mode === "2D" ? "2D" : "3D";
+      brushModeRef.current = mode === "3D" ? "3D" : "2D";
     },
+
+    // Force an immediate canvas resize, bypassing the ResizeObserver's
+    // double-rAF debounce (scheduleResize). Callers that resize this
+    // component's container out-of-band — e.g. Dashboard's sidebar drag
+    // handle — normally rely on that ResizeObserver, but rAF doesn't fire in
+    // some backgrounded/headless contexts, so this gives them a direct,
+    // synchronous path to land the final size.
+    forceResizeCanvas: () => resizeCanvasRef.current?.(),
   }));
 
   return (
@@ -1861,8 +2050,10 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       {activeTileRect && (
         <div className="absolute inset-0 pointer-events-none">
           <div
-            className="absolute border-2 border-primary/60 transition-all duration-150"
+            className="absolute border-2 border-primary/60"
             style={{
+              opacity: tileHighlightVisible ? 1 : 0,
+              transition: "left 150ms, top 150ms, width 150ms, height 150ms, opacity 400ms",
               left: `${activeTileRect[0] * 100}%`,
               top: `${activeTileRect[1] * 100}%`,
               width: `${activeTileRect[2] * 100}%`,
@@ -1889,6 +2080,23 @@ const NiivueViewer = forwardRef(function NiivueViewer(
               </div>
             );
           })}
+        </div>
+      )}
+      {/* Mosaic strip's single L/R marker, just inside the first tile's left
+          edge (see mosaicSide). */}
+      {mosaicSide && (
+        <div
+          className="absolute pointer-events-none flex items-center"
+          style={{
+            left: `${mosaicSide.position[0] * 100}%`,
+            top: `${mosaicSide.position[1] * 100}%`,
+            height: `${mosaicSide.position[3] * 100}%`,
+          }}
+          data-testid="mosaic-side-marker"
+        >
+          <span className="ml-1.5 text-[15px] font-semibold text-white/85 select-none [text-shadow:0_0_3px_rgba(0,0,0,0.9)]">
+            {mosaicSide.text}
+          </span>
         </div>
       )}
       {/* Measurement point markers (ruler A/B, midline landmark). Colors are

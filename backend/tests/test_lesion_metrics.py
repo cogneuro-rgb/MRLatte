@@ -588,3 +588,146 @@ def test_report_fragments_response_shape(synthetic_atlas):
     assert isinstance(body["provenance"]["disconnectionIndexAvailable"], bool)
     assert "<style" not in body["stylesheet"]  # stylesheet() returns bare CSS, no wrapper tag
     assert ".lqt-root" in body["stylesheet"]
+
+
+# --------------------------------------------------------------------------- #
+# POST /api/lesion/qc (backend/lesion_metrics.py::run_qc)
+#
+# Synthetic masks on a plain identity-affine grid, kept away from the array's
+# own edges so `_edge_components` (called unconditionally inside lqtpy.qc's
+# `_check`) returns early without ever touching lqtpy's bundled MNI brain
+# mask -- these don't depend on that data being present. The two mni=True/
+# False cases below are the exception: they deliberately exercise the real
+# brain-mask check, with placements pinned by hand against the real bundled
+# atlas (see the module's own tests / this file's authoring notes) so they
+# land solidly inside "no flag" / "outside_brain" territory rather than at a
+# threshold edge that could flip with an unrelated lqtpy data update.
+# --------------------------------------------------------------------------- #
+
+def _sphere_mask(shape=(30, 30, 30), center=(15, 15, 15), radius=6) -> np.ndarray:
+    zz, yy, xx = np.ogrid[:shape[0], :shape[1], :shape[2]]
+    data = np.zeros(shape, dtype=np.float32)
+    m = (zz - center[0]) ** 2 + (yy - center[1]) ** 2 + (xx - center[2]) ** 2 <= radius * radius
+    data[m] = 1.0
+    return data
+
+
+def _solid_sphere_lesion() -> np.ndarray:
+    return _sphere_mask()
+
+
+def _flat_sheet_lesion(shape=(30, 30, 30)) -> np.ndarray:
+    """A 20x20-voxel square drawn on a single slice only -- a thin sheet in
+    the axial plane, as if drawn without going through every slice."""
+    data = np.zeros(shape, dtype=np.float32)
+    data[15, 5:25, 5:25] = 1.0
+    return data
+
+
+def _sphere_plus_speck_lesion() -> np.ndarray:
+    """The solid sphere from `_solid_sphere_lesion`, plus one isolated voxel
+    far from it (but not touching the array edge) -- a tiny detached speck."""
+    data = _solid_sphere_lesion()
+    data[2, 2, 2] = 1.0
+    return data
+
+
+def test_qc_solid_sphere_has_no_warn_or_error_flags(synthetic_atlas):
+    lesion_id = _upload(_solid_sphere_lesion())
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    severities = {f["severity"] for f in body["flags"]}
+    assert not (severities & {"warn", "error"}), body["flags"]
+    assert body["provenance"]["engine"] == "lqtpy.qc"
+    assert body["provenance"]["mni"] is False
+
+
+def test_qc_flat_single_slice_flags_flat(synthetic_atlas):
+    lesion_id = _upload(_flat_sheet_lesion())
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r.status_code == 200, r.text
+    ids = [f["id"] for f in r.json()["flags"]]
+    assert "flat" in ids
+
+
+def test_qc_sphere_plus_speck_flags_specks(synthetic_atlas):
+    lesion_id = _upload(_sphere_plus_speck_lesion())
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r.status_code == 200, r.text
+    ids = [f["id"] for f in r.json()["flags"]]
+    assert "specks" in ids
+
+
+def _off_brain_sphere_bytes() -> bytes:
+    """A 15-voxel-radius sphere centred at MNI (60, 10, 10) mm -- solidly
+    over the brain surface at that laterality/depth in the real bundled
+    atlas, so mni=True must flag `outside_brain` and mni=False must not."""
+    shape = (40, 40, 40)
+    data = _sphere_mask(shape=shape, center=(20, 20, 20), radius=15)
+    affine = np.eye(4)
+    center_mm = (60, 10, 10)
+    affine[:3, 3] = [c - shape[i] / 2 for i, c in enumerate(center_mm)]
+    return _nifti_bytes(data, affine)
+
+
+def test_qc_mni_false_suppresses_outside_brain(synthetic_atlas):
+    lqtpy = pytest.importorskip("lqtpy")
+    if not hasattr(lqtpy, "qc"):
+        pytest.skip("lqtpy in this environment has no qc module")
+    body = _off_brain_sphere_bytes()
+    r = client.post("/api/lesion/upload", files={"file": ("off_brain.nii", body, "application/octet-stream")})
+    assert r.status_code == 200, r.text
+    lesion_id = r.json()["lesion_id"]
+
+    r_true = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": True})
+    assert r_true.status_code == 200, r_true.text
+    ids_true = [f["id"] for f in r_true.json()["flags"]]
+    assert "outside_brain" in ids_true
+
+    r_false = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r_false.status_code == 200, r_false.text
+    ids_false = [f["id"] for f in r_false.json()["flags"]]
+    assert "outside_brain" not in ids_false
+    assert "not_mni" not in ids_false
+
+
+def test_qc_unavailable_is_503(monkeypatch, synthetic_atlas):
+    lesion_id = _upload(_solid_sphere_lesion())
+
+    class _StubLqtpy:
+        __version__ = "0.4.0"
+
+    monkeypatch.setattr(lesion_metrics, "lqtpy", _StubLqtpy())
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r.status_code == 503, r.text
+
+
+def test_qc_unavailable_when_lqtpy_entirely_absent_is_503(monkeypatch, synthetic_atlas):
+    lesion_id = _upload(_solid_sphere_lesion())
+    monkeypatch.setattr(lesion_metrics, "lqtpy", None)
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})
+    assert r.status_code == 503, r.text
+
+
+def test_capabilities_reports_qc_available(synthetic_atlas):
+    r = client.get("/api/lesion/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert "qc_available" in body
+    assert isinstance(body["qc_available"], bool)
+
+
+def test_capabilities_qc_available_false_when_qc_module_missing(monkeypatch, synthetic_atlas):
+    class _StubLqtpy:
+        __version__ = "0.4.0"
+
+        def register_atlas(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(lesion_metrics, "lqtpy", _StubLqtpy())
+    r = client.get("/api/lesion/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["qc_available"] is False

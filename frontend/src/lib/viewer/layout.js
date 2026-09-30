@@ -1,5 +1,6 @@
 import { SLICE_TYPE } from "@niivue/niivue";
 import { MULTIPLANAR_GRID_LAYOUT } from "@/lib/viewer/layoutConstants";
+import { MOSAIC_AXIS_INDEX, buildMosaicString, clampMosaicCenter } from "@/lib/viewer/mosaic";
 
 /**
  * Asymmetric layout (1 large + 3 small stacked side views) and canvas-pixel
@@ -10,7 +11,8 @@ import { MULTIPLANAR_GRID_LAYOUT } from "@/lib/viewer/layoutConstants";
  * this is a relocation.
  *
  * @param {object} ctx   viewer context (see lib/viewer/context.js); uses
- *                       nvRef, sliceTypeRef, resizeCanvasRef, sideLayoutRef.
+ *                       nvRef, sliceTypeRef, resizeCanvasRef, sideLayoutRef,
+ *                       mosaicRef.
  * @param {object} deps  component-scope collaborators that are not refs.
  * @param {() => void} deps.updateActiveTileHighlight
  * @param {() => void} deps.updateTileSliceInfo
@@ -18,9 +20,61 @@ import { MULTIPLANAR_GRID_LAYOUT } from "@/lib/viewer/layoutConstants";
  * @param {(v: any) => void} deps.setHoveredSlice
  */
 export function createLayoutApi(ctx, { updateActiveTileHighlight, updateTileSliceInfo, setSideLayout, setHoveredSlice }) {
-  const { nvRef, sliceTypeRef, resizeCanvasRef, sideLayoutRef } = ctx;
+  const { nvRef, sliceTypeRef, resizeCanvasRef, sideLayoutRef, mosaicRef } = ctx;
+
+  // World-mm extent of the base volume along one axis (0=x, 1=y, 2=z), in the
+  // same frac→mm convention drawMosaic uses to place its slices.
+  const axisExtentMM = (nv, ax) => {
+    const a = nv.frac2mm([0, 0, 0])[ax], b = nv.frac2mm([1, 1, 1])[ax];
+    return [Math.min(a, b), Math.max(a, b)];
+  };
+
+  const applyMosaic = (nv, m) => {
+    const [lo, hi] = axisExtentMM(nv, MOSAIC_AXIS_INDEX[m.axis]);
+    m.centerMM = clampMosaicCenter(m.centerMM, m.count * m.rows, m.gapMM, lo, hi);
+    mosaicRef.current = m;
+    // Centre the grid in the viewer: a multi-row grid is height-limited and
+    // would otherwise hug the left edge (niivue's default is top-left).
+    nv.opts.centerMosaic = true;
+    nv.setSliceMosaicString(buildMosaicString(m.axis, m.count, m.gapMM, m.centerMM, m.rows));
+    nv.drawScene(); // fills nv.screenSlices, which the tile readouts read
+    updateTileSliceInfo();
+  };
 
   return {
+    // ===== Horizontal mosaic strip =====
+    // spec = { axis: "A"|"C"|"S", count (per row), rows, gapMM }, or null to
+    // leave mosaic.
+    // The strip's centre is kept here, not in the spec: it starts on the
+    // crosshair (on entry, or when the orientation changes) and afterwards
+    // only moves via shiftMosaic, so changing count/gap keeps the strip
+    // where the user scrolled it.
+    setMosaic: (spec) => {
+      const nv = nvRef.current;
+      if (!nv?.volumes?.length) return;
+      if (!spec) {
+        if (!mosaicRef.current) return;
+        mosaicRef.current = null;
+        nv.setSliceMosaicString("");
+        updateTileSliceInfo();
+        return;
+      }
+      const prev = mosaicRef.current;
+      const centerMM = prev && prev.axis === spec.axis
+        ? prev.centerMM
+        : nv.frac2mm(nv.scene.crosshairPos)[MOSAIC_AXIS_INDEX[spec.axis]];
+      applyMosaic(nv, { ...spec, centerMM });
+    },
+
+    // Slide the strip by `tiles` slice gaps (±1 per scroll notch).
+    shiftMosaic: (tiles) => {
+      const nv = nvRef.current;
+      const m = mosaicRef.current;
+      if (!nv || !m) return;
+      applyMosaic(nv, { ...m, centerMM: m.centerMM + tiles * m.gapMM });
+    },
+
+
     // ===== Asymmetric layout (1 large + 3 small stacked side views) =====
     // Niivue lets us position each slice via nv.customLayout: an array of
     // entries with sliceType + position [x, y, w, h] in fractional canvas
@@ -36,6 +90,7 @@ export function createLayoutApi(ctx, { updateActiveTileHighlight, updateTileSlic
         sagittal: ST.SAGITTAL,
         render: ST.RENDER,
         multiplanar: ST.MULTIPLANAR,
+        mosaic: ST.AXIAL, // Dashboard re-applies the mosaic string after this
       };
       if (!largeSlice) {
         // Restore whatever slice type was active before asymmetric mode.

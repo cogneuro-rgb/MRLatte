@@ -97,6 +97,31 @@ export async function fetchMetrics({ lesionId, atlasIds, threshold }) {
 }
 
 // --------------------------------------------------------------------------- #
+// Quality control — lqtpy.qc.check() flags for a drawn lesion (sparse
+// slices, flat/single-slice, hollow outline, tiny specks, outside-brain,
+// header problems). See backend/lesion_metrics.py::run_qc for the exact
+// shape and status codes (503 when lqtpy is absent OR predates the qc
+// module), and lib/lesionQc.js for the fail-open orchestration (upload +
+// this call + timeout) that Save/Download and the idle checker both use.
+// --------------------------------------------------------------------------- #
+
+/**
+ * @param {{lesionId: string, mni?: boolean, threshold?: number, signal?: AbortSignal}} args
+ * @returns {Promise<{flags: object[], provenance: object}>}
+ *   see backend/lesion_metrics.py::run_qc for the exact shape.
+ */
+export async function fetchQc({ lesionId, mni = true, threshold, signal }) {
+  const r = await fetch(`${apiBase}/api/lesion/qc`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lesion_id: lesionId, mni, threshold }),
+    signal,
+  });
+  if (!r.ok) throw new LesionMetricsHttpError(await readErrorDetail(r), r.status);
+  return r.json();
+}
+
+// --------------------------------------------------------------------------- #
 // Report fragments — lqtpy's embeddable HTML sections (morphometry detail,
 // network rollup, streamline disconnection, ...) for parts of the report
 // MRLatte doesn't render itself. See backend/lesion_metrics.py::

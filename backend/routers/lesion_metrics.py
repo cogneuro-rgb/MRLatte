@@ -173,6 +173,49 @@ def lesion_report_fragments_endpoint(payload: ReportFragmentsRequest):
         )
 
 
+class LesionQcRequest(BaseModel):
+    lesion_id: str
+    mni: bool = True
+    threshold: Optional[float] = None
+
+
+@router.post("/lesion/qc")
+def lesion_qc_endpoint(payload: LesionQcRequest):
+    """Lesion quality-control flags (sparse slices, flat/single-slice, hollow
+    outline, tiny specks, outside-brain, header problems), computed by
+    lqtpy.qc.check(). See backend/lesion_metrics.py::run_qc for the engine.
+
+    Status codes: 404 unknown lesion_id, 400 invalid lesion_id / lqtpy caller
+    error (bad lesion input), 503 lqtpy not installed OR installed without
+    the qc module (see engine.qc_available() / GET /lesion/capabilities),
+    500 lqtpy environment error.
+    """
+    lesion_path = _resolve_lesion_path(payload.lesion_id)
+    threshold = (payload.threshold if payload.threshold is not None
+                 else engine.DEFAULT_THRESHOLD)
+
+    t0 = time.monotonic()
+    error_status = None
+    try:
+        result = engine.run_qc(lesion_path, mni=payload.mni, threshold=threshold)
+        return result
+    except engine.LqtpyUnavailableError as exc:
+        error_status = 503
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except engine.LesionMetricsError as exc:
+        error_status = exc.status_code
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — lqtpy's own typed errors land here
+        error_status = engine.status_code_for(exc)
+        raise HTTPException(status_code=error_status, detail=str(exc)) from exc
+    finally:
+        duration_ms = (time.monotonic() - t0) * 1000.0
+        logger.info(
+            "lesion qc lesion_id=%s mni=%s threshold=%s duration_ms=%.2f status=%s",
+            payload.lesion_id, payload.mni, threshold, duration_ms, error_status or 200,
+        )
+
+
 @router.get("/lesion/capabilities")
 def lesion_capabilities():
     """Whether the lqtpy engine is usable right now, and on what atlases."""
@@ -181,6 +224,7 @@ def lesion_capabilities():
             "available": False,
             "version": None,
             "disconnection_index_available": False,
+            "qc_available": False,
             "atlas_ids": [],
             "reason": str(engine.import_error()) if engine.import_error() else None,
         }
@@ -188,5 +232,6 @@ def lesion_capabilities():
         "available": True,
         "version": engine.version(),
         "disconnection_index_available": engine.disconnection_index_available(),
+        "qc_available": engine.qc_available(),
         "atlas_ids": engine.bridged_atlas_ids(),
     }

@@ -33,6 +33,7 @@ body {
   gap: 16px;
 }
 .banner h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.2; }
+.banner .subtitle { font-size: 12px; color: #b9cde6; margin-top: 3px; }
 .banner .subject { font-size: 13.5px; color: #94b8e0; margin-top: 6px; word-break: break-all; }
 .banner .meta { text-align: right; font-size: 12.5px; color: #7aa3cc; white-space: nowrap; }
 .banner .badge {
@@ -229,8 +230,10 @@ export function imgPanelHtml(title, dotColor, bodyHtml) {
 }
 
 /**
- * Compose the full standalone HTML document. `meta` = { title, subject,
- * badge, extraStyle }. `sections` = [{ title, html }] — rendered in order,
+ * Compose the full standalone HTML document. `meta` = { title, subtitle,
+ * subject, badge, extraStyle }; `subtitle` is an optional smaller line under
+ * the heading (e.g. crediting the tool that produced the report).
+ * `sections` = [{ title, html }] — rendered in order,
  * each under its own .section-title heading (omit `title` to render bare,
  * e.g. for a section that already emits its own heading, like image-grid
  * subsections or an embedded lqtpy fragment). `extraStyle`, if given, is raw
@@ -238,7 +241,7 @@ export function imgPanelHtml(title, dotColor, bodyHtml) {
  * `fragments.stylesheet()` — see lib/report/sections.js::lqtpyStylesheetCss)
  * — pass it once per document regardless of how many fragment sections use it.
  */
-export function renderReportHtml({ title, subject, badge, generatedAt, footer, extraStyle }, sections) {
+export function renderReportHtml({ title, subtitle, subject, badge, generatedAt, footer, extraStyle }, sections) {
   const body = sections
     .map((s) => (s.title ? `<div class="section-title">${s.title}</div>\n${s.html}` : s.html))
     .join("\n\n");
@@ -257,6 +260,7 @@ export function renderReportHtml({ title, subject, badge, generatedAt, footer, e
   <div class="banner">
     <div>
       <h1>${title}</h1>
+      ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
       ${subject ? `<div class="subject">${subject}</div>` : ""}
     </div>
     <div class="meta">

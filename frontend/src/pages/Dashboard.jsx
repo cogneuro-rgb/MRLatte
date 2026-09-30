@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Brain, LayoutGrid, Box, Camera, Crosshair as CrosshairIcon, Activity, Scissors,
   Eye, Layers, FlaskConical, PencilRuler, Database, Plus, Image as ImageIcon, Waypoints, Trash2,
@@ -6,7 +6,7 @@ import {
   GitCompareArrows, GitBranch, Loader2, AlertCircle, X, Target, Network, Download,
   PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Sun, Moon,
   FlipHorizontal2, Minimize2, Contrast, Move, Keyboard, ZoomIn, FileCode,
-  ChevronsDownUp, ChevronsUpDown, Package, Pencil,
+  ChevronsDownUp, ChevronsUpDown, Package, Pencil, GalleryHorizontal, Minus,
 } from "lucide-react";
 import NiivueViewer from "@/components/NiivueViewer";
 import GotoMniInput from "@/components/GotoMniInput";
@@ -20,6 +20,8 @@ import { PolarAngleDisc, EccentricityBar, polarAngleDiscToDataURL } from "@/comp
 import { SidebarSection, SidebarSectionsContext, useSidebarSectionsController } from "@/components/SidebarSection";
 import { CrosshairInfo } from "@/components/CrosshairInfo";
 import { DrawingPanel } from "@/components/DrawingPanel";
+import { LesionQcDialog } from "@/components/LesionQcDialog";
+import { useLesionQcIdle } from "@/hooks/useLesionQcIdle";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useTheme } from "@/hooks/use-theme";
@@ -71,6 +73,9 @@ import {
   WORKSPACE_VERSION, fileToBase64, base64ToFile, saveWorkspace, openWorkspace, saveBinaryFile,
 } from "@/lib/workspace";
 import { activeToggleCls } from "@/lib/buttonVariants";
+import {
+  MOSAIC_COUNT_MIN, MOSAIC_COUNT_MAX, MOSAIC_ROWS_MIN, MOSAIC_ROWS_MAX, MOSAIC_GAP_MIN, MOSAIC_GAP_MAX,
+} from "@/lib/viewer/mosaic";
 import { toast } from "sonner";
 import { useBaseVolume } from "@/hooks/useBaseVolume";
 import { useTracts } from "@/hooks/useTracts";
@@ -93,7 +98,29 @@ const SLICE_MODES = [
   { id: "axial", label: "Axial", icon: Activity },
   { id: "coronal", label: "Coronal", icon: Activity },
   { id: "sagittal", label: "Sagittal", icon: Activity },
+  { id: "mosaic", label: "Mosaic", icon: GalleryHorizontal },
 ];
+
+// Mosaic bottom-bar "label − N +" control (slices per row, rows). `onChange`
+// is a state setter and gets a functional update, so fast repeated clicks
+// that land before the next render aren't lost.
+const MosaicStepper = ({ label, noun, value, onChange, min, max, testId }) => {
+  const btn = "flex h-4 w-4 items-center justify-center border border-border hover:text-foreground disabled:opacity-40";
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-subtle">{label}</span>
+      <button onClick={() => onChange((v) => Math.max(min, v - 1))} disabled={value <= min}
+        className={btn} title={`Fewer ${noun}`} data-testid={`${testId}-dec`}>
+        <Minus size={10} />
+      </button>
+      <span className="w-4 text-center text-foreground tabular-nums" data-testid={testId}>{value}</span>
+      <button onClick={() => onChange((v) => Math.min(max, v + 1))} disabled={value >= max}
+        className={btn} title={`More ${noun}`} data-testid={`${testId}-inc`}>
+        <Plus size={10} />
+      </button>
+    </div>
+  );
+};
 
 // "red" first so a single lesion mask keeps its long-standing default color
 // (SMALL-FIXES item 45 era); subsequent masks cycle through the rest so
@@ -114,6 +141,17 @@ const ACTIVATION_CMAP_PALETTE = ["jet", "warm", "cool", "turbo", "plasma", "viri
 // collide with it.
 const DRAWING_LESION_ID = "__drawing__";
 
+// Sidebar resize: 400px is the original fixed width, kept as the default.
+// MIN keeps every sidebar control (icon row, the tractography 2-col grid)
+// legible; MAX guarantees the main viewer keeps a usable strip even at the
+// app's enforced minimum window size (880x560 in electron.js) — 880 - 480 -
+// 6px handle leaves ~394px for the viewer.
+const DEFAULT_SIDEBAR_WIDTH = 400;
+const MIN_SIDEBAR_WIDTH = 260;
+const MAX_SIDEBAR_WIDTH = 480;
+const SIDEBAR_WIDTH_STORAGE_KEY = "mrlatte-sidebar-width";
+const clampSidebarWidth = (w) => Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, w));
+
 export default function Dashboard() {
   const { theme, toggleTheme, setTheme } = useTheme();
   // Module store entry point. `ok !== true` means the backend never answered —
@@ -131,6 +169,114 @@ export default function Dashboard() {
   // etc.) survive a collapse/expand cycle.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
+  // Sidebar width: a per-machine UI preference (localStorage), deliberately
+  // NOT part of the workspace save file. Clamp on load in case the value was
+  // saved on a wider window/display than this one.
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+      const parsed = raw != null ? Number(raw) : NaN;
+      return Number.isFinite(parsed) ? clampSidebarWidth(parsed) : DEFAULT_SIDEBAR_WIDTH;
+    } catch (_e) {
+      return DEFAULT_SIDEBAR_WIDTH;
+    }
+  });
+  const [sidebarDragging, setSidebarDragging] = useState(false);
+  // Stale-closure guard (CLAUDE.md §6): the pointer handlers below are
+  // registered once per drag via setPointerCapture and must read the latest
+  // width/drag-start through a ref, not the value closed over at pointerdown.
+  const sidebarWidthRef = useRef(sidebarWidth);
+  useEffect(() => { sidebarWidthRef.current = sidebarWidth; }, [sidebarWidth]);
+  const sidebarDragStartRef = useRef(null); // { startX, startWidth } while dragging
+  const sidebarDragRafRef = useRef(null);
+  const sidebarPendingWidthRef = useRef(null);
+
+  const persistSidebarWidth = useCallback((w) => {
+    try { window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(w)); }
+    catch (_e) { /* storage unavailable */ }
+  }, []);
+
+  const handleSidebarHandlePointerDown = useCallback((e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    sidebarDragStartRef.current = { startX: e.clientX, startWidth: sidebarWidthRef.current };
+    sidebarPendingWidthRef.current = sidebarWidthRef.current;
+    setSidebarDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_e) { /* unsupported */ }
+    e.preventDefault(); // don't let the drag select page text
+  }, []);
+
+  const handleSidebarHandlePointerMove = useCallback((e) => {
+    const start = sidebarDragStartRef.current;
+    if (!start) return;
+    const next = clampSidebarWidth(start.startWidth + (e.clientX - start.startX));
+    sidebarPendingWidthRef.current = next;
+    // Throttle React state updates to animation frames during the drag.
+    if (sidebarDragRafRef.current == null) {
+      sidebarDragRafRef.current = requestAnimationFrame(() => {
+        sidebarDragRafRef.current = null;
+        setSidebarWidth(sidebarPendingWidthRef.current);
+      });
+    }
+  }, []);
+
+  const endSidebarDrag = useCallback((e) => {
+    if (!sidebarDragStartRef.current) return;
+    try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch (_e) { /* unsupported */ }
+    if (sidebarDragRafRef.current != null) {
+      cancelAnimationFrame(sidebarDragRafRef.current);
+      sidebarDragRafRef.current = null;
+    }
+    // Apply the final width directly rather than trusting the queued rAF
+    // above — rAF does not fire while the window/pane is backgrounded, and
+    // the drag must still land its last position when that happens.
+    const finalWidth = sidebarPendingWidthRef.current ?? sidebarWidthRef.current;
+    setSidebarWidth(finalWidth);
+    persistSidebarWidth(finalWidth);
+    sidebarDragStartRef.current = null;
+    sidebarPendingWidthRef.current = null;
+    setSidebarDragging(false);
+  }, [persistSidebarWidth]);
+
+  const handleSidebarHandleDoubleClick = useCallback(() => {
+    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+    persistSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+  }, [persistSidebarWidth]);
+
+  const handleSidebarHandleKeyDown = useCallback((e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const STEP = 16;
+    const next = clampSidebarWidth(sidebarWidthRef.current + (e.key === "ArrowRight" ? STEP : -STEP));
+    setSidebarWidth(next);
+    persistSidebarWidth(next);
+  }, [persistSidebarWidth]);
+
+  // The container-resize ResizeObserver inside NiivueViewer already reacts
+  // to the sidebar's width changing (same path collapse/expand uses), but it
+  // debounces the actual pixel resize through two requestAnimationFrame
+  // calls, which don't run in some backgrounded/headless contexts. Force it
+  // directly after every committed width change (drag ticks, drag end,
+  // double-click reset, arrow-key steps) so the canvas never shows a
+  // stretched or stale frame.
+  useLayoutEffect(() => {
+    viewerRef.current?.forceResizeCanvas?.();
+  }, [sidebarWidth]);
+
+  // Force the col-resize cursor for the whole page during a drag — pointer
+  // capture keeps move/up events routed to the handle, but cursor rendering
+  // still follows whatever's visually under the pointer (e.g. the NiiVue
+  // canvas) unless we override it here.
+  useEffect(() => {
+    if (!sidebarDragging) return;
+    const prevCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevUserSelect;
+    };
+  }, [sidebarDragging]);
   // Controlled open/closed state for the two sections the mask-edit workflow
   // drives programmatically (handleUserEdit closes Load-Mask and opens Draw).
   // Every other SidebarSection stays uncontrolled via defaultOpen.
@@ -196,10 +342,11 @@ export default function Dashboard() {
   // the 4th erase button in the topbar and pass the canvas label to NiivueViewer.
   const [drawingActive, setDrawingActive] = useState(false);
   const [activeTool, setActiveTool] = useState("pen"); // "pen" | "brush"
-  // Brush mode: "3D" for multiplanar/asymmetric (default), "2D" for single
-  // slice views (axial/coronal/sagittal). Auto-switches when sliceType changes;
-  // the user can also override it manually via DrawingPanel's 2D/3D toggle.
-  const [brushMode, setBrushMode] = useState("3D");
+  // Brush mode: overall default is "2D"; switching sliceType then
+  // auto-switches it ("3D" for multiplanar/asymmetric, "2D" for single-slice
+  // views — see the sliceType effect below). The user can also override it
+  // manually via DrawingPanel's 2D/3D toggle.
+  const [brushMode, setBrushMode] = useState("2D");
   const [crosshair, setCrosshair] = useState(true);
   const [crosshairWidth, setCrosshairWidth] = useState(1);
   const [crosshairColor, setCrosshairColor] = useState("white");
@@ -248,6 +395,17 @@ export default function Dashboard() {
   // null for the bundled MNI152 template and in the browser build, where no
   // real filesystem path is obtainable from a File object.
   const [baseFullPath, setBaseFullPath] = useState(null);
+  // Lesion QC (idea-inbox request): mni=true only for the default MNI152
+  // template — a replaced base (custom upload, DICOM) is native-space, where
+  // lqtpy's brain-mask checks would false-alarm on every drawing. Mirrors
+  // DrawingPanel's own identical mni check (baseName === BASE_VOLUME.name).
+  const lesionQcMni = baseLabel === BASE_VOLUME.name;
+  // Details dialog for the idle-drawing QC toast's "Details" action — see
+  // useLesionQcIdle below. Read-only: just shows what QC found.
+  const [qcIdleDetails, setQcIdleDetails] = useState(null);
+  const { notifyDrawChange: notifyLesionQcDrawChange } = useLesionQcIdle({
+    viewerRef, active: drawingActive, mni: lesionQcMni, onDetails: setQcIdleDetails,
+  });
   // 4D frame stepper state — { frame, nFrames }. nFrames stays 1 for a plain
   // 3D base volume, which is what keeps FrameStepper (and the ArrowLeft/
   // ArrowRight capture-phase claim below) inert for the common case.
@@ -273,6 +431,13 @@ export default function Dashboard() {
   // `largeSlice` is the slice key currently in the big slot. Double-clicking
   // a side view swaps it into the big slot.
   const [asymmetric, setAsymmetric] = useState(false);
+  // Mosaic strip (sliceType "mosaic"): orientation, tile count and the mm
+  // between tiles. Scroll over the strip slides it through the volume;
+  // Shift+scroll changes the gap (wheel handler below).
+  const [mosaicAxis, setMosaicAxis] = useState("A");
+  const [mosaicCount, setMosaicCount] = useState(5); // slices per row
+  const [mosaicRows, setMosaicRows] = useState(1);
+  const [mosaicGap, setMosaicGap] = useState(10);
   const [largeSlice, setLargeSlice] = useState("axial");
   // Refs mirror asymmetric/largeSlice for the empty-deps `shortcuts` memo, which
   // captures state at first render and must read live values via refs.
@@ -1357,14 +1522,37 @@ export default function Dashboard() {
     // longer needs to be swallowed here at all; the item-61 render-tile
     // swallow this replaced is gone along with the stale-closure refs it
     // needed (showClipSettingsRef/clipEngagedRef). Capture phase +
-    // preventDefault only for the ctrl case so plain scroll (2D slice nav,
-    // 3D zoom) is never blocked.
+    // preventDefault only for the ctrl case and the mosaic strip, so plain
+    // scroll (2D slice nav, 3D zoom) is never blocked elsewhere.
+    // Mosaic: scroll (or a sideways trackpad scroll) slides the strip one
+    // tile at a time — up/right = forward, like ↑ — and Shift+scroll changes
+    // the gap between tiles (up = wider). Chromium turns Shift+wheel into a
+    // horizontal delta on Windows, so Shift is what decides, not the axis.
+    // Deltas are accumulated so a trackpad's stream of small deltas steps at
+    // a similar rate to a mouse notch (~100) instead of once per event.
+    const mosaicAcc = { move: 0, gap: 0 };
     const handleWheel = (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
         e.stopPropagation();
         viewerRef.current?.zoom2D(e.deltaY > 0 ? -1 : 1);
+        return;
       }
+      if (sliceTypeRef.current !== "mosaic" || asymmetricRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const gap = e.shiftKey;
+      const k = gap ? "gap" : "move";
+      // Normalised so a positive step always means forward / wider: wheel-up
+      // (deltaY < 0) and scroll-right (deltaX > 0) both count as positive.
+      mosaicAcc[k] += gap
+        ? -(e.deltaY || e.deltaX)
+        : (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : -e.deltaY);
+      if (Math.abs(mosaicAcc[k]) < 40) return;
+      const dir = Math.sign(mosaicAcc[k]);
+      mosaicAcc[k] = 0;
+      if (gap) setMosaicGap((g) => Math.min(MOSAIC_GAP_MAX, Math.max(MOSAIC_GAP_MIN, g + dir)));
+      else viewerRef.current?.shiftMosaic(dir);
     };
     el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => el.removeEventListener('wheel', handleWheel, { capture: true });
@@ -1388,14 +1576,35 @@ export default function Dashboard() {
     if (!viewerReady) return;
     viewerRef.current?.setAsymmetricLayout(asymmetric ? largeSlice : null);
   }, [asymmetric, largeSlice, viewerReady]);
+  // Mosaic strip on/off + settings. Declared after the asymmetric effect so,
+  // when asymmetric is switched off over mosaic, the strip is re-applied
+  // after setAsymmetricLayout has restored the plain layout.
+  useEffect(() => {
+    if (!viewerReady) return;
+    viewerRef.current?.setMosaic(sliceType === "mosaic" && !asymmetric
+      ? { axis: mosaicAxis, count: mosaicCount, rows: mosaicRows, gapMM: mosaicGap }
+      : null);
+  }, [sliceType, asymmetric, mosaicAxis, mosaicCount, mosaicRows, mosaicGap, viewerReady]);
   // Push view state to the viewer whenever it changes (and once ready).
   useEffect(() => { if (viewerReady) viewerRef.current?.setRadiologicalConvention(radiological); }, [radiological, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setOrientationLabels(orientationLabels); }, [orientationLabels, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setDragMode(dragMode); }, [dragMode, viewerReady]);
-  // Auto-switch brushMode when sliceType changes: multiplanar and asymmetric
-  // default to 3D (sphere stamps span slices naturally); single-slice views
-  // default to 2D (flat disc on the visible slice).
+  // Auto-switch brushMode when sliceType CHANGES: multiplanar and asymmetric
+  // switch to 3D (sphere stamps span slices naturally); single-slice views
+  // switch to 2D (flat disc on the visible slice). Only reacts to an ACTUAL
+  // transition (prevSliceTypeRef differs from the current value) so the
+  // session's overall DEFAULT is 2D regardless of which view the app opens
+  // into. A plain "have I run yet" boolean latch does NOT work here:
+  // React.StrictMode (index.js) double-invokes effects on mount in dev, so
+  // the first invocation would flip a boolean latch and the SECOND
+  // (StrictMode's simulated remount, same render, same sliceType) would then
+  // slip through and override the default anyway. Comparing against the
+  // previous VALUE is invariant to how many times the effect fires for the
+  // same sliceType, so it stays correct under StrictMode too.
+  const prevSliceTypeForBrushRef = useRef(sliceType);
   useEffect(() => {
+    if (prevSliceTypeForBrushRef.current === sliceType) return;
+    prevSliceTypeForBrushRef.current = sliceType;
     const is3DDefault = sliceType === "multiplanar" || sliceType === "asymmetric";
     setBrushMode(is3DDefault ? "3D" : "2D");
   }, [sliceType]);
@@ -1433,6 +1642,12 @@ export default function Dashboard() {
       return 2 - axCorSag;
     };
     const stepBy = (dir) => {
+      // Mosaic tiles don't follow the crosshair, so stepping it would change
+      // nothing visible — slide the strip instead, like scrolling over it.
+      if (sliceTypeRef.current === "mosaic" && !asymmetricRef.current) {
+        viewerRef.current?.shiftMosaic(dir);
+        return;
+      }
       const ax = currentStepAxis();
       if (ax != null) viewerRef.current?.stepSlice(ax, dir);
     };
@@ -1448,7 +1663,6 @@ export default function Dashboard() {
       "+": () => viewerRef.current?.zoom2D(1),
       "-": () => viewerRef.current?.zoom2D(-1),
       c: () => setCrosshair((v) => !v),
-      r: () => setRadiological((v) => !v),
       // Paint mode — delegated to DrawingPanel's own toggle rather than driven
       // here. Enabling is not just setDrawingEnabled(true): it also clears
       // click-to-segment, sets the tool mode and pen type, pushes penValue with
@@ -1522,8 +1736,14 @@ export default function Dashboard() {
       // Without this guard every brush stroke would also recompute the overlap
       // for any real lesion layers that happen to be selected.
       if (drawingSelectedRef.current) setDrawVersion((v) => v + 1);
+      // Idle-drawing QC (useLesionQcIdle) piggybacks on this SAME slot rather
+      // than registering its own callback — see that hook's doc for why.
+      notifyLesionQcDrawChange();
     });
     return () => viewer?.setDrawChangeCallback?.(null);
+    // notifyLesionQcDrawChange is a stable function identity (useLesionQcIdle
+    // returns the same ref-backed callback every render) — safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewerReady]);
 
   // What the retinotopy picker offers: the saved lesion layers, plus the live
@@ -1776,34 +1996,41 @@ export default function Dashboard() {
           unmounting the content, so every SidebarSection's open/closed state
           and any in-progress panel input survives collapse/expand. */}
       <aside
-        className={`flex-shrink-0 border-r border-border bg-panel flex flex-col overflow-hidden transition-[width] duration-150 ${
-          sidebarCollapsed || focusMode ? "w-0 border-r-0" : "w-[400px]"
-        }`}
+        className={`flex-shrink-0 bg-panel flex flex-col overflow-hidden ${
+          sidebarDragging ? "" : "transition-[width] duration-150"
+        } ${sidebarCollapsed || focusMode ? "w-0" : ""}`}
+        style={sidebarCollapsed || focusMode ? undefined : { width: sidebarWidth }}
         data-testid="sidebar"
       >
-        <div className="w-[400px] flex flex-col h-full">
+        <div className="flex flex-col h-full" style={{ width: sidebarWidth }}>
           <div className="border-b border-border px-5 py-4 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center border border-border">
               <Brain size={16} className="text-foreground" />
             </div>
             <div className="flex-1">
               <div className="text-[15px] font-semibold tracking-tight leading-none">MRLatte</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground mt-1">
-                base · lesion · roi · activation · atlas · tracts
-              </div>
-            </div>
-            <div className="font-mono text-[10px] text-muted-foreground" data-testid="active-count">
-              {totalActive} active
             </div>
             <button
               onClick={() => openStore(null)}
               className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-              title={modulesAbsent ? "Module store — some modules are not installed" : "Module store"}
+              title={`${modulesAbsent ? "Module store — some modules are not installed" : "Module store"}${
+                totalActive > 0 ? ` · ${totalActive} layer${totalActive === 1 ? "" : "s"} active` : ""}`}
               data-testid="module-store-open"
             >
               <Package size={14} />
+              {/* Active-layer count, pinned to the icon like a notification
+                  badge; the "not installed" dot moves to the bottom corner so
+                  the two never overlap. */}
+              {totalActive > 0 && (
+                <span
+                  className="absolute -right-1.5 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-[3px] font-mono text-[8px] font-semibold leading-none text-primary-foreground tabular-nums"
+                  data-testid="active-count"
+                >
+                  {totalActive}
+                </span>
+              )}
               {modulesAbsent && (
-                <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="absolute bottom-0 right-0 h-1.5 w-1.5 rounded-full bg-amber-500" />
               )}
             </button>
             <button
@@ -1945,7 +2172,6 @@ export default function Dashboard() {
               clearNonce={clearNonce}
               editingSaveName={editingSaveName}
               editNonce={editNonce}
-              activeOrientation={activeOrientation}
               brushMode={brushMode}
               onBrushModeChange={setBrushMode}
               onDrawingActiveChange={setDrawingActive}
@@ -2169,6 +2395,32 @@ export default function Dashboard() {
           </SidebarSectionsContext.Provider>
           </div>
       </aside>
+      {/* Drag handle: sits between the sidebar and the viewer, doubling as
+          the sidebar's right border (the border moved here from <aside>). */}
+      {!sidebarCollapsed && !focusMode && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          aria-valuenow={sidebarWidth}
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          tabIndex={0}
+          onPointerDown={handleSidebarHandlePointerDown}
+          onPointerMove={handleSidebarHandlePointerMove}
+          onPointerUp={endSidebarDrag}
+          onPointerCancel={endSidebarDrag}
+          onDoubleClick={handleSidebarHandleDoubleClick}
+          onKeyDown={handleSidebarHandleKeyDown}
+          className={`flex-shrink-0 w-1.5 border-r cursor-col-resize touch-none transition-colors focus:outline-none ${
+            sidebarDragging
+              ? "bg-muted-foreground/30 border-muted-foreground"
+              : "bg-transparent border-border hover:bg-muted-foreground/20 hover:border-muted-foreground focus:bg-muted-foreground/20 focus:border-muted-foreground"
+          }`}
+          title="Drag to resize sidebar (double-click to reset)"
+          data-testid="sidebar-resize-handle"
+        />
+      )}
       {sidebarCollapsed && !focusMode && (
         <button
           onClick={() => setSidebarCollapsed(false)}
@@ -2504,6 +2756,33 @@ export default function Dashboard() {
 
         {!focusMode && (
           <div className="border-t border-border bg-panel px-4 py-2 flex items-center" data-testid="bottom-controls">
+            {/* Mosaic strip controls: orientation, slices per row, rows. The gap has no
+                buttons — Shift+scroll over the strip changes it (see handleWheel). */}
+            {sliceType === "mosaic" && !asymmetric && (
+              <div className="flex items-center gap-4 font-mono text-[10px] text-muted-foreground" data-testid="mosaic-controls">
+                <div className="flex items-center border border-border">
+                  {[["A", "Axial"], ["C", "Coronal"], ["S", "Sagittal"]].map(([id, label]) => (
+                    <button
+                      key={id}
+                      onClick={() => setMosaicAxis(id)}
+                      className={`px-2 py-0.5 uppercase tracking-[0.1em] transition-colors ${
+                        mosaicAxis === id ? "bg-primary text-primary-foreground" : "hover:text-foreground"
+                      }`}
+                      title={`${label} slices`}
+                      data-testid={`mosaic-axis-${id}`}
+                    >
+                      {label.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+                <MosaicStepper label="slices" noun="slices per row" value={mosaicCount} onChange={setMosaicCount}
+                  min={MOSAIC_COUNT_MIN} max={MOSAIC_COUNT_MAX} testId="mosaic-count" />
+                <MosaicStepper label="rows" noun="rows" value={mosaicRows} onChange={setMosaicRows}
+                  min={MOSAIC_ROWS_MIN} max={MOSAIC_ROWS_MAX} testId="mosaic-rows" />
+                <div><span className="text-subtle">gap</span>{" "}<span className="text-foreground tabular-nums" data-testid="mosaic-gap">{mosaicGap} mm</span></div>
+                <span className="text-subtle">scroll: move · shift+scroll: gap</span>
+              </div>
+            )}
             <div className="flex items-center gap-4 ml-auto font-mono text-[10px] text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className={`h-1.5 w-1.5 rounded-full ${viewerReady ? "bg-emerald-500" : "bg-amber-500"}`} />
@@ -2553,7 +2832,6 @@ export default function Dashboard() {
                 ["1 / 2 / 3", "Axial / Coronal / Sagittal view"],
                 ["0", "Reset zoom / pan"],
                 ["C", "Toggle crosshair"],
-                ["R", "Radiological / neurological"],
                 ["W", "Cycle drag mode (locate/window/pan)"],
                 ["F", "Focus mode"],
                 ["S", "Screenshot"],
@@ -2571,6 +2849,17 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Idle-drawing QC toast's "Details" action (useLesionQcIdle) — read-only,
+          just shows what QC found; never gates Save/Download itself. */}
+      {qcIdleDetails && (
+        <LesionQcDialog
+          open
+          readOnly
+          flags={qcIdleDetails.flags}
+          onCancel={() => setQcIdleDetails(null)}
+        />
       )}
     </div>
   );

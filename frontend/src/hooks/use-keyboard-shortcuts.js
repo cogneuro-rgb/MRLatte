@@ -26,9 +26,13 @@ export function useKeyboardShortcuts(handlers, { enabled = true, captureKeys = [
       const tag = t?.tagName;
       return tag === "INPUT" || tag === "TEXTAREA" || t?.isContentEditable;
     };
+    // A focused ARIA separator (e.g. the sidebar's drag handle) owns its own
+    // arrow-key handling per the APG separator pattern — let its onKeyDown
+    // run instead of stealing ArrowLeft/ArrowRight for frame-stepping.
+    const ownsArrowKeys = (t) => !!t?.closest?.('[role="separator"]');
 
     const onKey = (e) => {
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || ownsArrowKeys(e.target)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // reserve modifiers
 
       let key = e.key;
@@ -48,7 +52,7 @@ export function useKeyboardShortcuts(handlers, { enabled = true, captureKeys = [
       const claimed = new Set(captureKeys);
       onCaptureKey = (e) => {
         if (!claimed.has(e.key)) return;
-        if (isTypingTarget(e.target)) return;
+        if (isTypingTarget(e.target) || ownsArrowKeys(e.target)) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         const fn = handlers[e.key] || handlers[e.key?.toLowerCase?.()];
         if (fn) {

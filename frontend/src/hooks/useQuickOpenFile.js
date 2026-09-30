@@ -19,13 +19,16 @@ const READ_ERROR_MESSAGE = {
  *     timeseries file becomes `initialBaseVolume` directly (a blob URL) —
  *     the caller must render NiivueViewer with THAT as its `baseVolume`
  *     prop, so its first-ever load fetches the real file, never MNI152. An
- *     activation file (or no file, or any failure) resolves
+ *     activation or lesion file (or no file, or any failure) resolves
  *     `initialBaseVolume` to the default BASE_VOLUME (MNI152) instead,
- *     since an activation overlay still needs MNI as its base.
+ *     since both overlay kinds still need MNI as their base — a lesion mask
+ *     is never itself the base, even when it's the only file the window was
+ *     opened with (Explorer quick-open, a `mrlatte://open?path=` deep link,
+ *     or the equivalent drag-drop — see niftiClassify.js's "lesion" kind).
  *  2. Once `viewerReady` flips true (the viewer's first load — whichever
  *     volume that was — has resolved), apply what's left: for base/
  *     timeseries the volume is already loaded, so this is just the
- *     baseLabel/focus/slice-type bookkeeping; for activation, add the
+ *     baseLabel/focus/slice-type bookkeeping; for activation/lesion, add the
  *     overlay now that MNI is loaded; for an error, toast it.
  *
  * A no-op in the browser build (no window.mrlatte) and for any window that
@@ -57,7 +60,7 @@ export function useQuickOpenFile({
 }) {
   const [initialBaseVolume, setInitialBaseVolume] = useState(null);
   // What phase 1 found, for phase 2 to act on once the viewer is ready.
-  // { kind: "none" | "error" | "base" | "timeseries" | "activation", ... }
+  // { kind: "none" | "error" | "base" | "timeseries" | "activation" | "lesion", ... }
   const resolvedRef = useRef(null);
   const appliedRef = useRef(false);
 
@@ -96,8 +99,8 @@ export function useQuickOpenFile({
 
         const file = new File([res.bytes], res.name);
 
-        if (classified.kind === "activation") {
-          resolvedRef.current = { kind: "activation", file, classified };
+        if (classified.kind === "activation" || classified.kind === "lesion") {
+          resolvedRef.current = { kind: classified.kind, file, classified };
           setInitialBaseVolume(BASE_VOLUME);
           return;
         }
@@ -140,17 +143,20 @@ export function useQuickOpenFile({
       return;
     }
 
-    // activation — MNI is already loaded as the base (phase 1's fallback).
-    // Multiplanar + 3D, not pure Render: shows the overlay in the 2D slice
-    // planes alongside the 3D view, matching the 4D timeseries route rather
-    // than the base-volume route.
+    // activation or lesion — MNI is already loaded as the base (phase 1's
+    // fallback), and addUserFile's `type` drives the right colormap/opacity/
+    // mask-zero defaults for each (same as the Activation Maps / Lesion Mask
+    // sidebar sections). Multiplanar + 3D, not pure Render: shows the
+    // overlay in the 2D slice planes alongside the 3D view, matching the 4D
+    // timeseries route rather than the base-volume route.
     (async () => {
-      const id = await addUserFile(resolved.file, "activation");
+      const overlayType = resolved.kind; // "activation" | "lesion"
+      const id = await addUserFile(resolved.file, overlayType);
       setAsymmetric(false);
       setSliceType("multiplanar");
       setFocusMode(true);
       if (id) {
-        toast.info("Opened as an activation overlay", {
+        toast.info(overlayType === "lesion" ? "Opened as a lesion overlay" : "Opened as an activation overlay", {
           description: resolved.classified.reason,
           action: {
             label: "Use as base instead",

@@ -18,6 +18,7 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn, execFile } = require("child_process");
+const { parseMrlatteDeepLink, ALLOWED_EXT_RE } = require("./deepLinkParser");
 
 const BACKEND_PORT = 8001;
 const APP_URL = `http://127.0.0.1:${BACKEND_PORT}/`;
@@ -66,15 +67,40 @@ const MAX_OPEN_BYTES = 1.5 * 1024 ** 3;
 
 // A path arrives on argv either quoted or not, and NSIS launches as
 // `$appExe "%1"`, so argv[1] is the file when present. Skip the bare "."
-// `electron .` passes in dev, and any flag-looking arg.
-const NII_EXT_RE = /\.(nii|nii\.gz|gz)$/i;
+// `electron .` passes in dev, and any flag-looking arg. (ALLOWED_EXT_RE lives
+// in deepLinkParser.js now — it's also the extension allowlist for a
+// mrlatte:// deep link's ?path=, so there's one definition of "what MRLatte
+// can open" instead of two.)
 function niftiPathFromArgv(argv, cwd = process.cwd()) {
   for (const a of argv.slice(1)) {
     if (!a || a.startsWith("-") || a === ".") continue;
     const p = path.isAbsolute(a) ? a : path.resolve(cwd, a);
-    if (NII_EXT_RE.test(p) && fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+    if (ALLOWED_EXT_RE.test(p) && fs.existsSync(p) && fs.statSync(p).isFile()) return p;
   }
   return null;
+}
+
+// A `mrlatte://` URL arrives on argv as its own single (possibly quoted)
+// entry — NSIS registers the protocol the same way it registers the file
+// association, `$appExe "%1"`, so it lands at the same argv position a file
+// path would. Untrusted: handed straight to the parser, which is the only
+// thing allowed to decide it's safe to open (see deepLinkParser.js).
+function deepLinkFromArgv(argv) {
+  for (const a of argv.slice(1)) {
+    if (!a || !/^mrlatte:\/\//i.test(a)) continue;
+    const r = parseMrlatteDeepLink(a);
+    if (r.ok) return r.path;
+    logQuickOpen(`deep-link rejected (argv): reason=${r.reason} url=${a}`);
+    return null; // a recognized-but-rejected deep link should not fall through to file-path scanning
+  }
+  return null;
+}
+
+// Single entry point for "does this argv contain something the OS wants us
+// to open" — a mrlatte:// deep link takes priority (it's the more specific
+// match), falling back to a plain file-association path.
+function resolveOpenPathFromArgv(argv, cwd = process.cwd()) {
+  return deepLinkFromArgv(argv) || niftiPathFromArgv(argv, cwd);
 }
 
 // --------------------------------------------------------------------------- //
@@ -625,16 +651,18 @@ function buildMenu() {
 // --------------------------------------------------------------------------- //
 // App lifecycle
 // --------------------------------------------------------------------------- //
-// Only one instance may run (two would fight over port 8001).
+// Only one instance may run (two would fight over port 8001). This was
+// already true before the mrlatte:// deep link work — item 1's "app already
+// running" launch case rides on it unchanged, nothing added here.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  // A relaunch while we're already running: a file path on its argv opens a
-  // new window (sharing this process's one backend); otherwise, same as
-  // before, just focus whatever window we have.
+  // A relaunch while we're already running: a file path OR a mrlatte://
+  // deep link on its argv opens a new window (sharing this process's one
+  // backend); otherwise, same as before, just focus whatever window we have.
   app.on("second-instance", (_event, argv, workingDirectory) => {
-    const filePath = niftiPathFromArgv(argv, workingDirectory);
+    const filePath = resolveOpenPathFromArgv(argv, workingDirectory);
     logQuickOpen(`second-instance argv=${JSON.stringify(argv)} cwd=${workingDirectory} resolvedPath=${filePath || "-"} backendReady=${backendReady}`);
     if (filePath) {
       openFile(filePath);
@@ -647,21 +675,60 @@ if (!gotLock) {
     }
   });
 
+  // macOS: a mrlatte:// URL arrives as its own event, never on argv, and can
+  // fire BEFORE 'ready' on a cold start (Electron docs: register the
+  // listener as early as possible). If we're already up, this is just
+  // openFile()'s normal new-window-or-queue-behind-boot path, same as
+  // second-instance. If we're not even ready yet, stash it for the
+  // whenReady handler below to feed into the FIRST window directly —
+  // otherwise it would fall into pendingBoot and open in a spurious SECOND
+  // window once boot finishes, purely because argv (checked below) never
+  // carries a mac deep link the way it carries a Windows one.
+  let earlyOpenUrlPath = null;
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    const r = parseMrlatteDeepLink(url);
+    if (!r.ok) {
+      logQuickOpen(`deep-link rejected (open-url): reason=${r.reason} url=${url}`);
+      return;
+    }
+    if (app.isReady()) {
+      openFile(r.path);
+    } else {
+      earlyOpenUrlPath = r.path;
+    }
+  });
+
   app.whenReady().then(() => {
     registerIpc();
     buildMenu();
+
+    // Runtime protocol registration (per-user, HKCU on Windows). This is
+    // what makes `mrlatte://...` work for `yarn electron:start` / a
+    // developer's unpackaged checkout. For an installed build, the NSIS
+    // installer ALSO registers it at install time via package.json's
+    // `build.protocols` — that's what actually runs for a normal user, who
+    // never executes this line before first opening a link. Unpackaged
+    // (`electron .`), Electron needs the exe path + launch args to write a
+    // working registry command line, since there's no installed .exe to
+    // point at; a packaged app doesn't.
+    if (app.isPackaged) {
+      app.setAsDefaultProtocolClient("mrlatte");
+    } else {
+      app.setAsDefaultProtocolClient("mrlatte", process.execPath, [path.resolve(process.argv[1] || ".")]);
+    }
 
     if (isDev) {
       // Dev mode doesn't spawn a backend from here (the developer runs it
       // themselves), so it's "ready" for a second-instance open immediately.
       backendReady = true;
-      const openPath = niftiPathFromArgv(process.argv);
+      const openPath = resolveOpenPathFromArgv(process.argv) || earlyOpenUrlPath;
       const win = createMainWindow(openPath);
       win.loadURL("http://localhost:3000/#/");
       win.webContents.openDevTools({ mode: "detach" });
     } else {
-      const openPath = niftiPathFromArgv(process.argv);
-      logQuickOpen(`cold-start argv=${JSON.stringify(process.argv)} resolvedPath=${openPath || "-"}`);
+      const openPath = resolveOpenPathFromArgv(process.argv) || earlyOpenUrlPath;
+      logQuickOpen(`cold-start argv=${JSON.stringify(process.argv)} earlyOpenUrlPath=${earlyOpenUrlPath || "-"} resolvedPath=${openPath || "-"}`);
       bootFirstWindow(openPath);
     }
 

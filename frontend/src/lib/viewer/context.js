@@ -57,8 +57,10 @@ export const VIEWER_CONTEXT_KEYS = [
   "rightDragModeRef",
   // View / layout state
   "sliceTypeRef",
+  "mosaicRef",
   "sideLayoutRef",
   "activeOrientationRef",
+  "interpolateAllOrientationOverrideRef",
   "singleFillZoomRef",
   "resizeCanvasRef",
 ];

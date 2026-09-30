@@ -46,8 +46,13 @@ dipy>=1.8.0  # runtime: tract dissection workers (dissect_worker.py, dissect_bet
 Send2Trash>=1.8.2  # runtime: module uninstall recycles slot payloads instead of deleting them (routers/modules.py:_remove_payload). Pure Python, no transitive deps.
 
 # lqtpy: lesion-metrics engine (backend/lesion_metrics.py, routers/lesion_metrics.py).
-# Pinned to a commit SHA (not a branch) on the published repo so the offline
-# bundle is reproducible. Requires `git` on the build machine — this is a
-# git+https VCS requirement, and pip shells out to git to fetch it even for
-# `pip install --target` (see tools/build/assemble-bundle.ps1 step 2/5).
-lqtpy @ git+https://github.com/rohan3412/LQTpy@a542cd3aa1ee9397de699a4646d5d8a145badb35
+# Pinned to a RELEASE WHEEL, not a git ref. A commit pin broke a build once
+# already: rewriting lqtpy's history made the pinned SHA unreachable and
+# `git fetch` failed with exit 128. A release asset is a stored file, so it
+# survives any later history rewrite. pip verifies the #sha256 and refuses the
+# install on mismatch, so a swapped asset fails loudly instead of shipping
+# different code. This also removes `git` as a build-machine prerequisite —
+# pip just downloads over HTTPS (see tools/build/assemble-bundle.ps1 step 2/5).
+# To upgrade: bump lqtpy's version, build the wheel, publish a release, then
+# update this URL and hash together.
+lqtpy @ https://github.com/rohan3412/LQTpy/releases/download/v0.5.0/lqtpy-0.5.0-py3-none-any.whl#sha256=872b5764288426a200f219d0b1fbb6edfa538bd71eca2b64400d99e951f8c049

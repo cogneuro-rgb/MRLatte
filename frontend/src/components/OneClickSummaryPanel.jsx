@@ -202,9 +202,9 @@ export const OneClickSummaryPanel = ({
       };
       const { job_id } = await runSummary(lesionFile, payload);
       setJob({ jobId: job_id, stage: "queued", message: "Queued…", progress: 0, done: false, name });
-      toast.info("One-Click Summary started", { description: name });
+      toast.info("LQTpy Analysis started", { description: name });
     } catch (e) {
-      toast.error("Could not start summary", { description: e?.message });
+      toast.error("Could not start LQTpy Analysis", { description: e?.message });
       setJob(null);
     } finally {
       setStarting(false);
@@ -260,7 +260,7 @@ export const OneClickSummaryPanel = ({
         className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white border-transparent hover:opacity-90 disabled:opacity-50"
         data-testid="one-click-summary"
       >
-        <Sparkles size={12} />{active ? "Summary running…" : "One-Click Summary"}
+        <Sparkles size={12} />{active ? "LQTpy Analysis running…" : "LQTpy Analysis"}
       </button>
 
       {/* === Configuration popup === */}
@@ -268,7 +268,7 @@ export const OneClickSummaryPanel = ({
         <DialogContent className="max-w-[440px] bg-panel border border-border text-foreground">
           <DialogHeader>
             <DialogTitle className="text-sm font-medium tracking-wide flex items-center gap-2">
-              <Sparkles size={14} className="text-fuchsia-400" /> One-Click Summary
+              <Sparkles size={14} className="text-fuchsia-400" /> LQTpy Analysis
             </DialogTitle>
             <DialogDescription className="text-[11px] text-muted-foreground font-mono truncate">
               {lesionName}
@@ -346,7 +346,7 @@ export const OneClickSummaryPanel = ({
 
       {/* === Live progress (bottom-left) — shared RunningIndicator (item 57) === */}
       <RunningIndicator
-        title="One-Click Summary"
+        title="LQTpy Analysis"
         active={!!job}
         done={!!job?.done}
         error={job?.error}
@@ -394,10 +394,10 @@ export const OneClickSummaryPanel = ({
       <ReportDialog
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title="One-Click Summary Report"
+        title="Analysis Report"
         subject={summaryResult?.lesion_name || summaryResult?.name || lesionName}
         html={reportHtml}
-        filename={`summary_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}
+        filename={`analysis_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}
       />
       <ArtifactPickerDialog
         open={artifactPickerOpen}

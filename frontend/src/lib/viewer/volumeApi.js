@@ -121,7 +121,10 @@ export function createVolumeApi(ctx, {
           // The old drawing's undo history describes a grid that no longer
           // exists — drop it so Undo/Redo don't try to restore incompatible
           // snapshots against the freshly (re)allocated bitmap.
-          drawHistory.current = [];
+          // reset(), not `= []` -- a plain array has no undo()/canUndo, so
+          // this used to leave Undo dead for the rest of the session after
+          // any base-volume change.
+          drawHistory.current.reset();
           lastDraws.current = [];
           try { emitHistory(); } catch (_e) {}
         } else if (nv.opts?.drawingEnabled && !nv.drawBitmap) {

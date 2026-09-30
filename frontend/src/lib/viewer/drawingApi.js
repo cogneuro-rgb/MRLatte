@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { NVImage, NVUtilities, PEN_TYPE } from "@niivue/niivue";
 import { interpolateSlices } from "@/lib/drawInterpolate";
 import { rleEncode, rleDecode } from "@/lib/drawHistory";
+import { harmonizeQformWithSform } from "@/lib/niftiHeader";
 
 /**
  * Drawing API: enable/disable, tool mode, undo/redo, morph, sphere-paint,
@@ -15,13 +16,22 @@ import { rleEncode, rleDecode } from "@/lib/drawHistory";
  * @param {object} ctx   viewer context (see lib/viewer/context.js); uses
  *                       nvRef, drawHistory, lastDraws, brushRadiusRef,
  *                       toolModeRef, drawStartCb, drawCommitCb,
- *                       drawingActiveCb, historyCb, activeOrientationRef.
+ *                       drawingActiveCb, historyCb,
+ *                       interpolateAllOrientationOverrideRef.
  * @param {object} deps  component-scope collaborators that are not refs.
  * @param {(v: boolean) => void} deps.setDrawingActive
  * @param {() => void} deps.snapshotForUndo
  * @param {() => void} deps.emitHistory
  * @param {() => any} deps.interpolatablePair
  * @param {(axCorSag: number) => any[]} deps.distinctSliceEntriesForOrientation
+ * @param {() => number|null} deps.resolveInterpolateAllOrientation  single
+ *   source of truth for "Interpolate All"'s target orientation (manual
+ *   override if set, else Auto = most recent drawn stroke) — shared by the
+ *   button (here) and its Shift+I shortcut (Dashboard.jsx), which both call
+ *   interpolateAllDrawnSlices below, so the two can never disagree.
+ * @param {() => void} deps.emitInterpolateState  re-pushes eligibility +
+ *   orientation state to the Draw panel; called after the manual override
+ *   changes (setInterpolateAllOrientation below).
  * @param {(centerMM: number[], radiusMM: number, labelValue: number) => boolean} deps.rasterizeSphere
  */
 export function createDrawingApi(ctx, {
@@ -30,11 +40,14 @@ export function createDrawingApi(ctx, {
   emitHistory,
   interpolatablePair,
   distinctSliceEntriesForOrientation,
+  resolveInterpolateAllOrientation,
+  emitInterpolateState,
   rasterizeSphere,
 }) {
   const {
     nvRef, drawHistory, lastDraws, brushRadiusRef, toolModeRef, brushModeRef,
-    drawStartCb, drawCommitCb, drawingActiveCb, historyCb, drawChangeCb, activeOrientationRef,
+    drawStartCb, drawCommitCb, drawingActiveCb, historyCb, drawChangeCb,
+    interpolateAllOrientationOverrideRef,
   } = ctx;
 
   // Item 101 self-healing fallback: the primary fix lives in
@@ -50,7 +63,9 @@ export function createDrawingApi(ctx, {
     if (nv.drawBitmap && nv.drawBitmap.length === nx * ny * nz) return true;
     try { nv.createEmptyDrawing(); } catch (_e) { return false; }
     if (!nv.drawBitmap || nv.drawBitmap.length !== nx * ny * nz) return false;
-    drawHistory.current = [];
+    // reset(), not `= []`: a plain array has no undo()/canUndo, so assigning
+    // one silently disabled Undo and made drawUndo() throw after a resync.
+    drawHistory.current.reset();
     lastDraws.current = [];
     try { emitHistory(); } catch (_e) {}
     return true;
@@ -70,7 +85,10 @@ export function createDrawingApi(ctx, {
     },
     // Draw-coordination callbacks (see refs above).
     setDrawStartCallback: (cb) => { drawStartCb.current = cb; },
-    setDrawCommitCallback: (cb) => { drawCommitCb.current = cb; },
+    setDrawCommitCallback: (cb) => {
+      drawCommitCb.current = cb;
+      try { emitInterpolateState(); } catch (_e) {} // push current state so the panel renders correctly before any stroke
+    },
     // Fires whenever the draw bitmap changes. Its own slot (not drawCommitCb,
     // which DrawingPanel owns) so a second subscriber can't displace the panel's.
     setDrawChangeCallback: (cb) => { drawChangeCb.current = cb; },
@@ -174,20 +192,27 @@ export function createDrawingApi(ctx, {
     },
     // Fill/void-carve between EVERY pair of adjacent same-orientation drawn
     // slices (item 62/70) — distinct from interpolateDrawnSlices, which only
-    // fills between the last two. Orientation = the app's active/last-
-    // interacted tile (activeOrientationRef), not necessarily the most recent
-    // stroke's. A gap between two DIFFERENT tools (one Pen slice, one Cutout
-    // slice) is skipped and reported, same convention as a disconnected gap —
-    // the two aren't comparable (a label shape vs. an erased footprint).
+    // fills between the last two. Orientation = resolveInterpolateAllOrientation():
+    // a manual pick from DrawingPanel's split-button dropdown if one is set,
+    // else Auto (the most recent DRAWN stroke's orientation) — SMALL-FIXES:
+    // this used to read the app's active/last-interacted TILE
+    // (activeOrientationRef) instead, which changes on a plain click/scroll
+    // with zero new drawing and was the main cause of "Interpolate All"
+    // intermittently targeting the wrong view. Also backs the Shift+I
+    // keyboard shortcut (Dashboard.jsx calls this exact method), so the two
+    // paths resolve identically by construction. A gap between two DIFFERENT
+    // tools (one Pen slice, one Cutout slice) is skipped and reported, same
+    // convention as a disconnected gap — the two aren't comparable (a label
+    // shape vs. an erased footprint).
     interpolateAllDrawnSlices: () => {
       const nv = nvRef.current;
       if (!nv || !nv.drawBitmap) {
         toast.error("Nothing drawn yet");
         return false;
       }
-      const axCorSag = activeOrientationRef.current;
+      const axCorSag = resolveInterpolateAllOrientation();
       if (axCorSag == null || axCorSag < 0 || axCorSag > 2) {
-        toast.error("No active orientation");
+        toast.error("Draw at least two slices in one view first");
         return false;
       }
       const entries = distinctSliceEntriesForOrientation(axCorSag);
@@ -278,7 +303,17 @@ export function createDrawingApi(ctx, {
     // Brush painting/erase mode: "3D" (true-3D sphere stamp) | "2D" (flat disc
     // stamp on the current slice). Written by DrawingPanel's 2D/3D toggle.
     setBrushMode: (mode) => {
-      if (brushModeRef) brushModeRef.current = mode === "2D" ? "2D" : "3D";
+      if (brushModeRef) brushModeRef.current = mode === "3D" ? "3D" : "2D";
+    },
+    // Manual override for "Interpolate All"'s target orientation (item 3) —
+    // 0/1/2 (axial/coronal/sagittal) pins it, anything else (including
+    // omitted/null/undefined) restores Auto. Written by DrawingPanel's
+    // split-button dropdown. Re-emits interpolate state immediately so the
+    // button's label/enabled-state and the dropdown's "Auto (last drawn: …)"
+    // text update without waiting for the next stroke.
+    setInterpolateAllOrientation: (mode) => {
+      interpolateAllOrientationOverrideRef.current = (mode === 0 || mode === 1 || mode === 2) ? mode : null;
+      emitInterpolateState();
     },
     // True when there's no editable drawing yet, or every voxel in it is zero
     // (getDrawingBytes() returns a non-empty NIfTI even for an all-zero
@@ -406,6 +441,10 @@ export function createDrawingApi(ctx, {
       try {
         const bytes = await nv.saveImage({ filename: "", isSaveDrawing: true });
         if (!(bytes instanceof Uint8Array)) return null;
+        // niivue copies the base volume's header, and the bundled MNI template's
+        // qform disagrees with its sform by ~150 mm — so make them agree before
+        // the drawing leaves the app (see lib/niftiHeader.js).
+        harmonizeQformWithSform(bytes);
         const compressed = await NVUtilities.compress(bytes, "gzip");
         return new Uint8Array(compressed);
       } catch (err) {

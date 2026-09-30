@@ -77,6 +77,15 @@ def available() -> bool:
     return lqtpy is not None
 
 
+def qc_available() -> bool:
+    """Whether `lqtpy.qc` (lesion quality-control checks) can be used right
+    now. Separate from `available()`: the *packaged* app currently pins
+    lqtpy 0.4.0, which has no `qc` module at all, while a dev checkout
+    installed editable from the LQTpy repo does -- so lqtpy being importable
+    does not imply qc is. Never raises."""
+    return lqtpy is not None and hasattr(lqtpy, "qc")
+
+
 def version() -> "str | None":
     return getattr(lqtpy, "__version__", "unknown") if lqtpy is not None else None
 
@@ -274,6 +283,48 @@ def compute_metrics(lesion_path, atlas_ids, threshold: float = DEFAULT_THRESHOLD
             "version": getattr(lqtpy, "__version__", "unknown"),
             "threshold": threshold,
             "resampling": "lesion→atlas grid",
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Quality control: lqtpy.qc.check() -- sparse slices, flat single-slice
+# sheets, hollow outlines, tiny specks, brain-mask checks, header problems.
+# See LQTpy's lqtpy/qc.py module docstring for what each check id means; the
+# frontend's drawing-QC confirmation dialog (DrawingPanel.jsx) renders
+# `message`/`suggestion` almost verbatim, modelled on that same report text.
+# --------------------------------------------------------------------------- #
+
+def run_qc(lesion_path, *, mni: bool = True, threshold: float = DEFAULT_THRESHOLD) -> dict:
+    """Quality-control flags for one lesion, via `lqtpy.qc.check()`.
+
+    `mni=False` skips the brain-mask checks (`outside_brain`, `not_mni`) --
+    for a lesion drawn on a custom native-space base (not the MNI152
+    template), those would false-alarm on every drawing.
+
+    Raises `LqtpyUnavailableError` (503) when lqtpy itself isn't installed,
+    OR when it's installed but predates the `qc` module -- see `qc_available()`.
+    Lets lqtpy's own typed errors (InvalidLesionError/GeometryError for bad
+    input) propagate, same as `compute_metrics`; the router maps them via
+    `status_code_for`.
+    """
+    if not qc_available():
+        if lqtpy is None:
+            raise LqtpyUnavailableError()
+        raise LqtpyUnavailableError(
+            f"This backend's lqtpy (version {version()}) does not include the "
+            "qc module -- lesion quality checks need a newer lqtpy. The "
+            "packaged app currently pins a release without qc; only a dev "
+            "environment installed editable from the LQTpy repo has it."
+        )
+    flags = lqtpy.qc.check(lesion_path, threshold=threshold, mni=mni)
+    return {
+        "flags": [f.to_dict() for f in flags],
+        "provenance": {
+            "engine": "lqtpy.qc",
+            "version": getattr(lqtpy, "__version__", "unknown"),
+            "threshold": threshold,
+            "mni": mni,
         },
     }
 

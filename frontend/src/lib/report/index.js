@@ -118,7 +118,13 @@ export function buildSummaryReport(data) {
     });
   }
   return renderReportHtml({
-    title: "MRLatte One-Click Summary",
+    title: "MRLatte Analysis",
+    // Credit, not branding: the feature is "LQTpy Analysis" in the app, but
+    // the report keeps a plain heading and names it here, with the lqtpy
+    // version when the overlap numbers actually came from lqtpy.
+    subtitle: data.lesionModel?.provenance?.engine === "lqtpy"
+      ? `Generated with LQTpy Analysis · lqtpy ${data.lesionModel.provenance.version || ""}`.trim()
+      : "Generated with LQTpy Analysis",
     subject: data.lesionName || "(unnamed lesion)",
     badge: "Automated overall summary",
     generatedAt: new Date().toISOString(),

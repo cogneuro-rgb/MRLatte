@@ -89,7 +89,11 @@ function signedDistance(mask, w, h) {
 // axCorSag: 0 = axial (plane i,j / perpendicular k),
 //           1 = coronal (plane i,k / perpendicular j),
 //           2 = sagittal (plane j,k / perpendicular i).
-function planeGeom(axCorSag, nx, ny, nz) {
+// Exported so callers outside this module (NiivueViewer's tracked-slice
+// staleness check — see entryStillValid) can test whether a specific slice
+// still has real content in the LIVE bitmap, using the exact same in-plane
+// geometry interpolateSlices itself uses, rather than reimplementing it.
+export function planeGeom(axCorSag, nx, ny, nz) {
   if (axCorSag === 0) {
     return { w: nx, h: ny, at: (u, v, s) => u + nx * (v + ny * s) };
   }
@@ -99,7 +103,7 @@ function planeGeom(axCorSag, nx, ny, nz) {
   return { w: ny, h: nz, at: (u, v, s) => s + nx * (u + ny * v) };
 }
 
-function extractSliceMask(bitmap, geom, slice) {
+export function extractSliceMask(bitmap, geom, slice) {
   const { w, h, at } = geom;
   const mask = new Uint8Array(w * h);
   for (let v = 0; v < h; v++)

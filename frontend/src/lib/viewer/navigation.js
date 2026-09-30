@@ -14,8 +14,10 @@ import { DRAG_MODE } from "@niivue/niivue";
  * @param {(withVolumeUpdate?: boolean) => void} deps.scheduleRedraw
  * @param {(factor: number) => void} deps.applyZoomFactor
  * @param {() => void} deps.resetAllZoom
+ * @param {() => void} deps.updateTileSliceInfo  refreshes the per-tile
+ *   readouts and the mosaic strip's L/R marker, which both toggles below change.
  */
-export function createNavigationApi(ctx, { scheduleRedraw, applyZoomFactor, resetAllZoom }) {
+export function createNavigationApi(ctx, { scheduleRedraw, applyZoomFactor, resetAllZoom, updateTileSliceInfo }) {
   const { nvRef, rightDragModeRef, resizeCanvasRef } = ctx;
 
   return {
@@ -54,6 +56,7 @@ export function createNavigationApi(ctx, { scheduleRedraw, applyZoomFactor, rese
       if (!nv) return;
       try { nv.setRadiologicalConvention(!!on); } catch (_e) {}
       scheduleRedraw(false);
+      updateTileSliceInfo();
     },
 
     // Toggle NiiVue's native A/P/S/I/L/R orientation letters on the 2D tiles.
@@ -62,6 +65,7 @@ export function createNavigationApi(ctx, { scheduleRedraw, applyZoomFactor, rese
       if (!nv) return;
       nv.opts.isOrientationTextVisible = !!on;
       scheduleRedraw(false);
+      updateTileSliceInfo();
     },
 
     // Zoom the 2D slices by a step. delta > 0 zooms in, < 0 out. pan2Dxyzmm is
