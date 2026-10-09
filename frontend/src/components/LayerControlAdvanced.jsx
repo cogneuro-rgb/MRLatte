@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Eye, EyeOff, Trash2, ChevronDown, ChevronRight, Pencil, Download, Scissors, Copy } from "lucide-react";
+import React, { useContext, useEffect, useRef, useState, useCallback } from "react";
+import { Eye, EyeOff, Trash2, ChevronDown, ChevronRight, Pencil, Download, Scissors, Copy, FileText } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ToggleButton } from "@/components/ui/toggle-button";
 import { colormapGradient, colormapRampGradient } from "@/lib/colormaps";
+import { NiftiHeaderContext } from "@/components/NiftiHeaderDialog";
+import { OverlayTransformControls } from "@/components/OverlayTransformControls";
 
 const COLORMAPS = [
   "gray", "hsv", "polar_angle", "warm", "cool", "actc", "random", "red", "green",
@@ -137,10 +139,17 @@ export const LayerControlAdvanced = ({
   // onNotesChange; every current call site does.
   notes,
   onNotesChange,
+  // Manual move / rotate / scale (lib/overlayTransform.js). `transform` is this
+  // layer's current adjustment (undefined = untouched); `onTransformChange` is
+  // (layerId, transform) => void. The block only renders when the caller wires
+  // the callback — lesion masks and activation maps do, atlases don't.
+  transform,
+  onTransformChange,
 }) => {
   // Controls whether the advanced section (threshold, colormap, atlas) is shown.
   // Collapses by default to keep the sidebar compact when many layers are loaded.
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const showHeader = useContext(NiftiHeaderContext);
 
   // Item 114 (retroactive case): `defaultExpanded` only seeds state at mount,
   // so a layer that becomes the sole survivor of a deletion (already mounted,
@@ -284,6 +293,16 @@ export const LayerControlAdvanced = ({
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {showHeader && (
+            <button
+              onClick={() => showHeader(layer)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              data-testid={`header-${layer.id}`}
+              title="View NIfTI header"
+            >
+              <FileText size={11} />
+            </button>
+          )}
           {onEdit && (
             <button
               onClick={() => onEdit(layer.id)}
@@ -618,6 +637,10 @@ export const LayerControlAdvanced = ({
                 ))}
               </select>
             </div>
+          )}
+
+          {onTransformChange && (
+            <OverlayTransformControls layerId={layer.id} transform={transform} onChange={onTransformChange} />
           )}
         </div>
       )}

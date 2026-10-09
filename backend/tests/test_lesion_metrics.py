@@ -643,6 +643,49 @@ def test_qc_solid_sphere_has_no_warn_or_error_flags(synthetic_atlas):
     assert body["provenance"]["mni"] is False
 
 
+def test_qc_accepts_context_and_tier_on_any_lqtpy(synthetic_atlas):
+    """The drawing context and the tier are optional extras that only lqtpy
+    0.6.0+ understands. Sending them must never break an older lqtpy, and the
+    response always carries the verdict keys (None when the engine has none)."""
+    lesion_id = _upload(_solid_sphere_lesion())
+    r = client.post("/api/lesion/qc", json={
+        "lesion_id": lesion_id, "mni": False, "tier": "fast",
+        "context": {"drawing_axis": 2, "source": "drawn", "not_a_real_key": 1},
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    for key in ("flags", "verdict", "score", "qc_version", "needs_attention"):
+        assert key in body
+    assert body["provenance"]["tier"] in ("fast", "full")
+    graded = hasattr(lesion_metrics.lqtpy.qc, "assess")
+    assert (body["verdict"] is not None) == graded
+    assert body["provenance"]["tier"] == ("fast" if graded else "full")
+
+
+def test_qc_pen_colours_are_not_a_finding(synthetic_atlas):
+    """MRLatte's pen values are colours. With `labels_are_colours` lqtpy 0.6.0
+    drops its `values` finding, so the verdict matches what the dialog shows.
+    (0.5.x has no such finding and ignores the context altogether.)"""
+    data = _solid_sphere_lesion()
+    data[data > 0] = 3.0                       # drawn with pen colour 3
+    lesion_id = _upload(data)
+    r = client.post("/api/lesion/qc", json={
+        "lesion_id": lesion_id, "mni": False, "context": {"labels_are_colours": True},
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "values" not in [f["id"] for f in body["flags"]], body["flags"]
+    if body["needs_attention"] is not None:
+        assert body["needs_attention"] is False, body["flags"]
+
+
+def test_qc_unknown_tier_falls_back_to_full(synthetic_atlas):
+    lesion_id = _upload(_solid_sphere_lesion())
+    r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False, "tier": "turbo"})
+    assert r.status_code == 200, r.text
+    assert r.json()["provenance"]["tier"] == "full"
+
+
 def test_qc_flat_single_slice_flags_flat(synthetic_atlas):
     lesion_id = _upload(_flat_sheet_lesion())
     r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False})

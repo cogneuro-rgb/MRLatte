@@ -47,6 +47,8 @@ export function BaseVolumeSection({
   handleResetBase,
   layerNotes,
   onNotesChange,
+  baseTransform,
+  handleBaseTransform,
 }) {
   // Fetch-then-save, rather than the plain <a download> this used to be. Every
   // other .nii.gz the app writes out goes through saveBinaryFile, which opens a
@@ -133,6 +135,8 @@ export function BaseVolumeSection({
         onRequestHistogram={requestHistogram}
         notes={layerNotes?.mni152}
         onNotesChange={onNotesChange}
+        transform={baseTransform}
+        onTransformChange={handleBaseTransform}
       />
       {baseVolumeControls}
       <FileUploader

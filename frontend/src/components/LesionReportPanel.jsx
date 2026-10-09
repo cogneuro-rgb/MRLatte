@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { FileText, Download, FileType, FileCode, FlaskConical } from "lucide-react";
+import { describeTransform } from "@/lib/overlayTransform";
 import { loadAtlasesForReading } from "@/lib/atlasLoad";
 import {
   buildLesionReportModel, renderReportParagraph, renderReportText,
@@ -103,7 +104,11 @@ export const LesionReportPanel = ({
         const vol = viewerRef.current?.getVolume?.(r.id);
         if (vol?.img) retinotopy.push({ ...r, vol });
       }
-      const lesionName = lesionLayers.find((l) => l.id === lesionId)?.name || lesionId;
+      const lesionLayer = lesionLayers.find((l) => l.id === lesionId);
+      // A lesion moved by hand is analysed where it was moved to, so the report
+      // has to say so next to its name (lib/overlayTransform.js).
+      const adjusted = describeTransform(lesionLayer?.transform);
+      const lesionName = (lesionLayer?.name || lesionId) + (adjusted ? ` (position adjusted by hand: ${adjusted})` : "");
       const lesionFile = await resolveLesionFile(lesionId);
       lesionFileRef.current = lesionFile;
       const m = await buildLesionReportModel({

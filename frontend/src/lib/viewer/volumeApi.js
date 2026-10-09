@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { histogram as computeHistogram, regionCentroidMM } from "@/lib/volumeAnalysis";
 import { thresholdedVolume } from "@/lib/measure";
+import { transformedAffine, isIdentityTransform } from "@/lib/overlayTransform";
 import {
   applyThresholdColormap,
   isContinuousOverlay,
@@ -33,6 +34,16 @@ import {
  * @param {(v: any[]) => void} deps.setMeasure2D
  * @param {(v: any) => void} deps.setMeasureHover
  */
+function applyManualTransform(nv, vol, idx, transform) {
+  if (!nv || !vol || idx < 0 || !vol.hdr) return null;
+  if (!vol.__baseAffine) vol.__baseAffine = vol.getAffine();
+  const d = vol.hdr.dims;
+  const affine = transformedAffine(vol.__baseAffine, [d[1], d[2], d[3]], transform);
+  vol.__manuallyAdjusted = !isIdentityTransform(transform);
+  nv.setVolumeAffine(idx, affine);
+  return affine;
+}
+
 export function createVolumeApi(ctx, {
   correctDegenerateAffineIfNeeded,
   resetOverlayTexture,
@@ -632,6 +643,30 @@ export function createVolumeApi(ctx, {
       }
       nv.updateGLVolume();
       nv.drawScene();
+    },
+
+    // Manual move / rotate / scale of one overlay (lib/overlayTransform.js).
+    // `transform` is ABSOLUTE (measured from the overlay as first shown), not a
+    // step on top of the current one, so calling this twice with the same value
+    // is a no-op and "reset" is just the identity. The base affine is captured
+    // on first use rather than taken from niivue's own originalAffine, because
+    // correctDegenerateAffineIfNeeded may have re-centred the volume after load
+    // and that centring has to survive a reset.
+    // Returns the affine now on screen, so the caller can write the very same
+    // matrix into the overlay's file (lib/overlayBake.js); null if no such layer.
+    setOverlayTransform: (id, transform) => {
+      const { vol, idx } = findVolume(id);
+      return applyManualTransform(nvRef.current, vol, idx, transform);
+    },
+
+    // Same, for the base volume (always nv.volumes[0], whatever id it was
+    // loaded under). Overlays and atlases keep their world position, so this is
+    // how a scan that sits off the template gets nudged under them. The drawing
+    // lives on the base's voxel grid and therefore moves with it; its export
+    // picks the adjusted affine up in drawingApi.getDrawingBytes.
+    setBaseTransform: (transform) => {
+      const nv = nvRef.current;
+      return applyManualTransform(nv, nv?.volumes?.[0], 0, transform);
     },
 
     // Returns stats for the threshold UI. For continuous overlays the user's

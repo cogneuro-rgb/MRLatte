@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "MRLatte — neuroimaging visualization dashboard",
   "author": "MRLatte",
@@ -24,15 +24,16 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build",
+    "build": "craco build && node ../tools/build/staged-frontend.js stamp",
+    "check:staged": "node ../tools/build/staged-frontend.js check",
     "test": "craco test",
     "electron:dev": "cross-env MRLATTE_DEV=1 wait-on http://localhost:3000 && electron .",
     "electron:start": "concurrently -k \"craco start\" \"yarn electron:dev\"",
-    "electron:build": "craco build && electron-builder",
-    "dist:win": "craco build && electron-builder --win --x64",
-    "dist:win:full": "craco build && electron-builder --win --x64 -c ../tools/build/electron-full.json",
-    "dist:linux": "craco build && electron-builder --linux --x64",
-    "dist:mac": "craco build && electron-builder --mac --x64",
+    "electron:build": "yarn build && yarn check:staged && electron-builder",
+    "dist:win": "yarn build && yarn check:staged && electron-builder --win --x64",
+    "dist:win:full": "yarn build && yarn check:staged && electron-builder --win --x64 -c ../tools/build/electron-full.json",
+    "dist:linux": "yarn build && yarn check:staged && electron-builder --linux --x64",
+    "dist:mac": "yarn build && yarn check:staged && electron-builder --mac --x64",
     "setup": "yarn install && node ../tools/scripts/modules.mjs add --core",
     "setup:full": "yarn install && node ../tools/scripts/modules.mjs add --all",
     "modules": "node ../tools/scripts/modules.mjs",
@@ -76,12 +77,18 @@
     "appId": "com.mrlatte.desktop",
     "productName": "MRLatte",
     "copyright": "© MRLatte",
+    "extends": null,
+    "extraMetadata": {
+      "main": "build/electron.js"
+    },
     "directories": {
       "output": "../../MRLatte-build/electron",
       "buildResources": "electron/build-resources"
     },
     "files": [
-      "build/**/*",
+      "build/electron.js",
+      "build/preload.js",
+      "build/deepLinkParser.js",
       "electron/**/*",
       "package.json"
     ],
@@ -128,8 +135,7 @@
         }
       ],
       "icon": "electron/build-resources/icon.ico",
-      "artifactName": "MRLatte-Setup-${version}-mini-${arch}.${ext}",
-      "signAndEditExecutable": false
+      "artifactName": "MRLatte-Setup-${version}-mini-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

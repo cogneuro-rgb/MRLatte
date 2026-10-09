@@ -110,11 +110,12 @@ export async function fetchMetrics({ lesionId, atlasIds, threshold }) {
  * @returns {Promise<{flags: object[], provenance: object}>}
  *   see backend/lesion_metrics.py::run_qc for the exact shape.
  */
-export async function fetchQc({ lesionId, mni = true, threshold, signal }) {
+export async function fetchQc({ lesionId, mni = true, threshold, context, tier, signal }) {
   const r = await fetch(`${apiBase}/api/lesion/qc`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lesion_id: lesionId, mni, threshold }),
+    // `context` / `tier` are understood by lqtpy 0.6.0+ and ignored before it.
+    body: JSON.stringify({ lesion_id: lesionId, mni, threshold, context, tier }),
     signal,
   });
   if (!r.ok) throw new LesionMetricsHttpError(await readErrorDetail(r), r.status);

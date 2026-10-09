@@ -79,10 +79,9 @@ def available() -> bool:
 
 def qc_available() -> bool:
     """Whether `lqtpy.qc` (lesion quality-control checks) can be used right
-    now. Separate from `available()`: the *packaged* app currently pins
-    lqtpy 0.4.0, which has no `qc` module at all, while a dev checkout
-    installed editable from the LQTpy repo does -- so lqtpy being importable
-    does not imply qc is. Never raises."""
+    now. Separate from `available()`: lqtpy releases before 0.5.0 have no
+    `qc` module at all, so an install that still carries one of those can
+    import lqtpy without being able to run the checks. Never raises."""
     return lqtpy is not None and hasattr(lqtpy, "qc")
 
 
@@ -295,8 +294,24 @@ def compute_metrics(lesion_path, atlas_ids, threshold: float = DEFAULT_THRESHOLD
 # `message`/`suggestion` almost verbatim, modelled on that same report text.
 # --------------------------------------------------------------------------- #
 
-def run_qc(lesion_path, *, mni: bool = True, threshold: float = DEFAULT_THRESHOLD) -> dict:
-    """Quality-control flags for one lesion, via `lqtpy.qc.check()`.
+QC_TIERS = ("fast", "full")
+
+
+def run_qc(lesion_path, *, mni: bool = True, threshold: float = DEFAULT_THRESHOLD,
+           context: "dict | None" = None, tier: "str | None" = None) -> dict:
+    """Quality-control flags for one lesion.
+
+    lqtpy 0.6.0 and newer: `lqtpy.qc.assess()`, which also grades each finding
+    and says where it is, and sums the mask up as a `verdict` and `score`.
+    `context` is what the drawing tool knows that the saved mask doesn't show
+    (which plane it was drawn on, ...) and `tier` ("fast" skips the slower
+    plausibility checks). Both are passed through untouched: lqtpy ignores
+    unknown context keys and drops bad values itself.
+
+    lqtpy 0.5.x: `lqtpy.qc.check()`. It has neither parameter, so they are
+    simply not sent, and `verdict` / `score` / `qc_version` / `needs_attention`
+    come back as None.
+    The `flags` list has the same shape either way (0.6.0 only adds fields).
 
     `mni=False` skips the brain-mask checks (`outside_brain`, `not_mni`) --
     for a lesion drawn on a custom native-space base (not the MNI152
@@ -313,18 +328,35 @@ def run_qc(lesion_path, *, mni: bool = True, threshold: float = DEFAULT_THRESHOL
             raise LqtpyUnavailableError()
         raise LqtpyUnavailableError(
             f"This backend's lqtpy (version {version()}) does not include the "
-            "qc module -- lesion quality checks need a newer lqtpy. The "
-            "packaged app currently pins a release without qc; only a dev "
-            "environment installed editable from the LQTpy repo has it."
+            "qc module -- lesion quality checks need lqtpy 0.5.0 or newer."
         )
-    flags = lqtpy.qc.check(lesion_path, threshold=threshold, mni=mni)
+    tier = tier if tier in QC_TIERS else "full"
+    verdict = score = qc_version = needs_attention = None
+    if hasattr(lqtpy.qc, "assess"):
+        result = lqtpy.qc.assess(lesion_path, threshold=threshold, mni=mni,
+                                 context=context or None, tier=tier).to_dict()
+        flags = result.get("findings", [])
+        verdict, score = result.get("verdict"), result.get("score")
+        qc_version = result.get("qc_version")
+        needs_attention = result.get("needs_attention")
+    else:
+        tier = "full"       # the only thing 0.5.x can run
+        flags = [f.to_dict() for f in lqtpy.qc.check(lesion_path, threshold=threshold, mni=mni)]
     return {
-        "flags": [f.to_dict() for f in flags],
+        "flags": flags,
+        "verdict": verdict,
+        "score": score,
+        "qc_version": qc_version,
+        # lqtpy's own answer to "should this interrupt the user": true only for a
+        # Check or a Problem. None on an lqtpy that doesn't say (the frontend
+        # then decides from the findings, lib/lesionQc.js).
+        "needs_attention": needs_attention,
         "provenance": {
             "engine": "lqtpy.qc",
             "version": getattr(lqtpy, "__version__", "unknown"),
             "threshold": threshold,
             "mni": mni,
+            "tier": tier,
         },
     }
 

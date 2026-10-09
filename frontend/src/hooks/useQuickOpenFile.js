@@ -60,15 +60,23 @@ export function useQuickOpenFile({
 }) {
   const [initialBaseVolume, setInitialBaseVolume] = useState(null);
   // What phase 1 found, for phase 2 to act on once the viewer is ready.
-  // { kind: "none" | "error" | "base" | "timeseries" | "activation" | "lesion", ... }
+  // { kind: "none" | "error" | "base" | "timeseries" | "activation" | "lesion" | "multi", ... }
   const resolvedRef = useRef(null);
   const appliedRef = useRef(false);
 
   const cbRef = useRef(null);
   cbRef.current = { handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer, setAsymmetric, setSliceType, setFocusMode };
 
-  // Phase 1.
+  // Phase 1. Runs once per window: getPendingOpenFile CONSUMES the queued
+  // request, so a second run (React StrictMode re-invokes mount effects in
+  // development) would find nothing and resolve to plain MNI — and with
+  // several files to read, that empty run finished first and the link's
+  // files arrived after the viewer had already settled. Refs survive
+  // StrictMode's simulated remount, so this guard makes the second run a no-op.
+  const phase1StartedRef = useRef(false);
   useEffect(() => {
+    if (phase1StartedRef.current) return;
+    phase1StartedRef.current = true;
     (async () => {
       if (!window.mrlatte?.getPendingOpenFile) {
         resolvedRef.current = { kind: "none" };
@@ -80,6 +88,56 @@ export function useQuickOpenFile({
         if (!pending) {
           resolvedRef.current = { kind: "none" };
           setInitialBaseVolume(BASE_VOLUME);
+          return;
+        }
+
+        // A mrlatte://open?base=…&overlay=… link: { base|null, overlays[] }.
+        // The base is the base whatever it looks like (the link said so);
+        // each overlay takes the link's overlaytype, else the same detection
+        // a double-click uses (a mask → lesion, anything else → activation).
+        // A file that can't be read or isn't NIfTI is reported and skipped;
+        // the rest still open.
+        if (pending.overlays) {
+          const errors = [];
+          const readClassified = async (f) => {
+            const res = await window.mrlatte.readOpenFile(f.filePath);
+            if (!res?.ok) {
+              errors.push({ title: "Could not open file", message: READ_ERROR_MESSAGE[res?.error] || f.name });
+              return null;
+            }
+            const classified = await classifyNiftiBuffer(res.bytes, res.name);
+            if (!classified.ok) {
+              errors.push({ title: "Not a NIfTI file", message: res.name });
+              return null;
+            }
+            return { res, classified };
+          };
+
+          let base = null;
+          if (pending.base) {
+            const r = await readClassified(pending.base);
+            if (r) {
+              base = {
+                file: new File([r.res.bytes], r.res.name),
+                blobUrl: URL.createObjectURL(new Blob([r.res.bytes])),
+                filePath: pending.base.filePath,
+                kind: r.classified.kind,
+              };
+            }
+          }
+          const overlays = [];
+          for (const o of pending.overlays) {
+            const r = await readClassified(o);
+            if (!r) continue;
+            overlays.push({
+              file: new File([r.res.bytes], r.res.name),
+              type: o.type || (r.classified.kind === "lesion" ? "lesion" : "activation"),
+            });
+          }
+          resolvedRef.current = { kind: "multi", base, overlays, errors };
+          setInitialBaseVolume(base
+            ? { id: base.file.name, name: base.file.name, url: base.blobUrl, colormap: "gray", opacity: 1 }
+            : BASE_VOLUME);
           return;
         }
 
@@ -131,6 +189,32 @@ export function useQuickOpenFile({
 
     if (resolved.kind === "error") {
       toast.error(resolved.title, { description: resolved.message });
+      return;
+    }
+
+    // Base + overlays deep link (see phase 1). The base, if any, is already
+    // the viewer's first load; overlays are added in link order on top of it
+    // (or on MNI when the link named no base).
+    if (resolved.kind === "multi") {
+      for (const e of resolved.errors) toast.error(e.title, { description: e.message });
+      (async () => {
+        if (resolved.base) {
+          URL.revokeObjectURL(resolved.base.blobUrl); // niivue has already read it into memory
+          markBaseLoadedExternally(resolved.base.file.name, resolved.base.filePath);
+        }
+        let added = 0;
+        for (const o of resolved.overlays) {
+          if (await addUserFile(o.file, o.type)) added++;
+        }
+        setAsymmetric(false);
+        setSliceType(resolved.overlays.length || resolved.base?.kind === "timeseries" ? "multiplanar" : "render");
+        setFocusMode(true);
+        if (added) {
+          toast.info(`Opened ${resolved.base ? "base + " : ""}${added} overlay${added === 1 ? "" : "s"}`, {
+            description: resolved.overlays.map((o) => `${o.file.name} → ${o.type}`).join(", "),
+          });
+        }
+      })();
       return;
     }
 

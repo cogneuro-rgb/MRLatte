@@ -177,6 +177,10 @@ class LesionQcRequest(BaseModel):
     lesion_id: str
     mni: bool = True
     threshold: Optional[float] = None
+    # lqtpy 0.6.0+: what the drawing tool knows (see lqtpy docs/QC.md, "Drawing
+    # context") and which tier to run. Ignored by an older lqtpy.
+    context: Optional[dict] = None
+    tier: Optional[str] = None
 
 
 @router.post("/lesion/qc")
@@ -197,7 +201,8 @@ def lesion_qc_endpoint(payload: LesionQcRequest):
     t0 = time.monotonic()
     error_status = None
     try:
-        result = engine.run_qc(lesion_path, mni=payload.mni, threshold=threshold)
+        result = engine.run_qc(lesion_path, mni=payload.mni, threshold=threshold,
+                               context=payload.context, tier=payload.tier)
         return result
     except engine.LqtpyUnavailableError as exc:
         error_status = 503

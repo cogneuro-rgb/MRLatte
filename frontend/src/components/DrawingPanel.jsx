@@ -26,7 +26,7 @@ import { LesionQcDialog } from "@/components/LesionQcDialog";
  * Dashboard using the drawingActive state emitted by onDrawingActiveChange.
  */
 export const DrawingPanel = ({
-  viewerRef, baseName, crosshair, onToggleCrosshair, onCrosshairOff,
+  viewerRef, baseName, baseIsMni, crosshair, onToggleCrosshair, onCrosshairOff,
   onSetCrosshair, onSaveDrawing, clearNonce, editingSaveName, editNonce,
   // Lifted state for Dashboard to know tool / mode / active so it can
   // update the topbar indicator and canvas label.
@@ -55,12 +55,11 @@ export const DrawingPanel = ({
   // Interpolate-All orientation resolution, mirrored from the viewer (the
   // single source of truth — see resolveInterpolateAllOrientation in
   // NiivueViewer.jsx). resolvedOrientation is what the button/shortcut will
-  // actually target right now; autoOrientation is what Auto specifically
-  // resolves to (shown in the dropdown even while a manual pick overrides
-  // it); manualOrientation is the current override, or null for Auto.
+  // actually target right now — the last drawn view, or a manual pick until
+  // the next stroke. validOrientations[o] says whether view o has the two
+  // drawn slices Interpolate All needs (greys out the others in the menu).
   const [resolvedOrientation, setResolvedOrientation] = useState(null);
-  const [autoOrientation, setAutoOrientation] = useState(null);
-  const [manualOrientation, setManualOrientation] = useState(null);
+  const [validOrientations, setValidOrientations] = useState([false, false, false]);
   const [interpolateMenuOpen, setInterpolateMenuOpen] = useState(false);
   const interpolateMenuRef = useRef(null);
   // Undo/redo availability, mirrored from the viewer's draw history.
@@ -82,17 +81,24 @@ export const DrawingPanel = ({
   // BASE_VOLUME's own name); any replacement base (custom upload, DICOM
   // import) is native-space, where lqtpy's brain-mask checks
   // (outside_brain/not_mni) would false-alarm on every drawing.
-  const mni = baseName === BASE_VOLUME.name;
+  // Dashboard decides (name match or an exact MNI template grid, lib/mniGrid.js);
+  // the name comparison is only the fallback for a caller that doesn't say.
+  const mni = baseIsMni ?? (baseName === BASE_VOLUME.name);
 
   // Run QC on `file` (already-serialised current drawing) and, if it finds
   // anything, block on a confirmation dialog before the caller proceeds.
   // Resolves true immediately (no dialog) when QC has nothing to say —
   // unavailable/timeout/error (fail-open, see lib/lesionQc.js) or a clean
   // drawing — so Save/Download behave exactly as today in the common case.
+  const acceptedQcIdRef = useRef(null);
   const requestQcConfirmation = (file, actionLabel) => new Promise((resolve) => {
-    runLesionQc({ file, mni, fileName: file.name }).then((result) => {
-      if (!result || !result.flags?.length) { resolve(true); return; }
-      setQcPrompt({ flags: result.flags, actionLabel, resolve });
+    runLesionQc({ file, viewerRef, mni, fileName: file.name }).then((result) => {
+      if (!result || !result.needsAttention) { resolve(true); return; }
+      // Already answered for this exact drawing: "Save anyway" followed by
+      // Download (or the other way round) must not ask the same question twice.
+      // lesionId is a hash of the drawing's bytes, so any edit asks again.
+      if (acceptedQcIdRef.current === result.lesionId) { resolve(true); return; }
+      setQcPrompt({ flags: result.flags, verdict: result.verdict, lesionId: result.lesionId, actionLabel, resolve });
     });
   });
 
@@ -196,8 +202,7 @@ export const DrawingPanel = ({
       setCanInterpolate(!!info?.canInterpolate);
       setCanInterpolateAll(!!info?.canInterpolateAll);
       setResolvedOrientation(info?.resolvedOrientation ?? null);
-      setAutoOrientation(info?.autoOrientation ?? null);
-      setManualOrientation(info?.manualOrientation ?? null);
+      setValidOrientations(info?.validOrientations ?? [false, false, false]);
     });
     viewer?.setHistoryCallback?.(({ canUndo: u, canRedo: r }) => {
       setCanUndo(!!u);
@@ -439,15 +444,11 @@ export const DrawingPanel = ({
     { id: "brush", icons: [Brush, Eraser],  label: "Brush/Eraser" },
   ];
 
-  // Interpolate-All orientation labels (0 axial / 1 coronal / 2 sagittal —
-  // same convention used throughout Dashboard/NiivueViewer). orientationLabel
-  // is what the split button targets RIGHT NOW (manual override, or Auto's
-  // current resolution); autoOrientationLabel is Auto's resolution
-  // specifically, always shown in the dropdown regardless of override so the
-  // user can see what Auto would do without having to select it first.
+  // Interpolate-All orientation label (0 axial / 1 coronal / 2 sagittal —
+  // same convention used throughout Dashboard/NiivueViewer): what the split
+  // button targets RIGHT NOW.
   const orientationName = (o) => (o === 1 ? "Coronal" : o === 2 ? "Sagittal" : "Axial");
   const orientationLabel = orientationName(resolvedOrientation);
-  const autoOrientationLabel = orientationName(autoOrientation);
 
   // Split-button dropdown: outside-click and Escape close it, matching the
   // topbar's GotoMniInput pattern.
@@ -467,11 +468,11 @@ export const DrawingPanel = ({
     };
   }, [interpolateMenuOpen]);
 
-  // value: null = Auto, 0/1/2 = pinned axial/coronal/sagittal. The viewer is
-  // the single source of truth (see setInterpolateAllOrientation in
+  // value: 0/1/2 = pick axial/coronal/sagittal until the next stroke. The
+  // viewer is the single source of truth (see setInterpolateAllOrientation in
   // drawingApi.js) — this just forwards the pick and lets the resulting
-  // setDrawCommitCallback round-trip update resolvedOrientation/
-  // manualOrientation above, rather than keeping a second copy of the state
+  // setDrawCommitCallback round-trip update resolvedOrientation above,
+  // rather than keeping a second copy of the state
   // here that could drift from what the button/shortcut actually use.
   const chooseInterpolateOrientation = (value) => {
     viewerRef.current?.setInterpolateAllOrientation?.(value);
@@ -681,9 +682,9 @@ export const DrawingPanel = ({
 
       {/* Interpolate: last-2 (left) vs ALL adjacent same-orientation slices
           (right, item 62) — the right one is a split button: the main part
-          runs "All" against the RESOLVED orientation (Auto = most recent
-          drawn stroke, unless overridden); the chevron opens a menu to pin
-          Axial/Coronal/Sagittal or go back to Auto. Shift+I (Dashboard.jsx)
+          runs "All" against the RESOLVED orientation (the most recent drawn
+          stroke's view, unless picked otherwise since); the chevron opens a
+          menu to pick Axial/Coronal/Sagittal until the next stroke. Shift+I (Dashboard.jsx)
           calls the exact same interpolateAllDrawnSlices(), so it always
           agrees with this button (item 3). */}
       <div className="grid grid-cols-2 gap-1.5">
@@ -725,24 +726,29 @@ export const DrawingPanel = ({
               className="absolute right-0 top-full z-50 mt-1 w-48 border border-border bg-panel p-1 shadow-lg"
               data-testid="draw-interpolate-all-menu"
             >
+              {/* No separate "Auto" row: every new stroke re-selects the view
+                  it was drawn in (recordDrawEntry in NiivueViewer), so the
+                  selected row IS the last drawn view unless you've picked
+                  another since. Outline = selected; greyed = fewer than two
+                  drawn slices in that view, so Interpolate All can't run. */}
               {[
-                { key: "auto", value: null, label: `Auto (last drawn: ${autoOrientationLabel})` },
                 { key: "axial", value: 0, label: "Axial" },
                 { key: "coronal", value: 1, label: "Coronal" },
                 { key: "sagittal", value: 2, label: "Sagittal" },
               ].map((opt) => {
-                const active = manualOrientation == null ? opt.value == null : manualOrientation === opt.value;
+                const active = resolvedOrientation === opt.value;
+                const valid = !!validOrientations[opt.value];
                 return (
                   <button
                     key={opt.key}
                     role="menuitemradio"
                     aria-checked={active}
+                    disabled={!valid}
                     onClick={() => chooseInterpolateOrientation(opt.value)}
-                    className={`w-full px-2 py-1.5 text-left text-[10px] uppercase tracking-[0.1em] transition-colors ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-panel-hover hover:text-foreground"
-                    }`}
+                    title={valid ? undefined : `Draw on at least two ${opt.label.toLowerCase()} slices first`}
+                    className={`w-full px-2 py-1.5 text-left text-[10px] uppercase tracking-[0.1em] transition-colors border ${
+                      active ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"
+                    } ${valid ? "hover:bg-panel-hover hover:text-foreground" : "opacity-40 cursor-not-allowed"}`}
                     data-testid={`draw-interpolate-all-opt-${opt.key}`}
                   >
                     {opt.label}
@@ -826,8 +832,19 @@ export const DrawingPanel = ({
           open
           flags={qcPrompt.flags}
           actionLabel={qcPrompt.actionLabel}
-          onConfirm={() => { qcPrompt.resolve(true); setQcPrompt(null); }}
+          verdict={qcPrompt.verdict}
+          onConfirm={() => { acceptedQcIdRef.current = qcPrompt.lesionId; qcPrompt.resolve(true); setQcPrompt(null); }}
           onCancel={() => { qcPrompt.resolve(false); setQcPrompt(null); }}
+          // Both of these mean "don't save yet": the save is cancelled exactly
+          // as Keep editing would, then the viewer does the helpful thing.
+          onGoTo={(mm) => {
+            qcPrompt.resolve(false); setQcPrompt(null);
+            viewerRef.current?.setCrosshairMM?.(mm[0], mm[1], mm[2]);
+          }}
+          onInterpolate={() => {
+            qcPrompt.resolve(false); setQcPrompt(null);
+            viewerRef.current?.interpolateAllDrawnSlices?.();
+          }}
         />
       )}
     </div>

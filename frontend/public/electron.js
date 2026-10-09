@@ -13,10 +13,11 @@
 //   set MRLATTE_RES_DIR=<repo>\dist\MRLatte && npx electron .
 // which points resourcesDir() at an assemble-bundle.ps1 output folder.
 
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
+const zlib = require("zlib");
 const { spawn, execFile } = require("child_process");
 const { parseMrlatteDeepLink, ALLOWED_EXT_RE } = require("./deepLinkParser");
 
@@ -65,6 +66,14 @@ const pendingOpenByWc = new Map();
 const allowedOpenPaths = new Set();
 const MAX_OPEN_BYTES = 1.5 * 1024 ** 3;
 
+// Window minimum size. With the sidebar closed the viewer gets the whole
+// window, so the minimum drops to what the viewer already had at the
+// sidebar-open minimum (880 − the default 400px sidebar = 480). The renderer
+// only reports open/closed (mrlatte:setSidebarOpen); the sizes live here.
+const MIN_WIDTH_SIDEBAR_OPEN = 880;
+const MIN_WIDTH_SIDEBAR_CLOSED = 480;
+const MIN_HEIGHT = 560;
+
 // A path arrives on argv either quoted or not, and NSIS launches as
 // `$appExe "%1"`, so argv[1] is the file when present. Skip the bare "."
 // `electron .` passes in dev, and any flag-looking arg. (ALLOWED_EXT_RE lives
@@ -89,11 +98,25 @@ function deepLinkFromArgv(argv) {
   for (const a of argv.slice(1)) {
     if (!a || !/^mrlatte:\/\//i.test(a)) continue;
     const r = parseMrlatteDeepLink(a);
-    if (r.ok) return r.path;
+    if (r.ok) return r.path || r.request;
     logQuickOpen(`deep-link rejected (argv): reason=${r.reason} url=${a}`);
     return null; // a recognized-but-rejected deep link should not fall through to file-path scanning
   }
   return null;
+}
+
+// What gets queued per window ("open request"): a file path string (argv,
+// `?path=`), or a deep link's { base, overlays: [{ path, type }] }. The
+// queueing code treats both opaquely; these two helpers are the only places
+// that look inside.
+function openRequestPaths(item) {
+  if (!item) return [];
+  if (typeof item === "string") return [item];
+  return [item.base, ...item.overlays.map((o) => o.path)].filter(Boolean);
+}
+function describeOpen(item) {
+  if (!item) return "-";
+  return typeof item === "string" ? item : JSON.stringify(item);
 }
 
 // Single entry point for "does this argv contain something the OS wants us
@@ -101,6 +124,79 @@ function deepLinkFromArgv(argv) {
 // match), falling back to a plain file-association path.
 function resolveOpenPathFromArgv(argv, cwd = process.cwd()) {
   return deepLinkFromArgv(argv) || niftiPathFromArgv(argv, cwd);
+}
+
+// `--header <file>` = Explorer's right-click "MRLatte › View NIfTI header"
+// (installer.nsh writes `$appExe --header "%1"`). Same checks as a file
+// open; null if absent or not an openable file.
+function headerPathFromArgv(argv, cwd = process.cwd()) {
+  const i = argv.indexOf("--header");
+  const a = i >= 0 ? argv[i + 1] : null;
+  if (!a) return null;
+  const p = path.isAbsolute(a) ? a : path.resolve(cwd, a);
+  return ALLOWED_EXT_RE.test(p) && fs.existsSync(p) && fs.statSync(p).isFile() ? p : null;
+}
+
+// The header window only needs the file's leading bytes: 348 (NIfTI-1) or
+// 540 (NIfTI-2) plus any extensions, so 64 KB covers any real header. A
+// .nii.gz is decompressed only that far, so even a multi-GB scan opens
+// instantly.
+const HEADER_READ_BYTES = 64 * 1024;
+function readHeaderBytes(filePath) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let got = 0;
+    let done = false;
+    const src = fs.createReadStream(filePath);
+    const stream = /\.gz$/i.test(filePath) ? src.pipe(zlib.createGunzip()) : src;
+    const finish = (err) => {
+      if (done) return;
+      done = true;
+      src.destroy();
+      if (err && !got) return resolve({ ok: false, error: String(err.message || err) });
+      const bytes = new Uint8Array(Buffer.concat(chunks).subarray(0, HEADER_READ_BYTES));
+      resolve({ ok: true, name: path.basename(filePath), path: filePath, bytes });
+    };
+    stream.on("data", (c) => {
+      chunks.push(c);
+      got += c.length;
+      if (got >= HEADER_READ_BYTES) finish();
+    });
+    stream.on("end", () => finish());
+    stream.on("error", (e) => finish(e));
+  });
+}
+
+// Header-only mode: one small window, no backend, no main window, no
+// single-instance lock — so it neither waits for nor disturbs a running
+// MRLatte, and it quits when its window closes. The page is the app's own
+// bundle at #/header (index.js mounts HeaderViewerPage there instead of the
+// dashboard), loaded from disk since there's no backend to serve it.
+function runHeaderViewer(filePath) {
+  app.whenReady().then(() => {
+    ipcMain.handle("mrlatte:readHeaderFile", () => readHeaderBytes(filePath));
+    const win = new BrowserWindow({
+      width: 620,
+      height: 760,
+      minWidth: 420,
+      minHeight: 360,
+      backgroundColor: "#050505",
+      title: `NIfTI header — ${path.basename(filePath)}`,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    });
+    win.removeMenu();
+    // Packaged: the ONE renderer the installer carries — resources\frontend_build,
+    // the same copy the backend serves to the main window. app.asar no longer
+    // holds a second build of the UI (package.json build.files).
+    if (isDev) win.loadURL("http://localhost:3000/#/header");
+    else win.loadFile(path.join(resourcesDir(), "frontend_build", "index.html"), { hash: "/header" });
+  });
+  app.on("window-all-closed", () => app.quit());
 }
 
 // --------------------------------------------------------------------------- //
@@ -133,6 +229,35 @@ function logQuickOpen(msg) {
     fs.appendFileSync(path.join(logs, "quickopen-debug.log"), `[${new Date().toISOString()}] ${msg}\n`);
   } catch (_e) {
     /* best effort */
+  }
+}
+
+// The UI is a web page served by the backend, and Chromium's HTTP cache lives
+// in the user profile — it survives a reinstall. The backend now marks
+// index.html `no-cache` (backend/static_cache.py), but a profile that last ran
+// an OLDER version still holds an index.html it considers fresh, and would
+// keep showing that version's UI for hours to days after an update. So the
+// first start of any new version drops the HTTP and compiled-script caches
+// before the first page load. The marker sits in the same profile as the
+// cache it describes: delete the profile and both go together.
+async function clearCachesIfVersionChanged() {
+  const current = app.getVersion();
+  const marker = path.join(app.getPath("userData"), "last-run-version");
+  let previous = null;
+  try {
+    previous = fs.readFileSync(marker, "utf8").trim();
+  } catch (_e) {
+    /* first run of a build that has this check */
+  }
+  if (previous === current) return;
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearCodeCaches({});
+    fs.writeFileSync(marker, current);
+    logQuickOpen(`cache cleared on version change: ${previous || "(none)"} -> ${current}`);
+  } catch (e) {
+    // Leave the marker unwritten so the next start tries again.
+    logQuickOpen(`cache clear FAILED (${previous || "(none)"} -> ${current}): ${e && e.message}`);
   }
 }
 
@@ -233,6 +358,24 @@ function checkHttpWithBody(url) {
 async function identifyExistingInstance(port) {
   const { body } = await checkHttpWithBody(`http://127.0.0.1:${port}/`);
   return body.includes("MRLatte");
+}
+
+// "It's an MRLatte backend" is not enough to attach to it: a backend left
+// running from an OLDER install serves that version's UI and API, and a new
+// app loading against it shows the old version. Attach only when it serves
+// exactly the UI this install ships — the source fingerprint that travels with
+// every staged renderer (tools/build/staged-frontend.js). A backend from
+// before fingerprints existed has no such file (its SPA fallback answers with
+// index.html, which isn't JSON), so it never matches.
+async function existingBackendServesThisBuild(port) {
+  try {
+    const stamp = path.join(resourcesDir(), "frontend_build", "source-fingerprint.json");
+    const mine = JSON.parse(fs.readFileSync(stamp, "utf8")).fingerprint;
+    const { ok, body } = await checkHttpWithBody(`http://127.0.0.1:${port}/source-fingerprint.json`);
+    return Boolean(mine) && ok && JSON.parse(body).fingerprint === mine;
+  } catch (_e) {
+    return false;
+  }
 }
 
 // Ask the OS for a free ephemeral port by binding a throwaway server to port 0.
@@ -425,18 +568,37 @@ function registerIpc() {
   // Quick-open (file-association) pull model: a window created with a queued
   // path asks for it once; a reload must not re-open the same file, so it's
   // consumed on read.
+  // A single file (argv, `?path=`) keeps its original shape; a base+overlays
+  // deep link comes back as { base, overlays: [{ ...file, type }] }.
   ipcMain.handle("mrlatte:getPendingOpenFile", (e) => {
     const p = pendingOpenByWc.get(e.sender.id);
-    logQuickOpen(`getPendingOpenFile wcId=${e.sender.id} found=${!!p} path=${p || "-"}`);
+    logQuickOpen(`getPendingOpenFile wcId=${e.sender.id} found=${!!p} path=${describeOpen(p)}`);
     if (!p) return null;
     pendingOpenByWc.delete(e.sender.id);
-    const st = fs.statSync(p);
-    return { filePath: p, name: path.basename(p), size: st.size };
+    const info = (fp) => ({ filePath: fp, name: path.basename(fp), size: fs.statSync(fp).size });
+    if (typeof p === "string") return info(p);
+    return {
+      base: p.base ? info(p.base) : null,
+      overlays: p.overlays.map((o) => ({ ...info(o.path), type: o.type })),
+    };
+  });
+
+  // Sidebar open/closed → window minimum width. Takes a boolean only; the
+  // sizes are fixed above, so the renderer can't set an arbitrary minimum.
+  // Reopening the sidebar in a window narrower than the open minimum grows
+  // the window to it rather than leaving it below its own minimum.
+  ipcMain.on("mrlatte:setSidebarOpen", (e, open) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win || win.isDestroyed()) return;
+    const minW = open === true ? MIN_WIDTH_SIDEBAR_OPEN : MIN_WIDTH_SIDEBAR_CLOSED;
+    win.setMinimumSize(minW, MIN_HEIGHT);
+    const [w, h] = win.getSize();
+    if (w < minW && !win.isMaximized() && !win.isFullScreen()) win.setSize(minW, h);
   });
 
   // The only place main reads raw binary bytes for the renderer. Never widen
   // this to an arbitrary-path read — allowedOpenPaths only ever contains
-  // paths the OS itself handed us via argv.
+  // paths the OS itself handed us via argv (or a deep link the parser vetted).
   ipcMain.handle("mrlatte:readOpenFile", async (_e, filePath) => {
     logQuickOpen(`readOpenFile path=${filePath} allowed=${allowedOpenPaths.has(filePath)}`);
     if (!allowedOpenPaths.has(filePath)) return { ok: false, error: "not-allowed" };
@@ -455,11 +617,11 @@ function createMainWindow(openFilePath) {
     width: 1600,
     height: 1000,
     // Lowered from 1200x720 so the window can be parked small beside another
-    // app. The sidebar is a fixed 400px and collapses to 0, so ~880px still
-    // leaves a usable canvas with it open and a generous one with it collapsed;
-    // below that the topbar controls start wrapping.
-    minWidth: 880,
-    minHeight: 560,
+    // app. ~880px leaves a usable canvas with the sidebar open; with it
+    // closed the renderer reports that and the minimum drops further (see
+    // mrlatte:setSidebarOpen / MIN_WIDTH_*).
+    minWidth: MIN_WIDTH_SIDEBAR_OPEN,
+    minHeight: MIN_HEIGHT,
     backgroundColor: "#050505",
     title: "MRLatte",
     autoHideMenuBar: false,
@@ -481,10 +643,10 @@ function createMainWindow(openFilePath) {
   // its webContents) has already been torn down.
   const wcId = win.webContents.id;
 
-  logQuickOpen(`createMainWindow openFilePath=${openFilePath || "-"} wcId=${wcId}`);
+  logQuickOpen(`createMainWindow openFilePath=${describeOpen(openFilePath)} wcId=${wcId}`);
   if (openFilePath) {
     pendingOpenByWc.set(wcId, openFilePath);
-    allowedOpenPaths.add(openFilePath);
+    for (const p of openRequestPaths(openFilePath)) allowedOpenPaths.add(p);
   }
 
   win.on("focus", () => {
@@ -546,16 +708,19 @@ async function bootFirstWindow(openFilePath) {
       activePort = BACKEND_PORT;
       await startBackend(BACKEND_PORT);
       if (!win.isDestroyed()) await win.loadURL(appUrlFor(BACKEND_PORT));
-    } else if (await identifyExistingInstance(BACKEND_PORT)) {
-      // Something's already listening on BACKEND_PORT and it fingerprints as
-      // MRLatte's own backend (a leftover dev server or an orphaned previous
-      // instance) — don't spawn a second backend, just load against it. It
-      // already answered the fingerprint GET, so it's demonstrably live; no
-      // health-check wait needed.
+    } else if ((await identifyExistingInstance(BACKEND_PORT)) && (await existingBackendServesThisBuild(BACKEND_PORT))) {
+      // Something's already listening on BACKEND_PORT, it fingerprints as
+      // MRLatte's own backend, AND it serves this very build (an orphaned
+      // previous instance of the same install) — don't spawn a second
+      // backend, just load against it. It already answered the fingerprint
+      // GETs, so it's demonstrably live; no health-check wait needed.
       activePort = BACKEND_PORT;
       if (!win.isDestroyed()) await win.loadURL(appUrlFor(BACKEND_PORT));
     } else {
-      // An unrelated program occupies BACKEND_PORT — fall back to a free port.
+      // BACKEND_PORT is held by an unrelated program, or by an MRLatte backend
+      // from a different version or a dev server — fall back to a free port
+      // and run our own.
+      logQuickOpen(`port ${BACKEND_PORT} is in use by something that is not this build's backend; starting our own on a free port`);
       const port = await findFreePort();
       activePort = port;
       await startBackend(port);
@@ -654,8 +819,13 @@ function buildMenu() {
 // Only one instance may run (two would fight over port 8001). This was
 // already true before the mrlatte:// deep link work — item 1's "app already
 // running" launch case rides on it unchanged, nothing added here.
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
+// A `--header <file>` launch is its own lightweight process and never takes
+// the lock (see runHeaderViewer).
+const headerOnlyPath = headerPathFromArgv(process.argv);
+const gotLock = !headerOnlyPath && app.requestSingleInstanceLock();
+if (headerOnlyPath) {
+  runHeaderViewer(headerOnlyPath);
+} else if (!gotLock) {
   app.quit();
 } else {
   // A relaunch while we're already running: a file path OR a mrlatte://
@@ -663,7 +833,7 @@ if (!gotLock) {
   // backend); otherwise, same as before, just focus whatever window we have.
   app.on("second-instance", (_event, argv, workingDirectory) => {
     const filePath = resolveOpenPathFromArgv(argv, workingDirectory);
-    logQuickOpen(`second-instance argv=${JSON.stringify(argv)} cwd=${workingDirectory} resolvedPath=${filePath || "-"} backendReady=${backendReady}`);
+    logQuickOpen(`second-instance argv=${JSON.stringify(argv)} cwd=${workingDirectory} resolvedPath=${describeOpen(filePath)} backendReady=${backendReady}`);
     if (filePath) {
       openFile(filePath);
       return;
@@ -693,9 +863,9 @@ if (!gotLock) {
       return;
     }
     if (app.isReady()) {
-      openFile(r.path);
+      openFile(r.path || r.request);
     } else {
-      earlyOpenUrlPath = r.path;
+      earlyOpenUrlPath = r.path || r.request;
     }
   });
 
@@ -728,8 +898,9 @@ if (!gotLock) {
       win.webContents.openDevTools({ mode: "detach" });
     } else {
       const openPath = resolveOpenPathFromArgv(process.argv) || earlyOpenUrlPath;
-      logQuickOpen(`cold-start argv=${JSON.stringify(process.argv)} earlyOpenUrlPath=${earlyOpenUrlPath || "-"} resolvedPath=${openPath || "-"}`);
-      bootFirstWindow(openPath);
+      logQuickOpen(`cold-start argv=${JSON.stringify(process.argv)} earlyOpenUrlPath=${describeOpen(earlyOpenUrlPath)} resolvedPath=${describeOpen(openPath)}`);
+      // Before the first page load, so a stale cached UI can never be shown.
+      clearCachesIfVersionChanged().then(() => bootFirstWindow(openPath));
     }
 
     app.on("activate", () => {

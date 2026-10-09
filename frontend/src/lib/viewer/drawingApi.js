@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { NVImage, NVUtilities, PEN_TYPE } from "@niivue/niivue";
 import { interpolateSlices } from "@/lib/drawInterpolate";
 import { rleEncode, rleDecode } from "@/lib/drawHistory";
-import { harmonizeQformWithSform } from "@/lib/niftiHeader";
+import { harmonizeQformWithSform, setNiftiAffine } from "@/lib/niftiHeader";
 
 /**
  * Drawing API: enable/disable, tool mode, undo/redo, morph, sphere-paint,
@@ -435,6 +435,34 @@ export function createDrawingApi(ctx, {
     // avoid a download) also skips compression, silently returning RAW bytes.
     // Compress explicitly so callers always get real gzip regardless of the
     // eventual filename (backend NIfTI readers trust the .nii.gz extension).
+    // What this tool knows about how the drawing was made, in the shape
+    // lqtpy.qc's `context=` takes (lqtpy docs/QC.md, "Drawing context").
+    //
+    // Only the drawing PLANE is sent. The list of drawn slices is deliberately
+    // not: lqtpy then treats every other slice inside the lesion as undrawn,
+    // and lastDraws can't vouch for that — it forgets on undo, knows nothing
+    // of a mask loaded for editing or of dilate/smooth, and doesn't record
+    // which slices an interpolation filled. A wrong list would produce
+    // confident, wrong "gap" findings; no list just leaves lqtpy to infer.
+    //
+    // `drawing_axis` is an ARRAY axis of the saved file, so the view (axial /
+    // coronal / sagittal, a RAS notion) is mapped back through the base's
+    // permRAS. Returns null when nothing was drawn by hand this session.
+    getDrawingContext: () => {
+      const base = nvRef.current?.back;
+      const hist = lastDraws.current || [];
+      if (!base || hist.length === 0) return null;
+      const counts = [0, 0, 0];
+      for (const d of hist) if (d.axCorSag >= 0 && d.axCorSag <= 2) counts[d.axCorSag] += 1;
+      const view = counts.indexOf(Math.max(...counts));      // 0 axial, 1 coronal, 2 sagittal
+      if (counts[view] === 0) return null;
+      const rasAxis = [2, 1, 0][view];
+      const perm = base.permRAS;
+      const axis = Array.isArray(perm) || ArrayBuffer.isView(perm) ? Math.abs(perm[rasAxis]) - 1 : rasAxis;
+      if (!(axis >= 0 && axis <= 2)) return null;
+      return { drawing_axis: axis, source: "drawn" };
+    },
+
     getDrawingBytes: async () => {
       const nv = nvRef.current;
       if (!nv) return null;
@@ -445,26 +473,18 @@ export function createDrawingApi(ctx, {
         // qform disagrees with its sform by ~150 mm — so make them agree before
         // the drawing leaves the app (see lib/niftiHeader.js).
         harmonizeQformWithSform(bytes);
+        // A base that was moved by hand (volumeApi.setBaseTransform): the
+        // drawing sits on its grid, so it must leave with the adjusted
+        // position in sform, qform AND voxel size — niivue only rewrites the
+        // sform rows.
+        const base = nv.volumes?.[0];
+        if (base?.__manuallyAdjusted) setNiftiAffine(bytes, base.getAffine());
         const compressed = await NVUtilities.compress(bytes, "gzip");
         return new Uint8Array(compressed);
       } catch (err) {
         toast.error("Failed to read drawing", { description: err?.message });
         return null;
       }
-    },
-
-    // Expose the in-memory scratch drawing as a lightweight volume-like object
-    // ({ img, dimsRAS, matRAS }) compatible with lib/measure + lib/volumeAnalysis
-    // helpers — lets measurements run on an unsaved drawing.
-    getDrawingAsVolume: () => {
-      const nv = nvRef.current;
-      if (!nv?.drawBitmap || !nv.back) return null;
-      return {
-        img: nv.drawBitmap,
-        dimsRAS: nv.back.dimsRAS,
-        dims: nv.back.dims,
-        matRAS: nv.back.matRAS,
-      };
     },
 
     // Non-destructive morphological ops on the in-memory scratch drawing

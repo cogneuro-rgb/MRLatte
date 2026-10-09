@@ -30,6 +30,7 @@ export function ActivationMapsSection({
   handleUserColormap,
   handleUserColormapInvert,
   handleUserClipChange,
+  handleUserTransform,
   handleUserRemove,
   handleCalRangeChange,
   handleColorRangeChange,
@@ -75,7 +76,7 @@ export function ActivationMapsSection({
         layerLabelAtlas={layerLabelAtlas}
         onLabelAtlasChange={handleLayerLabelAtlasChange}
         layerNotes={layerNotes} onNotesChange={onNotesChange}
-        {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
+        {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserTransform, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
       />
       {activationLayers.length > 0 && (
         <ClusterPanel

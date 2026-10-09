@@ -13,6 +13,9 @@ export const UserLayerList = ({
   layers, overlayMeta,
   handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserRemove,
   handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange,
+  // Manual move / rotate / scale. Optional: only the sections whose layers may
+  // be moved (lesion masks, activation maps) pass it; custom atlases don't.
+  handleUserTransform,
   labelAtlasOptions, layerLabelAtlas, onLabelAtlasChange,
   histograms, requestHistogram,
   thresholdVolumes, scheduleThresholdVolume,
@@ -101,6 +104,8 @@ export const UserLayerList = ({
               onRequestThresholdVolume={scheduleThresholdVolume}
               notes={layerNotes?.[l.id]}
               onNotesChange={onNotesChange}
+              transform={l.transform}
+              onTransformChange={handleUserTransform}
               extra={renderLayerExtra?.(l)}
             />
           </div>

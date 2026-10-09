@@ -358,7 +358,8 @@ const NiivueViewer = forwardRef(function NiivueViewer(
 
   // Manual override for "Interpolate All"'s target orientation (set via
   // drawingApi.js's setInterpolateAllOrientation, driven by DrawingPanel's
-  // split-button dropdown) — null means Auto. Deliberately NOT persisted to
+  // split-button dropdown) — null means Auto. Cleared by every new stroke
+  // (recordDrawEntry), so a pick only lasts until you draw again. Deliberately NOT persisted to
   // localStorage/the workspace file: nothing else in the Draw panel is
   // either (tool, brush radius, pen value, opacity all reset every session),
   // and Auto is a safe, almost-always-right fallback for a fresh session
@@ -394,6 +395,10 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     drawCommitCb.current?.({
       canInterpolate: !!interpolatablePair(),
       canInterpolateAll: entries.length >= 2,
+      // Per orientation (0 axial / 1 coronal / 2 sagittal): does it have the
+      // two drawn slices Interpolate All needs? Greys out the rest of the
+      // Draw panel's orientation menu.
+      validOrientations: [0, 1, 2].map((o) => distinctSliceEntriesForOrientation(o).length >= 2),
       activeOrientation: activeOrientationRef.current,
       resolvedOrientation: orientation,
       autoOrientation,
@@ -821,6 +826,22 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // precedes the mouseup niivue's callback is driven from). Idempotent:
     // guarded by pendingStrokeSnapshot.current, so whichever caller runs
     // first "wins" and the other is a no-op — no double-commit.
+    // Track one drawn slice for Interpolate (Last 2 / All). Shared by native
+    // Pen/Cutout strokes (commitPendingStroke) and Brush strokes
+    // (handleSphereToolUp) — both must land here, or interpolation can't see
+    // them. De-duplicated by (orientation, slice) and capped; see the comment
+    // at the call in commitPendingStroke for why.
+    const recordDrawEntry = (entry) => {
+      // A new stroke always re-targets Interpolate All at the view it was
+      // drawn in: a manual orientation pick lasts only until the next stroke.
+      interpolateAllOrientationOverrideRef.current = null;
+      const hist = lastDraws.current;
+      const dupIdx = hist.findIndex((d) => d.axCorSag === entry.axCorSag && d.slice === entry.slice);
+      if (dupIdx !== -1) hist.splice(dupIdx, 1);
+      hist.push(entry);
+      if (hist.length > 400) hist.shift();
+    };
+
     const commitPendingStroke = () => {
       if (!pendingStrokeSnapshot.current) return;
       try {
@@ -868,11 +889,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
           // except a Cutout's footprint mask (one slice's worth of bytes,
           // the same order of magnitude the draw bitmap itself already
           // costs per slice).
-          const hist = lastDraws.current;
-          const dupIdx = hist.findIndex((d) => d.axCorSag === entry.axCorSag && d.slice === entry.slice);
-          if (dupIdx !== -1) hist.splice(dupIdx, 1);
-          hist.push(entry);
-          if (hist.length > 400) hist.shift();
+          recordDrawEntry(entry);
         }
         // Bitmap-diff guard: a stroke that started (pointerdown fired, so a
         // snapshot exists) but never actually painted anything — e.g. a
@@ -1105,10 +1122,16 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       try { drawStartCb.current?.(); } catch (_e) {}
       let snapshot = null;
       try { snapshot = nv.drawBitmap ? rleEncode(nv.drawBitmap) : null; } catch (_e) { snapshot = null; }
+      // The tile + slice this stroke is drawn on, recorded for Interpolate on
+      // pointer-up. Both modes stay on that one plane for the whole stroke
+      // (2D locks to it; 3D spheres centre on it), so one entry per stroke.
+      const hit = hitTestPenTarget(x, y);
+      const plane = hit
+        ? { axCorSag: hit.axCorSag, slice: hit.vox[2 - hit.axCorSag], label: sphereToolLabelValue() }
+        : null;
       if (brushModeRef.current === "2D") {
-        const hit = hitTestPenTarget(x, y);
         if (!hit) return;
-        sphereToolStroke = { snapshot, lastVox: null, axCorSag: hit.axCorSag };
+        sphereToolStroke = { snapshot, plane, lastVox: null, axCorSag: hit.axCorSag };
         try { onLocationChangeRef.current?.({ axCorSag: hit.axCorSag }); } catch (_e) {}
         if (stamp2DCircleAlongPath(sphereToolStroke, hit.vox, brushRadiusRef.current, hit.axCorSag, sphereToolLabelValue())) {
           try { nv.refreshDrawing(true); } catch (_e) {}
@@ -1116,7 +1139,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       } else {
         const mm = mmAtCanvasXY(x, y);
         if (!mm) return;
-        sphereToolStroke = { snapshot, lastMM: null };
+        sphereToolStroke = { snapshot, plane, lastMM: null };
         if (stampSphereAlongPath(sphereToolStroke, mm, brushRadiusMM(), sphereToolLabelValue())) {
           try { nv.refreshDrawing(true); } catch (_e) {}
         }
@@ -1150,12 +1173,21 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     };
     const handleSphereToolUp = () => {
       if (!sphereToolStroke) return;
-      const snapshot = sphereToolStroke.snapshot;
+      const { snapshot, plane } = sphereToolStroke;
       sphereToolStroke = null;
       try {
         if (snapshot && nv.drawBitmap && rleEncode(nv.drawBitmap) !== snapshot) {
           drawHistory.current.push(snapshot); // one undo entry for the whole stroke
           emitHistory();
+          // Brush strokes used to be invisible to Interpolate: only native
+          // Pen/Cutout strokes were recorded, so drawing with the Brush and
+          // pressing Interpolate All always said "draw at least two slices".
+          // A painted Brush stroke fills a label on its slice exactly like a
+          // Pen shape does, so it's recorded as one.
+          if (plane && plane.label > 0) {
+            recordDrawEntry({ axCorSag: plane.axCorSag, slice: plane.slice, label: plane.label, tool: "pen" });
+            emitInterpolateState();
+          }
         }
       } catch (_e) { /* undo bookkeeping is best-effort */ }
     };
@@ -1482,7 +1514,17 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     canvas.addEventListener("pointerup", handleRightUp);
     canvas.addEventListener("pointercancel", handleRightUp);
 
-    nv.loadVolumes([{ url: baseVolume.url, colormap: baseVolume.colormap, opacity: baseVolume.opacity }])
+    // A quick-opened base (Explorer double-click, mrlatte:// link) arrives as
+    // a blob: URL, which has no file extension — niivue then can't tell the
+    // format and throws (`undefined.toUpperCase()`). Pass the real file name
+    // so it can. Only for blob: URLs: the bundled template's display name
+    // ("MNI152 Template") has no extension and would break its own load.
+    nv.loadVolumes([{
+      url: baseVolume.url,
+      ...(String(baseVolume.url).startsWith("blob:") ? { name: baseVolume.name } : {}),
+      colormap: baseVolume.colormap,
+      opacity: baseVolume.opacity,
+    }])
       .then(() => {
         nv.setClipPlane([2, 0, 0]);
         // tag the base volume and force its colorbar OFF (niivue defaults

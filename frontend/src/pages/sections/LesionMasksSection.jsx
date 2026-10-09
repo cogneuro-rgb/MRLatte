@@ -51,6 +51,7 @@ export function LesionMasksSection({
   handleUserColormap,
   handleUserColormapInvert,
   handleUserClipChange,
+  handleUserTransform,
   handleUserRemove,
   handleCalRangeChange,
   handleColorRangeChange,
@@ -104,7 +105,7 @@ export function LesionMasksSection({
           selector when there is only one. */}
       <UserLayerList layers={lesionLayers} overlayMeta={overlayMeta} onEdit={handleUserEdit} onDuplicate={handleUserDuplicate} onDownload={handleUserDownload}
         layerNotes={layerNotes} onNotesChange={onNotesChange}
-        {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
+        {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserTransform, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
         renderLayerExtra={(lesion) => (
           <div className="space-y-3">
             <OneClickSummaryPanel

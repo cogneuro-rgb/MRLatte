@@ -39,4 +39,11 @@ contextBridge.exposeInMainWorld("mrlatte", {
   // a file, or once the one path it had has already been consumed.
   getPendingOpenFile: () => ipcRenderer.invoke("mrlatte:getPendingOpenFile"),
   readOpenFile: (filePath) => ipcRenderer.invoke("mrlatte:readOpenFile", filePath),
+  // Sidebar open/closed, so main can lower the window's minimum width while
+  // the sidebar is hidden. Boolean only — main owns the actual sizes.
+  setSidebarOpen: (open) => ipcRenderer.send("mrlatte:setSidebarOpen", open === true),
+  // Standalone header window only (electron.js --header mode): the leading
+  // bytes of the file it was launched for. Takes no path — main already
+  // knows the one file this window may read.
+  readHeaderFile: () => ipcRenderer.invoke("mrlatte:readHeaderFile"),
 });

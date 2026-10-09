@@ -139,6 +139,91 @@ test("non-string input", () => {
   assert.strictEqual(r.reason, "empty-url");
 });
 
+// ---- base + overlay form ----
+const enc = encodeURIComponent;
+
+test("base + one overlay, type auto", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?base=${enc(validNii)}&overlay=${enc(validNiiWithSpace)}`);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.request, { base: validNii, overlays: [{ path: validNiiWithSpace, type: null }] });
+});
+
+test("several overlays; overlaytype applies by position, auto/missing = null", () => {
+  const r = parseMrlatteDeepLink(
+    `mrlatte://open?base=${enc(validNii)}&overlay=${enc(validNiiWithSpace)}&overlay=${enc(validNii)}&overlay=${enc(validNii)}`
+    + `&overlaytype=Activation&overlaytype=auto`);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.request.overlays.map((o) => o.type), ["activation", null, null]);
+});
+
+test("overlays without a base", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?overlay=${enc(validNii)}&overlaytype=lesion`);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.request, { base: null, overlays: [{ path: validNii, type: "lesion" }] });
+});
+
+test("base alone", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?base=${enc(validNii)}`);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.request, { base: validNii, overlays: [] });
+});
+
+test("path mixed with base/overlay is rejected", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?path=${enc(validNii)}&overlay=${enc(validNii)}`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "path-mixed-with-base-or-overlay");
+});
+
+test("two bases rejected", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?base=${enc(validNii)}&base=${enc(validNii)}`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "more-than-one-base");
+});
+
+test("unknown overlaytype rejected", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?overlay=${enc(validNii)}&overlaytype=exe`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "unknown-overlay-type:exe");
+});
+
+test("more overlaytypes than overlays rejected", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?overlay=${enc(validNii)}&overlaytype=lesion&overlaytype=roi`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "more-overlaytypes-than-overlays");
+});
+
+test("too many files rejected", () => {
+  const many = Array.from({ length: 9 }, () => `overlay=${enc(validNii)}`).join("&");
+  const r = parseMrlatteDeepLink(`mrlatte://open?${many}`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "too-many-files");
+});
+
+test("one missing overlay fails the whole link", () => {
+  const r = parseMrlatteDeepLink(`mrlatte://open?base=${enc(validNii)}&overlay=${enc(path.join(tmpDir, "nope.nii"))}`);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, "not-found");
+});
+
+test("a UNC overlay rejects the link with NO filesystem call for any path", () => {
+  // Record every filesystem probe the parser makes. A network path anywhere
+  // in the link must stop it before it touches the disk for ANY path — even
+  // the perfectly valid base listed first.
+  const realExists = fs.existsSync, realStat = fs.statSync;
+  const touched = [];
+  fs.existsSync = (p) => { touched.push(p); return realExists(p); };
+  fs.statSync = (p, ...rest) => { touched.push(p); return realStat(p, ...rest); };
+  try {
+    const r = parseMrlatteDeepLink(`mrlatte://open?base=${enc(validNii)}&overlay=${enc("\\\\evil-server\\share\\x.nii")}`);
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, "unc-or-network-path");
+    assert.deepStrictEqual(touched, []);
+  } finally {
+    fs.existsSync = realExists;
+    fs.statSync = realStat;
+  }
+});
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log(`\n${passed} test(s) passed.`);

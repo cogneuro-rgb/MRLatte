@@ -6,7 +6,7 @@ import {
   GitCompareArrows, GitBranch, Loader2, AlertCircle, X, Target, Network, Download,
   PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Sun, Moon,
   FlipHorizontal2, Minimize2, Contrast, Move, Keyboard, ZoomIn, FileCode,
-  ChevronsDownUp, ChevronsUpDown, Package, Pencil, GalleryHorizontal, Minus,
+  ChevronsDownUp, ChevronsUpDown, Package, Pencil, GalleryHorizontal, Minus, AlertTriangle,
 } from "lucide-react";
 import NiivueViewer from "@/components/NiivueViewer";
 import GotoMniInput from "@/components/GotoMniInput";
@@ -21,6 +21,7 @@ import { SidebarSection, SidebarSectionsContext, useSidebarSectionsController } 
 import { CrosshairInfo } from "@/components/CrosshairInfo";
 import { DrawingPanel } from "@/components/DrawingPanel";
 import { LesionQcDialog } from "@/components/LesionQcDialog";
+import { NiftiHeaderDialog, NiftiHeaderContext } from "@/components/NiftiHeaderDialog";
 import { useLesionQcIdle } from "@/hooks/useLesionQcIdle";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -69,6 +70,9 @@ import {
 } from "@/lib/retinotopyAnalysis";
 import { VisualFieldMap2D, visualFieldMap2DToDataURL, visualFieldMap2DDataURL } from "@/components/VisualFieldMap2D";
 import { dicomSeriesDownloadUrl } from "@/lib/dicom";
+import { normalizeTransform, isIdentityTransform } from "@/lib/overlayTransform";
+import { fileWithAffine } from "@/lib/overlayBake";
+import { baseIsMniTemplateGrid } from "@/lib/mniGrid";
 import {
   WORKSPACE_VERSION, fileToBase64, base64ToFile, saveWorkspace, openWorkspace, saveBinaryFile,
 } from "@/lib/workspace";
@@ -399,12 +403,30 @@ export default function Dashboard() {
   // template — a replaced base (custom upload, DICOM) is native-space, where
   // lqtpy's brain-mask checks would false-alarm on every drawing. Mirrors
   // DrawingPanel's own identical mni check (baseName === BASE_VOLUME.name).
-  const lesionQcMni = baseLabel === BASE_VOLUME.name;
-  // Details dialog for the idle-drawing QC toast's "Details" action — see
+  // ...or any base that sits exactly on a standard MNI template grid
+  // (lib/mniGrid.js), so the user's own copy of a template keeps the checks on.
+  const [baseOnMniGrid, setBaseOnMniGrid] = useState(false);
+  const lesionQcMni = baseLabel === BASE_VOLUME.name || baseOnMniGrid;
+  // Details dialog for the idle-drawing QC warning's "Details" button — see
   // useLesionQcIdle below. Read-only: just shows what QC found.
   const [qcIdleDetails, setQcIdleDetails] = useState(null);
-  const { notifyDrawChange: notifyLesionQcDrawChange } = useLesionQcIdle({
-    viewerRef, active: drawingActive, mni: lesionQcMni, onDetails: setQcIdleDetails,
+  // NIfTI header viewer: { name, hdr } of the layer whose header is open, or
+  // null. Opened from the header button on any layer card (via
+  // NiftiHeaderContext). The base row's id is always "mni152", whatever scan
+  // is loaded, and the base is always niivue's volumes[0].
+  const [headerTarget, setHeaderTarget] = useState(null);
+  const showLayerHeader = useCallback((layer) => {
+    const vol = layer.id === "mni152"
+      ? viewerRef.current?.getNiivue?.()?.volumes?.[0]
+      : viewerRef.current?.getVolume?.(layer.id);
+    if (!vol?.hdr) {
+      toast.info("No header to show", { description: "This layer isn't loaded yet." });
+      return;
+    }
+    setHeaderTarget({ name: layer.fullPath || layer.name, hdr: vol.hdr });
+  }, []);
+  const { notifyDrawChange: notifyLesionQcDrawChange, idleWarning: qcIdleWarning } = useLesionQcIdle({
+    viewerRef, active: drawingActive, mni: lesionQcMni,
   });
   // 4D frame stepper state — { frame, nFrames }. nFrames stays 1 for a plain
   // 3D base volume, which is what keeps FrameStepper (and the ArrowLeft/
@@ -969,6 +991,50 @@ export default function Dashboard() {
       [id]: { ...(p[id] || {}), clip: clipOn },
     }));
   };
+  // Manual move / rotate / scale of a lesion mask or activation map
+  // (lib/overlayTransform.js). The viewer shows the new position at once; the
+  // layer's cached FILE is then replaced by a copy whose header carries the very
+  // same affine. Every consumer of userFileCache — the analyses that POST the
+  // file, Download, Duplicate, Edit, workspace save — therefore works on what is
+  // on screen without knowing an adjustment exists. `original` keeps the file as
+  // loaded so the adjustment stays editable and Reset is exact.
+  // If the file can't take a new header (not NIfTI-1), the overlay is put back:
+  // showing a position the analyses would silently ignore is the one outcome
+  // this must never produce.
+  const transformSeq = useRef({});
+  // `opts.live` = a slider is being dragged: show it, but leave the file alone
+  // until the drag ends (the commit that follows rewrites it once, instead of
+  // re-gzipping a volume on every pixel of mouse travel).
+  const handleUserTransform = async (id, t, opts) => {
+    const viewer = viewerRef.current;
+    const cached = userFileCache.current[id];
+    if (!viewer || !cached?.file) return;
+    const next = normalizeTransform(t);
+    const identity = isIdentityTransform(next);
+    const affine = viewer.setOverlayTransform?.(id, next);
+    if (!affine) return;
+    setUserLayers((p) => p.map((l) => (l.id === id ? { ...l, transform: identity ? undefined : next } : l)));
+    const original = cached.original || cached.file;
+    const seq = (transformSeq.current[id] = (transformSeq.current[id] || 0) + 1);
+    if (opts?.live) return;
+    const current = () => transformSeq.current[id] === seq && userFileCache.current[id] === cached;
+    try {
+      const file = identity ? original : await fileWithAffine(original, affine);
+      if (!current()) return;          // a newer adjustment, or the layer was removed
+      cached.file = file;
+      if (identity) delete cached.original;
+      else cached.original = original;
+    } catch (e) {
+      if (!current()) return;
+      viewer.setOverlayTransform?.(id, null);
+      cached.file = original;
+      delete cached.original;
+      setUserLayers((p) => p.map((l) => (l.id === id ? { ...l, transform: undefined } : l)));
+      toast.error("This overlay can't be adjusted", {
+        description: "Its file format can't store a new position, so it was put back where it was.",
+      });
+    }
+  };
   const handleUserRemove = (id) => {
     viewerRef.current?.removeOverlayByName(id);
     delete userFileCache.current[id];
@@ -1199,6 +1265,7 @@ export default function Dashboard() {
     handleBaseUpload, baseLoading, markBaseLoadedExternally, handleDicomImport, loadDicomSeries, handleResetBase,
     handleBaseVisibilityToggle, handleBaseOpacity, handleBaseColormap,
     handleBaseCalRange, handleBaseColorbarToggle, refreshBaseOverlayMeta,
+    baseTransform, handleBaseTransform,
   } = useBaseVolume({
     viewerRef, baseVisible, setBaseLabel, setBaseVisible, setBaseOpacity,
     setBaseColormap, setBaseColorbarOn, setBaseOverlayMeta, setDicomJob,
@@ -1220,6 +1287,7 @@ export default function Dashboard() {
   useEffect(() => {
     const info = viewerRef.current?.getFrameInfo?.();
     if (info) setFrameInfo(info);
+    setBaseOnMniGrid(baseIsMniTemplateGrid(viewerRef.current));
   }, [baseLabel]);
   const handleFrameChange = useCallback((frame, nFrames) => {
     setFrameInfo({ frame, nFrames });
@@ -1324,12 +1392,21 @@ export default function Dashboard() {
       const cached = userFileCache.current[l.id];
       if (cached?.file) {
         try {
-          files[l.id] = { name: cached.file.name, b64: await fileToBase64(cached.file) };
+          // A manually adjusted layer is saved as its ORIGINAL file plus the
+          // adjustment (userLayers[].transform below), so it reopens still
+          // adjustable and resettable rather than with the move baked in.
+          const src = cached.original || cached.file;
+          files[l.id] = { name: src.name, b64: await fileToBase64(src) };
         } catch (_e) { /* skip unreadable file */ }
       }
     }
     return {
-      version: WORKSPACE_VERSION,
+      // v5 = a layer carries a manual adjustment. Only stamped when one does:
+      // an older MRLatte ignores the unknown field and would show (and analyse)
+      // the overlay at its unadjusted position without a word, so it must
+      // refuse such a file. Files with no adjustment stay v4 and keep opening
+      // everywhere.
+      version: userLayers.some((l) => l.transform) ? WORKSPACE_VERSION : WORKSPACE_VERSION - 1,
       savedAt: new Date().toISOString(),
       label: baseLabel,
       view: {
@@ -1357,6 +1434,7 @@ export default function Dashboard() {
           // Per-layer threshold (visibility) + colour-scaling ranges (v3).
           calMin: m.cal_min, calMax: m.cal_max,
           colorMin: m.color_min, colorMax: m.color_max,
+          transform: l.transform,
         };
       }),
       measurements,
@@ -1370,7 +1448,7 @@ export default function Dashboard() {
       measurements, landmark, pins, crosshairMM, retState, atlasState, layerLabelAtlas, baseLabel, tractRender]);
 
   const applyWorkspace = useCallback(async (ws) => {
-    if (!ws || ![1, 2, 3, 4].includes(ws.version)) {
+    if (!ws || ![1, 2, 3, 4, 5].includes(ws.version)) {
       toast.error("Unsupported workspace file");
       return;
     }
@@ -1435,6 +1513,7 @@ export default function Dashboard() {
       if (!newId) continue;
       if (typeof l.calMin === "number" && typeof l.calMax === "number") handleCalRangeChange(newId, l.calMin, l.calMax);
       if (typeof l.colorMin === "number" && typeof l.colorMax === "number") handleColorRangeChange(newId, l.colorMin, l.colorMax);
+      if (l.transform) await handleUserTransform(newId, l.transform);
       if (l.visible === false) handleUserToggle(newId);
     }
 
@@ -1589,6 +1668,12 @@ export default function Dashboard() {
   useEffect(() => { if (viewerReady) viewerRef.current?.setRadiologicalConvention(radiological); }, [radiological, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setOrientationLabels(orientationLabels); }, [orientationLabels, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setDragMode(dragMode); }, [dragMode, viewerReady]);
+  // Desktop app: a hidden sidebar (collapsed, or focus mode) lets the window
+  // shrink below its usual minimum width — electron.js owns the sizes.
+  // No-op in the browser build (no window.mrlatte).
+  useEffect(() => {
+    window.mrlatte?.setSidebarOpen?.(!(sidebarCollapsed || focusMode));
+  }, [sidebarCollapsed, focusMode]);
   // Auto-switch brushMode when sliceType CHANGES: multiplanar and asymmetric
   // switch to 3D (sphere stamps span slices naturally); single-slice views
   // switch to 2D (flat disc on the visible slice). Only reacts to an ACTUAL
@@ -2064,6 +2149,7 @@ export default function Dashboard() {
           </div>
 
           <SidebarSectionsContext.Provider value={sidebarSectionsCtx}>
+          <NiftiHeaderContext.Provider value={showLayerHeader}>
           <div className="flex-1 overflow-y-auto thin-scroll">
           {/* === 1. Base Volume === */}
           <BaseVolumeSection
@@ -2079,6 +2165,8 @@ export default function Dashboard() {
             requestHistogram={requestHistogram}
             handleBaseVisibilityToggle={handleBaseVisibilityToggle}
             handleBaseOpacity={handleBaseOpacity}
+            baseTransform={baseTransform}
+            handleBaseTransform={handleBaseTransform}
             handleBaseColormap={handleBaseColormap}
             handleBaseCalRange={handleBaseCalRange}
             handleBaseFullWindow={handleBaseFullWindow}
@@ -2125,6 +2213,7 @@ export default function Dashboard() {
             handleUserColormap={handleUserColormap}
             handleUserColormapInvert={handleUserColormapInvert}
             handleUserClipChange={handleUserClipChange}
+            handleUserTransform={handleUserTransform}
             handleUserRemove={handleUserRemove}
             handleCalRangeChange={handleCalRangeChange}
             handleColorRangeChange={handleColorRangeChange}
@@ -2157,6 +2246,7 @@ export default function Dashboard() {
             <DrawingPanel
               viewerRef={viewerRef}
               baseName={baseLabel}
+              baseIsMni={lesionQcMni}
               crosshair={crosshair}
               onToggleCrosshair={() => setCrosshair((v) => !v)}
               onCrosshairOff={() => setCrosshair(false)}
@@ -2198,6 +2288,7 @@ export default function Dashboard() {
             handleUserColormap={handleUserColormap}
             handleUserColormapInvert={handleUserColormapInvert}
             handleUserClipChange={handleUserClipChange}
+            handleUserTransform={handleUserTransform}
             handleUserRemove={handleUserRemove}
             handleCalRangeChange={handleCalRangeChange}
             handleColorRangeChange={handleColorRangeChange}
@@ -2392,6 +2483,7 @@ export default function Dashboard() {
             </div>
           </div>
           </div>
+          </NiftiHeaderContext.Provider>
           </SidebarSectionsContext.Provider>
           </div>
       </aside>
@@ -2730,6 +2822,33 @@ export default function Dashboard() {
               drawToolLabel={activeTool === "brush" ? `${brushMode} Brush/Erase` : ""}
             />
           )}
+          {/* Idle-drawing QC warning (useLesionQcIdle): persistent, just under
+              the viewer's DRAW MODE badge, until the drawing changes or paint
+              mode turns off — no close button by design. Orange = warning,
+              whatever the top flag's severity. */}
+          {qcIdleWarning && (
+            <div
+              className="absolute top-10 left-2 z-30 flex max-w-[min(26rem,calc(100%-1rem))] items-start gap-2 border border-orange-500/70 bg-black/80 px-2.5 py-2 text-[11px] text-orange-100 shadow"
+              role="status"
+              data-testid="lesion-qc-idle-warning"
+            >
+              <AlertTriangle size={14} className="mt-px shrink-0 text-orange-400" />
+              <div className="min-w-0 space-y-0.5">
+                <div className="font-medium text-orange-300">
+                  {qcIdleWarning.flags.some((f) => f.severity !== "info") ? "Possible issues with this drawing" : "Note on this drawing"}
+                  {qcIdleWarning.flags.length > 1 && <span className="text-orange-300/70"> · {qcIdleWarning.flags.length} findings</span>}
+                </div>
+                <div className="text-orange-100/90">{qcIdleWarning.flags[0].message}</div>
+              </div>
+              <button
+                onClick={() => setQcIdleDetails(qcIdleWarning)}
+                className="shrink-0 border border-orange-500/60 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-orange-200 hover:bg-orange-500/20"
+                data-testid="lesion-qc-idle-details"
+              >
+                Details
+              </button>
+            </div>
+          )}
           <ColorBarStack entries={colorBarEntries} />
           <FrameStepper frame={frameInfo.frame} nFrames={frameInfo.nFrames} onStepFrame={stepFrame} onSetFrame={setFrame} timeseriesData={timeseriesData} />
           {loadBarVisible && (
@@ -2789,6 +2908,10 @@ export default function Dashboard() {
                 <span>{viewerReady ? "WebGL ready" : "loading"}</span>
               </div>
               <div><span className="text-subtle">overlays</span>{" "}<span className="text-foreground">{totalActive}</span></div>
+              {/* From package.json via craco.config.js (REACT_APP_VERSION). */}
+              {process.env.REACT_APP_VERSION && (
+                <div title="MRLatte version" data-testid="app-version">v{process.env.REACT_APP_VERSION}</div>
+              )}
             </div>
           </div>
         )}
@@ -2851,16 +2974,22 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Idle-drawing QC toast's "Details" action (useLesionQcIdle) — read-only,
+      {/* Idle-drawing QC warning's "Details" button (useLesionQcIdle) — read-only,
           just shows what QC found; never gates Save/Download itself. */}
       {qcIdleDetails && (
         <LesionQcDialog
           open
           readOnly
           flags={qcIdleDetails.flags}
+          verdict={qcIdleDetails.verdict}
           onCancel={() => setQcIdleDetails(null)}
+          onGoTo={(mm) => {
+            setQcIdleDetails(null);
+            viewerRef.current?.setCrosshairMM?.(mm[0], mm[1], mm[2]);
+          }}
         />
       )}
+      <NiftiHeaderDialog target={headerTarget} onClose={() => setHeaderTarget(null)} />
     </div>
   );
 }

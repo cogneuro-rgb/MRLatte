@@ -7,7 +7,9 @@
 // in-memory File objects, so their bytes are embedded as base64 to make the
 // workspace self-contained (this enlarges the file — documented trade-off).
 
-export const WORKSPACE_VERSION = 4;
+// v5 adds userLayers[].transform (manual move / rotate / scale). Dashboard only
+// stamps v5 when a layer actually has one; everything else is still written as v4.
+export const WORKSPACE_VERSION = 5;
 
 export async function fileToBase64(file) {
   const buf = new Uint8Array(await file.arrayBuffer());

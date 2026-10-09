@@ -10,6 +10,12 @@ echo === 1/2: Assembling the offline bundle (embeddable Python + backend deps + 
 powershell -NoProfile -ExecutionPolicy Bypass -File "tools\build\assemble-bundle.ps1" -Full
 if errorlevel 1 goto :error
 
+REM electron-builder's exe tool unpacks with macOS symbolic links, which
+REM Windows refuses without Developer Mode - so put it in place ourselves
+REM first (tools\build\ensure-wincodesign.ps1 explains).
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\build\ensure-wincodesign.ps1"
+if errorlevel 1 goto :error
+
 echo.
 echo === 2/2: Building the frontend and packaging the installer ===
 cd frontend

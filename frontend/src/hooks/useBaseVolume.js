@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { normalizeTransform, isIdentityTransform } from "@/lib/overlayTransform";
 import { toast } from "sonner";
 import { BASE_VOLUME } from "@/lib/atlasConfig";
 import { convertDicom, fetchDicomSeriesFile } from "@/lib/dicom";
@@ -45,11 +46,22 @@ export function useBaseVolume({
   // real byte-progress is available from niivue's loader) so the canvas
   // doesn't just sit there looking stuck.
   const [baseLoading, setBaseLoading] = useState(false);
+  // Manual move / rotate / scale of the base (lib/overlayTransform.js). Lives
+  // only as long as this base does: every path that swaps the base clears it,
+  // because the new volume starts from its own file position. Not stored in
+  // workspace files — they don't carry a custom base either.
+  const [baseTransform, setBaseTransform] = useState(undefined);
+  const handleBaseTransform = (_, t) => {
+    const next = normalizeTransform(t);
+    if (!viewerRef.current?.setBaseTransform?.(next)) return;
+    setBaseTransform(isIdentityTransform(next) ? undefined : next);
+  };
   const handleBaseUpload = async (file) => {
     setBaseLoading(true);
     try {
       const ok = await viewerRef.current?.replaceBaseVolume(file);
       if (ok) {
+        setBaseTransform(undefined);
         setBaseLabel(file.name);
         setBaseFullPath(window.mrlatte?.getPathForFile?.(file) || null);
         setDicomDownload(null);
@@ -66,6 +78,7 @@ export function useBaseVolume({
   // avoid fetching+rendering MNI152 first just to immediately replace it —
   // so there's nothing to call replaceBaseVolume with here).
   const markBaseLoadedExternally = (name, fullPath) => {
+    setBaseTransform(undefined);
     setBaseLabel(name);
     setBaseFullPath(fullPath || null);
     setDicomDownload(null);
@@ -110,6 +123,7 @@ export function useBaseVolume({
       const niftiFile = await fetchDicomSeriesFile(jobId, s.id);
       const ok = await viewerRef.current?.replaceBaseVolume(niftiFile);
       if (ok) {
+        setBaseTransform(undefined);
         setBaseLabel(`DICOM · ${s.description || s.id}`);
         setBaseFullPath(null); // server-converted NIfTI, no local source path
         setLoadedSeriesId(s.id);
@@ -129,6 +143,7 @@ export function useBaseVolume({
   const handleResetBase = async () => {
     const ok = await viewerRef.current?.resetToBase(BASE_VOLUME);
     if (ok) {
+      setBaseTransform(undefined);
       setBaseLabel(BASE_VOLUME.name);
       setBaseFullPath(null);
       setBaseVisible(true);
@@ -179,5 +194,7 @@ export function useBaseVolume({
     handleBaseCalRange,
     handleBaseColorbarToggle,
     refreshBaseOverlayMeta,
+    baseTransform,
+    handleBaseTransform,
   };
 }

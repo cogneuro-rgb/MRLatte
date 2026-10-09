@@ -8,10 +8,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
 from deps import ATLAS_DIR, STATIC_DIR, cleanup_old_tract_results
+from static_cache import REVALIDATE, CacheControlStaticFiles
 
 from routers.status import router as status_router
 from routers.modules import router as modules_router
@@ -120,14 +120,19 @@ app.add_middleware(
 # first atlas installed through the Atlas Manager was unreachable until a
 # restart. mkdir costs nothing and removes that whole class of bug.
 ATLAS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/atlases", StaticFiles(directory=str(ATLAS_DIR)), name="atlases")
+app.mount("/atlases", CacheControlStaticFiles(directory=str(ATLAS_DIR)), name="atlases")
 
 # Serve the built React app from the same origin as the API (production /
 # container). Mounted AFTER the /api router so API routes always win. This makes
 # any URL path open the app and removes CORS concerns in prod. Skipped in dev
 # when no build exists (the CRA dev server on :3000 serves the UI instead).
+#
+# Cache headers (static_cache.py): index.html must be revalidated on every load
+# — without that, an updated install kept showing the previous version's UI out
+# of the desktop app's browser cache. Only the content-hashed files under
+# /static/ may be reused without asking.
 if STATIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+    app.mount("/", CacheControlStaticFiles(directory=str(STATIC_DIR), html=True, hashed_prefix="static"), name="static")
 
     @app.exception_handler(404)
     async def _spa_fallback(request, exc):  # noqa: ANN001
@@ -137,7 +142,7 @@ if STATIC_DIR.exists():
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         index = STATIC_DIR / "index.html"
         if request.method == "GET" and index.exists():
-            return FileResponse(str(index))
+            return FileResponse(str(index), headers={"Cache-Control": REVALIDATE})
         return JSONResponse({"detail": "Not Found"}, status_code=404)
 
 # Configure logging

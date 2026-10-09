@@ -2,6 +2,12 @@
 const path = require("path");
 require("dotenv").config();
 
+// App version for the dashboard's version label, from package.json (the one
+// place it's bumped). Set here because CRA only passes REACT_APP_* variables
+// into the bundle, and it reads them after this config has loaded; src/ can't
+// import package.json itself (CRA blocks imports from outside src/).
+process.env.REACT_APP_VERSION = require("./package.json").version;
+
 // Check if we're in development/preview mode (not production build)
 // Craco sets NODE_ENV=development for start, NODE_ENV=production for build
 const isDevServer = process.env.NODE_ENV !== "production";
@@ -30,6 +36,13 @@ let webpackConfig = {
         "react-hooks/rules-of-hooks": "error",
         "react-hooks/exhaustive-deps": "warn",
       },
+    },
+  },
+  // Jest needs the same "@/..." alias webpack has below, or no module that
+  // imports through it can be loaded in a test.
+  jest: {
+    configure: {
+      moduleNameMapper: { "^@/(.*)$": "<rootDir>/src/$1" },
     },
   },
   webpack: {

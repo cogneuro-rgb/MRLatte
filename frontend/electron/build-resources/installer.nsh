@@ -29,8 +29,10 @@
 Var Dialog
 Var CheckboxNii
 Var CheckboxGz
+Var CheckboxMenu
 Var AssocNiiState
 Var AssocGzState
+Var ContextMenuState
 
 Function MRLatteAssocPageCreate
   ; No MUI_HEADER_TEXT here: this file is !include'd by electron-builder
@@ -54,7 +56,14 @@ Function MRLatteAssocPageCreate
   ${NSD_CreateCheckbox} 0 40u 100% 12u "Open .nii.gz / .gz files with MRLatte"
   Pop $CheckboxGz
 
-  ${NSD_CreateLabel} 0 64u 100% 40u "Registering .gz makes MRLatte the default handler for ALL .gz files on this system, not just compressed NIfTI images. Uninstalling MRLatte restores whatever previously handled it. Leave unchecked if you use another tool for general .gz files."
+  ${NSD_CreateLabel} 0 60u 100% 34u "Registering .gz makes MRLatte the default handler for ALL .gz files on this system, not just compressed NIfTI images. Uninstalling MRLatte restores whatever previously handled it. Leave unchecked if you use another tool for general .gz files."
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 100u 100% 12u "Add MRLatte to the right-click menu of .nii / .nii.gz files"
+  Pop $CheckboxMenu
+  ${NSD_Check} $CheckboxMenu
+
+  ${NSD_CreateLabel} 0 114u 100% 24u "Adds MRLatte > Open and MRLatte > View NIfTI header. Doesn't change which app opens these files. On Windows 11 it's under 'Show more options'."
   Pop $0
 
   nsDialogs::Show
@@ -63,8 +72,31 @@ FunctionEnd
 Function MRLatteAssocPageLeave
   ${NSD_GetState} $CheckboxNii $AssocNiiState
   ${NSD_GetState} $CheckboxGz $AssocGzState
+  ${NSD_GetState} $CheckboxMenu $ContextMenuState
 FunctionEnd
 !endif
+
+; Explorer right-click submenu "MRLatte > Open / View NIfTI header", written
+; under SystemFileAssociations so it appears whatever app is the default for
+; the file type and never takes the default over. A key with an empty
+; SubCommands value plus its own `shell` subkey is Windows' registry-only
+; cascading menu (no shell-extension DLL). Windows 11's compact menu only
+; shows packaged/signed extensions, so there it lives under "Show more
+; options". `.gz` is shared with every gzip file, so that entry carries an
+; AppliesTo filter limiting it to *.nii.gz names.
+!macro MRLatteContextMenu EXT APPLIES_TO
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte" "MUIVerb" "MRLatte"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte" "Icon" "$appExe,0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte" "SubCommands" ""
+  ; Single-quoted: the AQS filter value itself contains double quotes.
+  !if '${APPLIES_TO}' != ''
+    WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte" "AppliesTo" '${APPLIES_TO}'
+  !endif
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte\shell\1open" "MUIVerb" "Open"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte\shell\1open\command" "" "$\"$appExe$\" $\"%1$\""
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte\shell\2header" "MUIVerb" "View NIfTI header"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\${EXT}\shell\MRLatte\shell\2header\command" "" "$\"$appExe$\" --header $\"%1$\""
+!macroend
 
 !macro customInstall
   ${If} $AssocNiiState == ${BST_CHECKED}
@@ -72,6 +104,10 @@ FunctionEnd
   ${EndIf}
   ${If} $AssocGzState == ${BST_CHECKED}
     !insertmacro APP_ASSOCIATE "gz" "MRLatte.NIfTIGz" "Compressed NIfTI Image (.nii.gz)" "$appExe,0" "Open with MRLatte" "$\"$appExe$\" $\"%1$\""
+  ${EndIf}
+  ${If} $ContextMenuState == ${BST_CHECKED}
+    !insertmacro MRLatteContextMenu ".nii" ""
+    !insertmacro MRLatteContextMenu ".gz" 'System.FileName:"*.nii.gz"'
   ${EndIf}
   !insertmacro UPDATEFILEASSOC
 !macroend
@@ -89,5 +125,9 @@ FunctionEnd
   ${If} $0 == "MRLatte.NIfTIGz"
     !insertmacro APP_UNASSOCIATE "gz" "MRLatte.NIfTIGz"
   ${EndIf}
+  ; The right-click submenu keys are MRLatte's own (named "MRLatte"), so
+  ; removing them can't touch another app's entries. No-op if never added.
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.nii\shell\MRLatte"
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.gz\shell\MRLatte"
   !insertmacro UPDATEFILEASSOC
 !macroend
