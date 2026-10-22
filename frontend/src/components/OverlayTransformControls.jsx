@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { Slider } from "@/components/ui/slider";
-import { IDENTITY_TRANSFORM, TRANSFORM_LIMITS, isIdentityTransform, normalizeTransform } from "@/lib/overlayTransform";
+import { JogBar } from "@/components/ui/jog-bar";
+import { IDENTITY_TRANSFORM, TRANSFORM_LIMITS, isIdentityTransform, normalizeTransform, wrapAngle } from "@/lib/overlayTransform";
 
-// The sliders cover the range a manual nudge normally needs; the number box
-// beside each one accepts the full range (TRANSFORM_LIMITS) for anything larger.
-const SLIDER = { move: 50, turn: 45, sizeMin: 50, sizeMax: 200 };
+// Top speed of each jog bar, reached only at its very end (the speed curve is
+// in jog-bar.jsx); the number box beside each one sets an exact value. Turns
+// have no limit: they wrap round (wrapAngle), so holding keeps turning.
+const SPEED = { move: 100, turn: 180, size: 200 };     // mm/s, degrees/s, %/s
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const round2 = (v) => Math.round(v * 100) / 100;
 
 // One number box. Keeps its own text while focused so half-typed values ("-",
 // "1.") aren't clobbered; commits on Enter, blur, or an arrow-key step.
-const NumberBox = ({ value, step, min, max, onCommit, testId }) => {
+const NumberBox = ({ value, step, min, max, wrap, onCommit, testId }) => {
+  const settle = (v) => (wrap ? wrap(v) : clamp(v, min, max));
   const [text, setText] = useState(String(value));
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -19,7 +21,7 @@ const NumberBox = ({ value, step, min, max, onCommit, testId }) => {
 
   const commit = (raw) => {
     const n = parseFloat(raw);
-    if (Number.isFinite(n)) onCommit(clamp(n, min, max));
+    if (Number.isFinite(n)) onCommit(settle(n));
     else setText(String(value));
   };
 
@@ -37,7 +39,7 @@ const NumberBox = ({ value, step, min, max, onCommit, testId }) => {
         else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
           e.preventDefault();
           const cur = Number.isFinite(parseFloat(text)) ? parseFloat(text) : value;
-          const next = clamp(round2(cur + (e.key === "ArrowUp" ? step : -step) * (e.shiftKey ? 10 : 1)), min, max);
+          const next = settle(round2(cur + (e.key === "ArrowUp" ? step : -step) * (e.shiftKey ? 10 : 1)));
           setText(String(next));
           onCommit(next);
         }
@@ -48,22 +50,26 @@ const NumberBox = ({ value, step, min, max, onCommit, testId }) => {
   );
 };
 
-// label · slider · number box. Dragging the slider moves the overlay live and
-// commits when released; the box commits at once.
-const Row = ({ label, title, value, step, sliderMin, sliderMax, min, max, onLive, onCommit, testId }) => (
-  <div className="flex items-center gap-2" title={title}>
+// label · jog bar · number box. Holding the bar moves the volume live and
+// commits on release; the box commits at once.
+const Row = ({ label, title, value, step, speed, unit, min, max, wrap, onLive, onCommit, testId }) => (
+  <div className="flex items-center gap-2 pt-1.5" title={title}>
     <span className="font-mono text-[9px] uppercase text-muted-foreground w-3 shrink-0">{label}</span>
-    <Slider
-      value={[clamp(value, sliderMin, sliderMax)]}
-      min={sliderMin}
-      max={sliderMax}
+    <JogBar
+      value={value}
+      maxSpeed={speed}
+      unit={unit}
+      min={min}
+      max={max}
+      wrap={wrap}
       step={step}
-      onValueChange={([v]) => onLive(v)}
-      onValueCommit={([v]) => onCommit(v)}
+      onLive={onLive}
+      onCommit={onCommit}
+      title={`${title}. Press and hold: the further from the middle, the faster.`}
       className="flex-1"
-      data-testid={`${testId}-slider`}
+      testId={`${testId}-jog`}
     />
-    <NumberBox value={value} step={step} min={min} max={max} onCommit={onCommit} testId={testId} />
+    <NumberBox value={value} step={step} min={min} max={max} wrap={wrap} onCommit={onCommit} testId={testId} />
   </div>
 );
 
@@ -119,21 +125,21 @@ export const OverlayTransformControls = ({ layerId, transform, onChange }) => {
       <Heading>move (mm)</Heading>
       {AXES.map((a, i) => (
         <Row key={`m${a.key}`} label={a.key} title={a.move} value={t.translation[i]} step={0.5}
-          sliderMin={-SLIDER.move} sliderMax={SLIDER.move} min={-L.translation} max={L.translation}
+          speed={SPEED.move} unit="mm" min={-L.translation} max={L.translation}
           onLive={(v) => emit(at("translation", i, v), true)} onCommit={(v) => emit(at("translation", i, v))}
           testId={`transform-move-${a.key}-${layerId}`} />
       ))}
       <Heading>turn (°)</Heading>
       {AXES.map((a, i) => (
         <Row key={`r${a.key}`} label={a.key} title={a.turn} value={t.rotation[i]} step={0.5}
-          sliderMin={-SLIDER.turn} sliderMax={SLIDER.turn} min={-L.rotation} max={L.rotation}
+          speed={SPEED.turn} unit="°" wrap={wrapAngle}
           onLive={(v) => emit(at("rotation", i, v), true)} onCommit={(v) => emit(at("rotation", i, v))}
           testId={`transform-turn-${a.key}-${layerId}`} />
       ))}
       <Heading>size (%)</Heading>
       <Row label="" title="Size as a percentage of the original. Grows or shrinks about the volume's own centre."
         value={round2(t.scale * 100)} step={1}
-        sliderMin={SLIDER.sizeMin} sliderMax={SLIDER.sizeMax} min={L.scaleMin * 100} max={L.scaleMax * 100}
+        speed={SPEED.size} unit="%" min={L.scaleMin * 100} max={L.scaleMax * 100}
         onLive={(v) => emit({ scale: v / 100 }, true)} onCommit={(v) => emit({ scale: v / 100 })}
         testId={`transform-size-${layerId}`} />
     </div>

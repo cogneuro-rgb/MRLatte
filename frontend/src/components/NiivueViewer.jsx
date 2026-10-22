@@ -10,6 +10,7 @@ import { installTractRenderer, uninstallTractRenderer } from "@/lib/gl/tractRend
 import { DEFAULT_TRACT_RENDER, sliderToThicknessMM } from "@/lib/gl/tractSettings";
 import { installVolumeClipPass, uninstallVolumeClipPass } from "@/lib/gl/volumeClip";
 import { installCustomRenderShader, uninstallCustomRenderShader } from "@/lib/gl/volumeRenderShader";
+import { installSliceBackgroundShader, setSliceBackgroundClip, uninstallSliceBackgroundShader } from "@/lib/gl/sliceBackgroundShader";
 import { MULTIPLANAR_GRID_LAYOUT } from "@/lib/viewer/layoutConstants";
 import { applyThresholdColormap, isContinuousOverlay, computeHasZeroVoxels, fixGlobalMinMax } from "@/lib/viewer/colormapUtils";
 import { applyFiberScalarColor, MEASURE_COLORS_RGB, MEASURE_NBANDS, appendSphere, appendCylinder } from "@/lib/viewer/meshGeometry";
@@ -30,8 +31,10 @@ import { createZoomMath } from "@/lib/viewer/zoomMath";
 // before fading out (see tileHighlightVisible below).
 const TILE_HIGHLIGHT_IDLE_MS = 2000;
 
+const CANVAS_BACK = { black: [0.02, 0.02, 0.02, 1], white: [1, 1, 1, 1] };
+
 const NiivueViewer = forwardRef(function NiivueViewer(
-  { baseVolume, sliceType = "multiplanar", activeOrientation = 0, onReady, onLocationChange, onError, onDoubleClickSlice, onClipRotateDelta, onFrameChange, clipEnabled = false, tractRender = DEFAULT_TRACT_RENDER, drawToolLabel = "" },
+  { baseVolume, sliceType = "multiplanar", activeOrientation = 0, onReady, onLocationChange, onError, onDoubleClickSlice, onClipRotateDelta, onFrameChange, clipEnabled = false, tractRender = DEFAULT_TRACT_RENDER, drawToolLabel = "", whiteBackground = false },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -48,6 +51,20 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   const measurementPointsRef = useRef([]); // [{id,mm,label}]
   const [measure2D, setMeasure2D] = useState([]);     // [{id,label,colorIdx,x,y}] CSS px
   const [measureHover, setMeasureHover] = useState(null); // {id,label,colorIdx,x,y} | null
+  // Near-black canvas by default, in both themes: a dark surround is what
+  // scans are read against. The optional white background (Dashboard's
+  // toggle, for figures and screenshots) also lets the canvas show through
+  // the empty space round the head in the 2D slices
+  // (lib/gl/sliceBackgroundShader.js); dark tissue such as CSF stays black.
+  const whiteBackgroundRef = useRef(whiteBackground);
+  useEffect(() => {
+    whiteBackgroundRef.current = whiteBackground;
+    const nv = nvRef.current;
+    if (!nv) return;
+    nv.opts.backColor = whiteBackground ? CANVAS_BACK.white : CANVAS_BACK.black;
+    setSliceBackgroundClip(nv, whiteBackground);
+    try { nv.drawScene(); } catch (_e) {}
+  }, [whiteBackground]);
   const baseRef = useRef(baseVolume);
   React.useEffect(() => { baseRef.current = baseVolume; }, [baseVolume]);
   // Keep the LATEST onDoubleClickSlice callback in a ref so the canvas
@@ -241,9 +258,8 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   // SMALL-FIXES (item 2 investigation): a lastDraws entry can go stale
   // without ever being removed from lastDraws itself — drawUndo/drawRedo
   // (drawingApi.js) restore an older/newer bitmap WHOLESALE and never touch
-  // lastDraws, and a right-click erase deliberately never records into
-  // lastDraws at all (see the rightErase comment in the setup effect below,
-  // "an erase drag isn't a drawn slice"). Either way, an entry can end up
+  // lastDraws, and a later erase can clear what a drawn entry pointed at.
+  // Either way, an entry can end up
   // claiming a slice is "drawn" when the LIVE bitmap now disagrees.
   // interpolateSlices() already detects an empty mask and rejects the pair
   // as "disconnected", but by then it's too late: the gap is silently
@@ -294,15 +310,22 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     while (end >= 0 && !entryStillValid(nv, hist[end])) end--;
     if (end < 1) return null;
     const axCorSag = hist[end].axCorSag;
-    const tool = hist[end].tool || "pen";
-    const seen = [];
-    for (let i = end; i >= 0 && seen.length < 2; i--) {
-      const d = hist[i];
-      if (d.axCorSag !== axCorSag) continue;
-      if ((d.tool || "pen") !== tool) continue;
-      if (!entryStillValid(nv, d)) continue;
-      if (seen.some((s) => s.slice === d.slice)) continue;
-      seen.push(d);
+    const latest = hist[end].tool || "pen";
+    // The latest stroke's kind first; if it has only one slice so far (say,
+    // one erase after drawing several slices), the other kind still works.
+    let tool = latest;
+    let seen = [];
+    for (const kind of [latest, latest === "cutout" ? "pen" : "cutout"]) {
+      seen = [];
+      for (let i = end; i >= 0 && seen.length < 2; i--) {
+        const d = hist[i];
+        if (d.axCorSag !== axCorSag) continue;
+        if ((d.tool || "pen") !== kind) continue;
+        if (!entryStillValid(nv, d)) continue;
+        if (seen.some((s) => s.slice === d.slice)) continue;
+        seen.push(d);
+      }
+      if (seen.length >= 2) { tool = kind; break; }
     }
     if (seen.length < 2) return null;
     return {
@@ -316,13 +339,14 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     };
   }
 
-  // One entry per distinct drawn slice index for a given orientation (0
-  // axial / 1 coronal / 2 sagittal), most-recently-drawn tool/label/footprint
-  // wins per slice, sorted ascending by slice. Feeds "Interpolate All" (item
-  // 62/70). Self-heals lastDraws in place: any entry for THIS orientation
+  // One entry per distinct slice index for a given orientation (0 axial /
+  // 1 coronal / 2 sagittal) and kind ("pen" = drawn, "cutout" = erased),
+  // most recent wins per slice, sorted ascending by slice. Feeds
+  // "Interpolate All" (item 62/70), which fills between drawn slices and
+  // carves between erased ones as two separate passes. Self-heals lastDraws in place: any entry for THIS orientation
   // that's gone stale (see entryStillValid) is dropped from lastDraws itself,
   // not just from this result, so later calls don't keep re-discovering it.
-  function distinctSliceEntriesForOrientation(axCorSag) {
+  function distinctSliceEntriesForOrientation(axCorSag, tool = "pen") {
     const nv = nvRef.current;
     const kept = [];
     let dropped = false;
@@ -334,6 +358,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     const bySlice = new Map();
     for (const d of kept) {
       if (d.axCorSag !== axCorSag) continue;
+      if ((d.tool || "pen") !== tool) continue;
       bySlice.set(d.slice, d); // lastDraws is chronological — later writes win
     }
     return [...bySlice.values()].sort((a, b) => a.slice - b.slice);
@@ -388,17 +413,17 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     const orientation = (manualOrientation === 0 || manualOrientation === 1 || manualOrientation === 2)
       ? manualOrientation
       : autoOrientation;
-    const entries =
-      orientation != null && orientation >= 0 && orientation <= 2
-        ? distinctSliceEntriesForOrientation(orientation)
-        : [];
+    // Interpolate All has work in a view when it has two drawn slices OR two
+    // erased ones.
+    const hasPair = (o) => distinctSliceEntriesForOrientation(o, "pen").length >= 2
+      || distinctSliceEntriesForOrientation(o, "cutout").length >= 2;
     drawCommitCb.current?.({
       canInterpolate: !!interpolatablePair(),
-      canInterpolateAll: entries.length >= 2,
+      canInterpolateAll: orientation != null && orientation >= 0 && orientation <= 2 && hasPair(orientation),
       // Per orientation (0 axial / 1 coronal / 2 sagittal): does it have the
       // two drawn slices Interpolate All needs? Greys out the rest of the
       // Draw panel's orientation menu.
-      validOrientations: [0, 1, 2].map((o) => distinctSliceEntriesForOrientation(o).length >= 2),
+      validOrientations: [0, 1, 2].map(hasPair),
       activeOrientation: activeOrientationRef.current,
       resolvedOrientation: orientation,
       autoOrientation,
@@ -593,7 +618,12 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   useEffect(() => {
     if (!canvasRef.current) return;
     const nv = new Niivue({
-      backColor: [0.02, 0.02, 0.02, 1],
+      backColor: whiteBackgroundRef.current ? CANVAS_BACK.white : CANVAS_BACK.black,
+      // niivue's own drag-and-drop swaps the volume behind the app's back
+      // (the dashboard's names and layers never hear of it). Drops on the
+      // viewer go through the app instead: Dashboard's onDropCapture →
+      // useQuickOpenFile's openDroppedFiles.
+      dragAndDropEnabled: false,
       crosshairColor: [0.95, 0.95, 0.95, 0.85],
       crosshairWidth: 1,
       show3Dcrosshair: true,
@@ -775,6 +805,8 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // has initialised WebGL — calling it earlier throws inside compileShader
     // and takes the whole NiivueViewer component down with it.
     installCustomRenderShader(nv);
+    installSliceBackgroundShader(nv);
+    setSliceBackgroundClip(nv, whiteBackgroundRef.current);
 
     nv.onLocationChange = (data) => {
       // Item 12: while a native Pen/Cutout stroke is painting AND the crosshair
@@ -836,7 +868,12 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       // drawn in: a manual orientation pick lasts only until the next stroke.
       interpolateAllOrientationOverrideRef.current = null;
       const hist = lastDraws.current;
-      const dupIdx = hist.findIndex((d) => d.axCorSag === entry.axCorSag && d.slice === entry.slice);
+      // One entry per slice AND kind: a slice you drew on and then erased part
+      // of keeps both, so the erase can't knock the drawing out of
+      // Interpolate (or the other way round).
+      const kind = (entry.tool || "pen") === "cutout" ? "cutout" : "pen";
+      const dupIdx = hist.findIndex((d) => d.axCorSag === entry.axCorSag && d.slice === entry.slice
+        && ((d.tool || "pen") === "cutout" ? "cutout" : "pen") === kind);
       if (dupIdx !== -1) hist.splice(dupIdx, 1);
       hist.push(entry);
       if (hist.length > 400) hist.shift();
@@ -1287,9 +1324,27 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // their pre-drag values afterward, so it can't corrupt a native left
     // stroke's state — the two are mutually exclusive in practice (one mouse,
     // one button at a time). Tracked separately from lastDraws/the
-    // interpolate-eligibility history — an erase drag isn't a "drawn slice"
-    // (unchanged design intent from before item 70).
-    let rightErase = null; // { axCorSag, prevVox, fillPts, snapshot, savedAxCorSag } mid-drag
+    // interpolate-eligibility history as a drawn slice; a finished erase on
+    // one slice IS recorded, as an erased slice (recordEraseEntry below).
+    let rightErase = null; // { axCorSag, slice, prevVox, fillPts, snapshot, savedAxCorSag } mid-drag
+    // A finished erase on ONE slice is recorded for Interpolate as a "cutout"
+    // entry holding the shape it erased, so erasing on two slices and pressing
+    // Interpolate carves the same shape through the slices between them (the
+    // void-carve that used to belong to the old Cutout tool).
+    const recordEraseEntry = (saved, snapshot) => {
+      try {
+        const dims = nv.back?.dims;
+        const nx = dims?.[1], ny = dims?.[2], nz = dims?.[3];
+        if (!nx || !ny || !nz || !(saved.axCorSag >= 0 && saved.axCorSag <= 2) || !Number.isFinite(saved.slice)) return;
+        const footprint = computeErasedFootprint({
+          preBitmap: rleDecode(snapshot), postBitmap: nv.drawBitmap,
+          dims: [nx, ny, nz], axCorSag: saved.axCorSag, slice: saved.slice,
+        });
+        if (!footprint.some(Boolean)) return;
+        recordDrawEntry({ axCorSag: saved.axCorSag, slice: saved.slice, label: nv.opts.penValue || 1, tool: "cutout", footprint });
+        emitInterpolateState();
+      } catch (_e) { /* interpolate bookkeeping is best-effort */ }
+    };
     // Item 102 (6c) / item 104: right-drag over the 3D render tile rotates the
     // CLIP PLANE only (never the render camera — that stays niivue's native
     // left-drag), regardless of the right-drag mode toggle (zoom/windowing/
@@ -1350,7 +1405,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
           if (!hit) return;
           let snapshot = null;
           try { snapshot = nv.drawBitmap ? rleEncode(nv.drawBitmap) : null; } catch (_e) { snapshot = null; }
-          rightErase = { mode: "circle2D", snapshot, lastVox: null, axCorSag: hit.axCorSag };
+          rightErase = { mode: "circle2D", snapshot, lastVox: null, axCorSag: hit.axCorSag, slice: hit.vox[2 - hit.axCorSag] };
           if (stamp2DCircleAlongPath(rightErase, hit.vox, brushRadiusRef.current, hit.axCorSag, 0)) {
             try { nv.refreshDrawing(true); } catch (_e) {}
           }
@@ -1367,6 +1422,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
         rightErase = {
           mode: "pen",
           axCorSag: hit.axCorSag,
+          slice: hit.vox[2 - hit.axCorSag],
           prevVox: hit.vox,
           fillPts: [hit.vox],
           snapshot,
@@ -1471,10 +1527,13 @@ const NiivueViewer = forwardRef(function NiivueViewer(
         const { mode, snapshot } = saved;
         rightErase = null;
         if (mode === "sphere3D" || mode === "circle2D") {
-          // Sphere and 2D circle erase: just push undo entry if bitmap changed.
+          // Sphere and 2D circle erase: push an undo entry if the bitmap
+          // changed. A 2D erase is also recorded for Interpolate (a sphere
+          // erase spans several slices, so it isn't).
           try {
             if (snapshot && nv.drawBitmap && rleEncode(nv.drawBitmap) !== snapshot) {
               drawHistory.current.push(snapshot);
+              if (mode === "circle2D") recordEraseEntry(saved, snapshot);
               emitHistory();
             }
             try { nv.refreshDrawing(true); } catch (_e) {}
@@ -1501,6 +1560,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
           if (savedAxCorSag !== undefined) nv.drawPenAxCorSag = savedAxCorSag;
           if (snapshot && nv.drawBitmap && rleEncode(nv.drawBitmap) !== snapshot) {
             drawHistory.current.push(snapshot);
+            recordEraseEntry(saved, snapshot);
             emitHistory();
           }
           try { nv.refreshDrawing(true); } catch (_e) {}
@@ -1794,6 +1854,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       uninstallTractRenderer(nv);
       uninstallVolumeClipPass(nv);
       uninstallCustomRenderShader(nv);
+      uninstallSliceBackgroundShader(nv);
       // Dispose the NiiVue instance itself: removes its OWN internal
       // canvas listeners (wheel/mousedown/mouseup/mousemove/dblclick/
       // keyboard/touch/drag, registered via registerInteractions with an
@@ -2039,7 +2100,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
   }));
 
   return (
-    <div className="relative h-full w-full bg-black overflow-hidden" data-testid="niivue-viewer">
+    <div className={`relative h-full w-full ${whiteBackground ? "bg-white" : "bg-black"} overflow-hidden`} data-testid="niivue-viewer">
       {/* In single-slice modes resizeCanvas() sizes/positions the canvas
           imperatively (aspect-correct box × fill-zoom), so the style prop must
           NOT set width/height there or React would clobber it each render. */}
@@ -2209,10 +2270,8 @@ const NiivueViewer = forwardRef(function NiivueViewer(
             <div className="h-1 w-32 bg-zinc-900 overflow-hidden">
               <div className="h-full w-1/3 bg-white animate-pulse" />
             </div>
-            {/* Fixed gray, NOT theme-tokenized: this sits on the permanently-
-                dark canvas backdrop (see bg-black above), not an adaptive
-                panel — text-muted-foreground would go dark-on-dark in light
-                theme. */}
+            {/* Fixed mid gray: readable on the canvas backdrop whether it
+                is black (default) or white (the optional white background). */}
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">
               loading mni152 template…
             </div>

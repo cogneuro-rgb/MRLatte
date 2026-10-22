@@ -122,6 +122,23 @@ export async function fetchQc({ lesionId, mni = true, threshold, context, tier, 
   return r.json();
 }
 
+/**
+ * The voxels lqtpy's own fix would remove for these findings (backend
+ * lesion_metrics.py::run_qc_fix). Only removals: specks, strokes, image-edge
+ * fragments, voxels far outside the brain.
+ * @returns {Promise<{voxels_removed: number, applied: string[], skipped: object[], removed_mask: string}>}
+ *   `removed_mask` is a base64 gzipped NIfTI on the uploaded drawing's grid.
+ */
+export async function fetchQcFix({ lesionId, findingIds, threshold, context }) {
+  const r = await fetch(`${apiBase}/api/lesion/qc/fix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lesion_id: lesionId, finding_ids: findingIds, threshold, context }),
+  });
+  if (!r.ok) throw new LesionMetricsHttpError(await readErrorDetail(r), r.status);
+  return r.json();
+}
+
 // --------------------------------------------------------------------------- #
 // Report fragments — lqtpy's embeddable HTML sections (morphometry detail,
 // network rollup, streamline disconnection, ...) for parts of the report

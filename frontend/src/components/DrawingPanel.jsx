@@ -11,8 +11,10 @@ import { currentDrawingAsFile } from "@/lib/lesions";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { ghostBtnCls } from "@/lib/buttonVariants";
 import { BASE_VOLUME } from "@/lib/atlasConfig";
-import { runLesionQc } from "@/lib/lesionQc";
+import { runLesionQc, applyQcFix } from "@/lib/lesionQc";
 import { LesionQcDialog } from "@/components/LesionQcDialog";
+import { OverlayTransformControls } from "@/components/OverlayTransformControls";
+import { IDENTITY_TRANSFORM } from "@/lib/overlayTransform";
 
 /**
  * DrawingPanel — unified MRIcroGL-style mask editor.
@@ -64,6 +66,9 @@ export const DrawingPanel = ({
   const interpolateMenuRef = useRef(null);
   // Undo/redo availability, mirrored from the viewer's draw history.
   const [canUndo, setCanUndo] = useState(false);
+  // Move / turn / resize of the drawing itself (drawingApi.transformDrawing):
+  // the adjustment since the drawing last changed any other way.
+  const [drawMove, setDrawMove] = useState(IDENTITY_TRANSFORM);
   const [canRedo, setCanRedo] = useState(false);
   // Spherical-ROI sub-tool — paints a sphere into the SAME drawing bitmap.
   const [sphere, setSphere] = useState({ x: "0", y: "0", z: "0", r: "5" });
@@ -91,6 +96,21 @@ export const DrawingPanel = ({
   // unavailable/timeout/error (fail-open, see lib/lesionQc.js) or a clean
   // drawing — so Save/Download behave exactly as today in the common case.
   const acceptedQcIdRef = useRef(null);
+  // Fix button in the quality dialog: lqtpy removes the stray voxels, as one
+  // undoable edit. The save that raised the dialog is cancelled first, so the
+  // fixed drawing is checked again on the next Save.
+  const fixFinding = async (finding, lesionId) => {
+    try {
+      const n = await applyQcFix({ viewerRef, lesionId, findingId: finding.id });
+      if (!n) { toast.info("Nothing left to remove", { description: "The drawing has already changed there." }); return; }
+      toast.success(`Removed ${n.toLocaleString()} voxel${n === 1 ? "" : "s"}`, {
+        description: finding.label || finding.id,
+        action: { label: "Undo", onClick: () => viewerRef.current?.drawUndo?.() },
+      });
+    } catch (e) {
+      toast.error("Couldn't fix this automatically", { description: e?.message });
+    }
+  };
   const requestQcConfirmation = (file, actionLabel) => new Promise((resolve) => {
     runLesionQc({ file, viewerRef, mni, fileName: file.name }).then((result) => {
       if (!result || !result.needsAttention) { resolve(true); return; }
@@ -207,6 +227,8 @@ export const DrawingPanel = ({
     viewer?.setHistoryCallback?.(({ canUndo: u, canRedo: r }) => {
       setCanUndo(!!u);
       setCanRedo(!!r);
+      // Any edit other than a move restarts the position block at zero.
+      setDrawMove(viewer?.getDrawingTransform?.() || IDENTITY_TRANSFORM);
     });
     // The viewer owns paint mode; mirror it so this button can never disagree with
     // the canvas — covers paths that flip it from outside this panel (the layer
@@ -776,6 +798,18 @@ export const DrawingPanel = ({
         </div>
       </div>
 
+      {/* Move / turn / resize the drawing itself — redraws its voxels, one Undo per gesture */}
+      <div className="space-y-1.5" data-testid="draw-position">
+        <OverlayTransformControls
+          layerId="drawing"
+          transform={drawMove}
+          onChange={(_id, t, opts) => {
+            if (viewerRef.current?.transformDrawing?.(t, { live: !!opts?.live })) setDrawMove(t);
+            else if (!opts?.live) toast.error("Nothing drawn to move yet");
+          }}
+        />
+      </div>
+
       {/* Undo / Redo */}
       <div className="grid grid-cols-2 gap-1.5">
         <button onClick={() => viewerRef.current?.drawUndo()} disabled={!canUndo} className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border" data-testid="drawing-undo" title="Undo (Ctrl+Z)">
@@ -840,6 +874,11 @@ export const DrawingPanel = ({
           onGoTo={(mm) => {
             qcPrompt.resolve(false); setQcPrompt(null);
             viewerRef.current?.setCrosshairMM?.(mm[0], mm[1], mm[2]);
+          }}
+          onFix={(finding) => {
+            const { lesionId } = qcPrompt;
+            qcPrompt.resolve(false); setQcPrompt(null);
+            fixFinding(finding, lesionId);
           }}
           onInterpolate={() => {
             qcPrompt.resolve(false); setQcPrompt(null);

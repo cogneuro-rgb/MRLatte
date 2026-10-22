@@ -221,6 +221,40 @@ def lesion_qc_endpoint(payload: LesionQcRequest):
         )
 
 
+class LesionQcFixRequest(BaseModel):
+    lesion_id: str
+    finding_ids: List[str]
+    threshold: Optional[float] = None
+    context: Optional[dict] = None
+
+
+@router.post("/lesion/qc/fix")
+def lesion_qc_fix_endpoint(payload: LesionQcFixRequest):
+    """The voxels lqtpy's fix would remove for the given findings (stray
+    specks and strokes, image-edge fragments, voxels far outside the brain).
+    See backend/lesion_metrics.py::run_qc_fix. Status codes as /lesion/qc,
+    plus 400 for a finding that can't be fixed automatically."""
+    lesion_path = _resolve_lesion_path(payload.lesion_id)
+    threshold = (payload.threshold if payload.threshold is not None
+                 else engine.DEFAULT_THRESHOLD)
+    t0 = time.monotonic()
+    error_status = None
+    try:
+        return engine.run_qc_fix(lesion_path, payload.finding_ids, threshold=threshold,
+                                 context=payload.context)
+    except engine.LesionMetricsError as exc:
+        error_status = exc.status_code
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — lqtpy's own typed errors land here
+        error_status = engine.status_code_for(exc)
+        raise HTTPException(status_code=error_status, detail=str(exc)) from exc
+    finally:
+        logger.info(
+            "lesion qc fix lesion_id=%s ids=%s duration_ms=%.2f status=%s",
+            payload.lesion_id, payload.finding_ids, (time.monotonic() - t0) * 1000.0, error_status or 200,
+        )
+
+
 @router.get("/lesion/capabilities")
 def lesion_capabilities():
     """Whether the lqtpy engine is usable right now, and on what atlases."""

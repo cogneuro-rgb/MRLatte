@@ -99,11 +99,21 @@ FunctionEnd
 !macroend
 
 !macro customInstall
+  ; The name Explorer shows in "Open with". Without it Windows reads the exe's
+  ; file description and caches the answer per install path (MuiCache) — and
+  ; builds up to 0.3.x carried Electron's own description, so a PC that ever
+  ; had one keeps saying "Electron" after upgrading. An explicit
+  ; FriendlyAppName wins over both; the stale cache values are dropped too.
+  WriteRegStr SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}" "FriendlyAppName" "MRLatte"
+  DeleteRegValue HKCU "Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache" "$appExe.FriendlyAppName"
+  DeleteRegValue HKCU "Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache" "$appExe.ApplicationCompany"
   ${If} $AssocNiiState == ${BST_CHECKED}
     !insertmacro APP_ASSOCIATE "nii" "MRLatte.NIfTI" "NIfTI Image" "$appExe,0" "Open with MRLatte" "$\"$appExe$\" $\"%1$\""
+    WriteRegStr SHELL_CONTEXT "Software\Classes\MRLatte.NIfTI\shell\open" "FriendlyAppName" "MRLatte"
   ${EndIf}
   ${If} $AssocGzState == ${BST_CHECKED}
     !insertmacro APP_ASSOCIATE "gz" "MRLatte.NIfTIGz" "Compressed NIfTI Image (.nii.gz)" "$appExe,0" "Open with MRLatte" "$\"$appExe$\" $\"%1$\""
+    WriteRegStr SHELL_CONTEXT "Software\Classes\MRLatte.NIfTIGz\shell\open" "FriendlyAppName" "MRLatte"
   ${EndIf}
   ${If} $ContextMenuState == ${BST_CHECKED}
     !insertmacro MRLatteContextMenu ".nii" ""
@@ -129,5 +139,7 @@ FunctionEnd
   ; removing them can't touch another app's entries. No-op if never added.
   DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.nii\shell\MRLatte"
   DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.gz\shell\MRLatte"
+  ; Only the value: Windows keeps its own entries under this key.
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\Applications\${APP_EXECUTABLE_FILENAME}" "FriendlyAppName"
   !insertmacro UPDATEFILEASSOC
 !macroend

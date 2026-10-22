@@ -5,7 +5,7 @@ import {
   RotateCcw, Columns3, Ruler, Save, FolderOpen,
   GitCompareArrows, GitBranch, Loader2, AlertCircle, X, Target, Network, Download,
   PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen, Sun, Moon,
-  FlipHorizontal2, Minimize2, Contrast, Move, Keyboard, ZoomIn, FileCode,
+  FlipHorizontal2, Square, ArrowLeftRight, Minimize2, Contrast, Move, Keyboard, ZoomIn, FileCode,
   ChevronsDownUp, ChevronsUpDown, Package, Pencil, GalleryHorizontal, Minus, AlertTriangle,
 } from "lucide-react";
 import NiivueViewer from "@/components/NiivueViewer";
@@ -73,6 +73,7 @@ import { dicomSeriesDownloadUrl } from "@/lib/dicom";
 import { normalizeTransform, isIdentityTransform } from "@/lib/overlayTransform";
 import { fileWithAffine } from "@/lib/overlayBake";
 import { baseIsMniTemplateGrid } from "@/lib/mniGrid";
+import { applyQcFix } from "@/lib/lesionQc";
 import {
   WORKSPACE_VERSION, fileToBase64, base64ToFile, saveWorkspace, openWorkspace, saveBinaryFile,
 } from "@/lib/workspace";
@@ -315,6 +316,11 @@ export default function Dashboard() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   // Viewer view state (pushed to NiiVue via effects below; persisted to workspace).
   const [radiological, setRadiological] = useState(true);
+  // Sagittal tiles: nose to the right (default) or to the left.
+  const [sagittalNoseLeft, setSagittalNoseLeft] = useState(false);
+  // Viewer background: black (default, for reading scans) or white (for
+  // figures and screenshots). Independent of the app's light/dark theme.
+  const [whiteBackground, setWhiteBackground] = useState(false);
   const [orientationLabels, setOrientationLabels] = useState(true);
   // Right-drag mode toggle: "zoom" (default) | "windowing" | "pan". Left-click
   // is ALWAYS crosshair (when not drawing) and isn't controlled by this state
@@ -1351,7 +1357,7 @@ export default function Dashboard() {
   // initialBaseVolume BEFORE the viewer ever mounts, so a base/timeseries
   // quick-open loads straight from the double-clicked file — no MNI152
   // fetch-then-swap flash.
-  const { initialBaseVolume } = useQuickOpenFile({
+  const { initialBaseVolume, openDroppedFiles } = useQuickOpenFile({
     viewerReady, handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer: handleUserRemove,
     setAsymmetric, setSliceType, setFocusMode,
   });
@@ -1414,7 +1420,7 @@ export default function Dashboard() {
         baseVisible, baseOpacity, baseColormap, baseColorbarOn,
         // Base intensity window + view chrome (v3).
         baseCalMin: baseOverlayMeta.cal_min, baseCalMax: baseOverlayMeta.cal_max,
-        sidebarCollapsed, topbarCollapsed, dragMode, radiological, orientationLabels, theme,
+        sidebarCollapsed, topbarCollapsed, dragMode, radiological, sagittalNoseLeft, whiteBackground, orientationLabels, theme,
         activeOrientation,
         // Global tract
         // render settings (geometry, lighting, thickness, slab, display
@@ -1444,7 +1450,7 @@ export default function Dashboard() {
     };
   }, [userLayers, overlayMeta, sliceType, crosshair, crosshairWidth, crosshairColor, clipEnabled, clipDepth, clipAz, clipEl,
       asymmetric, largeSlice, baseVisible, baseOpacity, baseColormap, baseColorbarOn, baseOverlayMeta,
-      sidebarCollapsed, topbarCollapsed, dragMode, radiological, orientationLabels, theme, activeOrientation,
+      sidebarCollapsed, topbarCollapsed, dragMode, radiological, sagittalNoseLeft, whiteBackground, orientationLabels, theme, activeOrientation,
       measurements, landmark, pins, crosshairMM, retState, atlasState, layerLabelAtlas, baseLabel, tractRender]);
 
   const applyWorkspace = useCallback(async (ws) => {
@@ -1492,6 +1498,8 @@ export default function Dashboard() {
     setTopbarCollapsed(!!v.topbarCollapsed);
     if (v.dragMode) setDragMode(v.dragMode);
     setRadiological(!!v.radiological);
+    setSagittalNoseLeft(!!v.sagittalNoseLeft);
+    setWhiteBackground(!!v.whiteBackground);
     if (v.orientationLabels != null) setOrientationLabels(!!v.orientationLabels);
     if (v.theme === "light" || v.theme === "dark") setTheme(v.theme);
     if (v.activeOrientation != null && v.activeOrientation >= 0 && v.activeOrientation <= 2) {
@@ -1666,6 +1674,7 @@ export default function Dashboard() {
   }, [sliceType, asymmetric, mosaicAxis, mosaicCount, mosaicRows, mosaicGap, viewerReady]);
   // Push view state to the viewer whenever it changes (and once ready).
   useEffect(() => { if (viewerReady) viewerRef.current?.setRadiologicalConvention(radiological); }, [radiological, viewerReady]);
+  useEffect(() => { if (viewerReady) viewerRef.current?.setSagittalNoseLeft(sagittalNoseLeft); }, [sagittalNoseLeft, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setOrientationLabels(orientationLabels); }, [orientationLabels, viewerReady]);
   useEffect(() => { if (viewerReady) viewerRef.current?.setDragMode(dragMode); }, [dragMode, viewerReady]);
   // Desktop app: a hidden sidebar (collapsed, or focus mode) lets the window
@@ -2092,8 +2101,16 @@ export default function Dashboard() {
             <div className="flex h-8 w-8 items-center justify-center border border-border">
               <Brain size={16} className="text-foreground" />
             </div>
-            <div className="flex-1">
+            {/* The version sits beside the name, kept clear of the module button
+                (pr-3); in a narrow sidebar it drops under the name instead. */}
+            <div className="flex-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 min-w-0 pr-3">
               <div className="text-[15px] font-semibold tracking-tight leading-none">MRLatte</div>
+              {/* From package.json via craco.config.js (REACT_APP_VERSION). */}
+              {process.env.REACT_APP_VERSION && (
+                <div className="font-mono text-[9px] text-muted-foreground leading-none whitespace-nowrap" title="MRLatte version" data-testid="app-version">
+                  v{process.env.REACT_APP_VERSION}
+                </div>
+              )}
             </div>
             <button
               onClick={() => openStore(null)}
@@ -2525,12 +2542,29 @@ export default function Dashboard() {
       )}
 
       {/* ============ MAIN VIEWER ============ */}
-      {/* bg-black is intentionally NOT theme-tokenized: the NiiVue canvas's
-          WebGL clear color is fixed dark (see NiivueViewer's `backColor`)
-          regardless of app theme — scan images are optimized for a dark
-          viewing background. A light container here would show as a pale
-          halo around the dark render. */}
-      <main className="flex-1 flex flex-col min-h-0 min-w-0 bg-black relative" data-testid="viewer-main">
+      {/* The backdrop matches the canvas's clear colour (NiivueViewer's
+          `backColor`): black by default, white with the optional white
+          background, so no halo shows round the render.
+          Files dropped anywhere on the viewer are opened by the app (named,
+          listed, classified as base or overlay) — onDropCapture runs before
+          niivue's own canvas listener, which would swallow the event. */}
+      <main
+        className={`flex-1 flex flex-col min-h-0 min-w-0 ${whiteBackground ? "bg-white" : "bg-black"} relative`}
+        data-testid="viewer-main"
+        onDragOverCapture={(e) => {
+          if (Array.from(e.dataTransfer?.types || []).includes("Files")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDropCapture={(e) => {
+          const files = Array.from(e.dataTransfer?.files || []);
+          if (!files.length) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openDroppedFiles(files);
+        }}
+      >
         {/* Focus/presentation mode: a single floating control to exit, no other chrome. */}
         {focusMode && (
           <button
@@ -2557,11 +2591,30 @@ export default function Dashboard() {
             {SLICE_MODES.map((m) => {
               const Icon = m.icon;
               const active = sliceType === m.id && !asymmetric;
-              return (
+              const button = (
                 <button key={m.id} onClick={() => { setAsymmetric(false); setSliceType(m.id); }}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border ${activeToggleCls(active)}`} data-testid={`slice-mode-${m.id}`}>
                   <Icon size={12} /><span>{m.label}</span>
                 </button>
+              );
+              if (m.id !== "sagittal") return button;
+              // Sagittal carries a small flip button on its right: which way the
+              // nose points in every sagittal tile (a turn of the view to the
+              // head's other side, so the A/P letters swap with it — not a mirror).
+              return (
+                <div key={m.id} className="flex-1 flex">
+                  {button}
+                  <button
+                    onClick={() => setSagittalNoseLeft((v) => !v)}
+                    className="flex items-center justify-center px-1.5 border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
+                    title={`Sagittal: nose points ${sagittalNoseLeft ? "left" : "right"}. Click to face it ${sagittalNoseLeft ? "right" : "left"}.`}
+                    aria-label="Flip sagittal view (nose left / nose right)"
+                    aria-pressed={sagittalNoseLeft}
+                    data-testid="sagittal-nose-flip"
+                  >
+                    <ArrowLeftRight size={11} />
+                  </button>
+                </div>
               );
             })}
             {/* Asymmetric: 1 large + 3 stacked side views */}
@@ -2583,6 +2636,20 @@ export default function Dashboard() {
               title="Radiological convention: mirror axial & coronal (L/R swap). Off = neurological."
             >
               <FlipHorizontal2 size={12} /><span>{radiological ? "Radiological" : "Neurological"}</span>
+            </button>
+            {/* Viewer background: black (default) or white (figures, screenshots) */}
+            <button
+              onClick={() => setWhiteBackground((v) => !v)}
+              className={`flex items-center px-2.5 py-1.5 transition-colors border ${
+                whiteBackground ? "bg-panel-hover text-foreground border-muted-foreground" : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              }`}
+              data-testid="white-background-toggle"
+              aria-pressed={whiteBackground}
+              title={whiteBackground
+                ? "White viewer background (for figures and screenshots). Click for black, better for reading scans."
+                : "Black viewer background. Click for white, for figures and screenshots."}
+            >
+              <Square size={12} fill={whiteBackground ? "currentColor" : "none"} />
             </button>
             {/* Left-drag mode: crosshair / windowing / pan */}
             {/* Right-drag mode: left-click is always crosshair (when not
@@ -2820,6 +2887,7 @@ export default function Dashboard() {
               clipEnabled={clipEnabled}
               tractRender={tractRender}
               drawToolLabel={activeTool === "brush" ? `${brushMode} Brush/Erase` : ""}
+              whiteBackground={whiteBackground}
             />
           )}
           {/* Idle-drawing QC warning (useLesionQcIdle): persistent, just under
@@ -2908,10 +2976,6 @@ export default function Dashboard() {
                 <span>{viewerReady ? "WebGL ready" : "loading"}</span>
               </div>
               <div><span className="text-subtle">overlays</span>{" "}<span className="text-foreground">{totalActive}</span></div>
-              {/* From package.json via craco.config.js (REACT_APP_VERSION). */}
-              {process.env.REACT_APP_VERSION && (
-                <div title="MRLatte version" data-testid="app-version">v{process.env.REACT_APP_VERSION}</div>
-              )}
             </div>
           </div>
         )}
@@ -2986,6 +3050,20 @@ export default function Dashboard() {
           onGoTo={(mm) => {
             setQcIdleDetails(null);
             viewerRef.current?.setCrosshairMM?.(mm[0], mm[1], mm[2]);
+          }}
+          onFix={async (finding) => {
+            const { lesionId } = qcIdleDetails;
+            setQcIdleDetails(null);
+            try {
+              const n = await applyQcFix({ viewerRef, lesionId, findingId: finding.id });
+              if (!n) { toast.info("Nothing left to remove", { description: "The drawing has already changed there." }); return; }
+              toast.success(`Removed ${n.toLocaleString()} voxel${n === 1 ? "" : "s"}`, {
+                description: finding.label || finding.id,
+                action: { label: "Undo", onClick: () => viewerRef.current?.drawUndo?.() },
+              });
+            } catch (e) {
+              toast.error("Couldn't fix this automatically", { description: e?.message });
+            }
           }}
         />
       )}

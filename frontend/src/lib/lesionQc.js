@@ -10,7 +10,7 @@
 // all resolve to `null`. Callers MUST treat null as "QC has nothing to say
 // right now" and proceed exactly as if this module didn't exist — QC must
 // never be the reason a user can't save or download their work.
-import { getCapabilities, uploadLesion, fetchQc } from "@/lib/lesionMetrics";
+import { getCapabilities, uploadLesion, fetchQc, fetchQcFix } from "@/lib/lesionMetrics";
 import { currentDrawingAsFile } from "@/lib/lesions";
 
 // A few seconds — long enough for a normal QC pass, short enough that a slow
@@ -38,6 +38,32 @@ const IGNORED_FLAG_IDS = new Set(["values"]);
  * a prompt on every clean save teaches people to click through it.
  */
 export const needsAttention = (flags) => (flags || []).some((f) => f.severity !== "info");
+
+// Findings MRLatte will fix with one click: lqtpy's fix only REMOVES voxels it
+// is sure don't belong for these. Its fixes that ADD voxels (gaps, holes,
+// unfilled outlines) stay manual: they add lesion nobody drew.
+// Mirrors QC_FIX_IDS in backend/lesion_metrics.py.
+export const AUTO_FIX_IDS = new Set(["specks", "strokes", "edge_artifact", "outside_brain"]);
+// lqtpy marks a finding it can repair with a `fix` hint (0.6.0+).
+export const canAutoFix = (f) => AUTO_FIX_IDS.has(f?.id) && f?.fix != null;
+
+/**
+ * Apply lqtpy's fix for one finding to the CURRENT drawing, as one undoable
+ * edit. `lesionId` is the upload the finding came from, so the removal mask is
+ * on that drawing's grid. Unlike runLesionQc this does not fail open: the user
+ * asked for it, so errors are thrown for the caller to show.
+ * @returns {Promise<number>} voxels actually removed from the drawing
+ */
+export async function applyQcFix({ viewerRef, lesionId, findingId }) {
+  const context = { labels_are_colours: true, ...(viewerRef?.current?.getDrawingContext?.() || {}) };
+  const res = await fetchQcFix({ lesionId, findingIds: [findingId], context });
+  if (!res.voxels_removed) return 0;
+  const bytes = Uint8Array.from(atob(res.removed_mask), (c) => c.charCodeAt(0));
+  const file = new File([bytes], "qc_fix_removed.nii.gz", { type: "application/gzip" });
+  const removed = await viewerRef?.current?.removeVoxelsFromMask?.(file);
+  if (removed == null) throw new Error("The drawing could not take the fix (has the base scan changed?).");
+  return removed;
+}
 
 /**
  * @param {{viewerRef?: object, file?: File, mni: boolean, fileName?: string, timeoutMs?: number}} args

@@ -23,19 +23,28 @@ export const IDENTITY_TRANSFORM = Object.freeze({
   scale: 1,
 });
 
-export const TRANSFORM_LIMITS = { translation: 200, rotation: 180, scaleMin: 0.25, scaleMax: 4 };
+// Rotation has no limit: an angle is kept as the same turn within (-180, 180]
+// (wrapAngle), so turning keeps going round.
+export const TRANSFORM_LIMITS = { translation: 200, scaleMin: 0.25, scaleMax: 4 };
 
 const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-/** Fill in defaults and clamp to sane ranges. Accepts null/partial input. */
+/** An angle in degrees as the same turn within (-180, 180]: 190 -> -170, -180 -> 180. */
+export function wrapAngle(deg) {
+  if (deg > -180 && deg <= 180) return deg;           // untouched: no float noise in the number box
+  const r = Math.round((((((deg + 180) % 360) + 360) % 360) - 180) * 1e6) / 1e6;
+  return r === -180 ? 180 : r;
+}
+
+/** Fill in defaults, clamp move and size, wrap angles. Accepts null/partial input. */
 export function normalizeTransform(t) {
   const L = TRANSFORM_LIMITS;
   const tr = t?.translation || [];
   const ro = t?.rotation || [];
   return {
     translation: [0, 1, 2].map((i) => clamp(num(tr[i], 0), -L.translation, L.translation)),
-    rotation: [0, 1, 2].map((i) => clamp(num(ro[i], 0), -L.rotation, L.rotation)),
+    rotation: [0, 1, 2].map((i) => wrapAngle(num(ro[i], 0))),
     scale: clamp(num(t?.scale, 1) || 1, L.scaleMin, L.scaleMax),
   };
 }

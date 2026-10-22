@@ -44,9 +44,13 @@ const READ_ERROR_MESSAGE = {
  * @param {(v: boolean) => void} deps.setAsymmetric
  * @param {(v: string) => void} deps.setSliceType
  * @param {(v: boolean) => void} deps.setFocusMode
- * @returns {{ initialBaseVolume: object|null }} pass straight through as
- *   NiivueViewer's `baseVolume` prop; null means "still resolving, don't
- *   mount the viewer yet" (resolves in a single microtask/IPC round trip).
+ * @returns {{ initialBaseVolume: object|null, openDroppedFiles: (files: File[]) => Promise<void> }}
+ *   initialBaseVolume: pass straight through as NiivueViewer's `baseVolume`
+ *   prop; null means "still resolving, don't mount the viewer yet" (resolves
+ *   in a single microtask/IPC round trip).
+ *   openDroppedFiles: files dropped on the viewer, routed the same way as a
+ *   double-click — a base/timeseries replaces the base, a lesion or
+ *   activation map is added as an overlay on the current base.
  */
 export function useQuickOpenFile({
   viewerReady,
@@ -254,5 +258,47 @@ export function useQuickOpenFile({
     })();
   }, [viewerReady]);
 
-  return { initialBaseVolume };
+  // Files dropped on the viewer (Dashboard's onDropCapture). Same detection
+  // as a double-click, but on the window as it is now: the current base stays
+  // unless a dropped file is itself a base, and the view isn't switched to
+  // focus mode. At most one base per drop — any further base-like files are
+  // added as overlays rather than replacing each other.
+  const openDroppedFiles = async (files) => {
+    const { handleBaseUpload, addUserFile, removeUserLayer } = cbRef.current;
+    let baseTaken = false;
+    for (const file of files) {
+      let classified;
+      try {
+        classified = await classifyNiftiBuffer(await file.arrayBuffer(), file.name);
+      } catch (err) {
+        toast.error("Could not open file", { description: file.name });
+        continue;
+      }
+      if (!classified.ok) {
+        toast.error("Not a NIfTI file", { description: file.name });
+        continue;
+      }
+      if ((classified.kind === "base" || classified.kind === "timeseries") && !baseTaken) {
+        baseTaken = true;
+        await handleBaseUpload(file);
+        continue;
+      }
+      const overlayType = classified.kind === "lesion" ? "lesion" : "activation";
+      const id = await addUserFile(file, overlayType);
+      if (id) {
+        toast.info(overlayType === "lesion" ? `${file.name}: added as a lesion overlay` : `${file.name}: added as an activation overlay`, {
+          description: classified.reason,
+          action: {
+            label: "Use as base instead",
+            onClick: async () => {
+              removeUserLayer(id);
+              await handleBaseUpload(file);
+            },
+          },
+        });
+      }
+    }
+  };
+
+  return { initialBaseVolume, openDroppedFiles };
 }

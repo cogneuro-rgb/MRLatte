@@ -1,10 +1,11 @@
-import { needsAttention, runLesionQc } from "./lesionQc";
-import { getCapabilities, uploadLesion, fetchQc } from "@/lib/lesionMetrics";
+import { needsAttention, runLesionQc, canAutoFix, applyQcFix } from "./lesionQc";
+import { getCapabilities, uploadLesion, fetchQc, fetchQcFix } from "@/lib/lesionMetrics";
 
 jest.mock("@/lib/lesionMetrics", () => ({
   getCapabilities: jest.fn(),
   uploadLesion: jest.fn(),
   fetchQc: jest.fn(),
+  fetchQcFix: jest.fn(),
 }));
 jest.mock("@/lib/lesions", () => ({ currentDrawingAsFile: jest.fn() }));
 
@@ -109,5 +110,41 @@ describe("lqtpy 0.6.0 extras", () => {
   test("an older lqtpy that says nothing falls back to the findings", async () => {
     fetchQc.mockResolvedValue({ flags: [{ id: "flat", severity: "warn" }], provenance: {} });
     expect((await runLesionQc({ file, mni: true })).needsAttention).toBe(true);
+  });
+});
+
+describe("one-click fixes", () => {
+  test("only removals that lqtpy says it can fix get a button", () => {
+    expect(canAutoFix({ id: "specks", severity: "warn", fix: { call: "qc.clean" } })).toBe(true);
+    expect(canAutoFix({ id: "strokes", severity: "info", fix: { call: "qc.clean" } })).toBe(true);
+    expect(canAutoFix({ id: "specks", severity: "warn", fix: null })).toBe(false);          // older lqtpy: no hint
+    expect(canAutoFix({ id: "sparse_slices", severity: "error", fix: { call: "qc.repair_gaps" } })).toBe(false); // adds voxels
+    expect(canAutoFix({ id: "holes", severity: "warn", fix: { call: "qc.fix" } })).toBe(false);
+  });
+
+  test("the removal mask goes to the viewer, with the drawing context", async () => {
+    fetchQcFix.mockResolvedValue({ voxels_removed: 5, removed_mask: btoa("mask-bytes") });
+    const removeVoxelsFromMask = jest.fn().mockResolvedValue(5);
+    const viewerRef = { current: { removeVoxelsFromMask, getDrawingContext: () => ({ drawing_axis: 2 }) } };
+    expect(await applyQcFix({ viewerRef, lesionId: "abc", findingId: "specks" })).toBe(5);
+    expect(fetchQcFix.mock.calls.at(-1)[0]).toEqual({
+      lesionId: "abc", findingIds: ["specks"], context: { labels_are_colours: true, drawing_axis: 2 },
+    });
+    const file = removeVoxelsFromMask.mock.calls[0][0];
+    expect(file.name).toBe("qc_fix_removed.nii.gz");
+    expect(file.size).toBe("mask-bytes".length);
+  });
+
+  test("nothing to remove does not touch the drawing", async () => {
+    fetchQcFix.mockResolvedValue({ voxels_removed: 0, removed_mask: "" });
+    const removeVoxelsFromMask = jest.fn();
+    expect(await applyQcFix({ viewerRef: { current: { removeVoxelsFromMask } }, lesionId: "abc", findingId: "specks" })).toBe(0);
+    expect(removeVoxelsFromMask).not.toHaveBeenCalled();
+  });
+
+  test("a drawing that no longer fits is an error, not a silent no-op", async () => {
+    fetchQcFix.mockResolvedValue({ voxels_removed: 3, removed_mask: btoa("x") });
+    const viewerRef = { current: { removeVoxelsFromMask: jest.fn().mockResolvedValue(null) } };
+    await expect(applyQcFix({ viewerRef, lesionId: "abc", findingId: "specks" })).rejects.toThrow(/could not take the fix/);
   });
 });

@@ -55,4 +55,4 @@ Send2Trash>=1.8.2  # runtime: module uninstall recycles slot payloads instead of
 # pip just downloads over HTTPS (see tools/build/assemble-bundle.ps1 step 2/5).
 # To upgrade: bump lqtpy's version, build the wheel, publish a release, then
 # update this URL and hash together.
-lqtpy @ https://github.com/rohan3412/LQTpy/releases/download/v0.6.0/lqtpy-0.6.0-py3-none-any.whl#sha256=717905609bb22865c3f45e4cd1f80e084ea4dfec6e13e9701626354bc798efd4
+lqtpy @ https://github.com/rohan3412/LQTpy/releases/download/v0.6.1/lqtpy-0.6.1-py3-none-any.whl#sha256=d4edc673f1bbb282f58503095a3e586d842ad6bdfd39e9cc0eed7f166382acc7

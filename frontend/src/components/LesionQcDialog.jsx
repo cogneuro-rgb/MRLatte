@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
-import { AlertTriangle, Info, LocateFixed } from "lucide-react";
+import { AlertTriangle, Info, LocateFixed, Wand2 } from "lucide-react";
+import { canAutoFix } from "@/lib/lesionQc";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -37,6 +38,7 @@ export function LesionQcDialog({
   verdict,          // the mask as a whole: "usable" / "usable with caution" / "fix before use" / "unusable"
   onGoTo,           // (mm) => void — jump the viewer to a finding; the dialog closes
   onInterpolate,    // () => void — offered when slices were skipped; the dialog closes
+  onFix,            // (finding) => void — lqtpy removes what it is sure doesn't belong; the dialog closes
 }) {
   const hasGaps = flags.some((f) => f.id === "sparse_slices" && f.severity !== "info");
   const findings = flags.filter((f) => f.severity !== "info");
@@ -59,6 +61,17 @@ export function LesionQcDialog({
         <div className="text-[12px] text-foreground">{f.message}</div>
         {f.suggestion && (
           <div className="text-[11px] text-muted-foreground">{f.suggestion}</div>
+        )}
+        {onFix && canAutoFix(f) && (
+          <button
+            onClick={() => onFix(f)}
+            className="mt-1 mr-1.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.15em] text-foreground border border-amber-500/60 hover:border-amber-500 px-1.5 py-0.5 transition-colors"
+            title="Remove these voxels from the drawing. One Undo puts them back."
+            data-testid={`lesion-qc-fix-${f.id}`}
+          >
+            <Wand2 size={10} />
+            Fix
+          </button>
         )}
         {onGoTo && findingMM(f) && (
           <button

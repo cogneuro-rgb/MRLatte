@@ -3,6 +3,8 @@ import { NVImage, NVUtilities, PEN_TYPE } from "@niivue/niivue";
 import { interpolateSlices } from "@/lib/drawInterpolate";
 import { rleEncode, rleDecode } from "@/lib/drawHistory";
 import { harmonizeQformWithSform, setNiftiAffine } from "@/lib/niftiHeader";
+import { transformLabels, mat4ToRows } from "@/lib/drawTransform";
+import { normalizeTransform, isIdentityTransform, IDENTITY_TRANSFORM } from "@/lib/overlayTransform";
 
 /**
  * Drawing API: enable/disable, tool mode, undo/redo, morph, sphere-paint,
@@ -23,7 +25,7 @@ import { harmonizeQformWithSform, setNiftiAffine } from "@/lib/niftiHeader";
  * @param {() => void} deps.snapshotForUndo
  * @param {() => void} deps.emitHistory
  * @param {() => any} deps.interpolatablePair
- * @param {(axCorSag: number) => any[]} deps.distinctSliceEntriesForOrientation
+ * @param {(axCorSag: number, tool?: "pen"|"cutout") => any[]} deps.distinctSliceEntriesForOrientation
  * @param {() => number|null} deps.resolveInterpolateAllOrientation  single
  *   source of truth for "Interpolate All"'s target orientation (manual
  *   override if set, else Auto = most recent drawn stroke) — shared by the
@@ -34,6 +36,13 @@ import { harmonizeQformWithSform, setNiftiAffine } from "@/lib/niftiHeader";
  *   changes (setInterpolateAllOrientation below).
  * @param {(centerMM: number[], radiusMM: number, labelValue: number) => boolean} deps.rasterizeSphere
  */
+function sameBytes(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export function createDrawingApi(ctx, {
   setDrawingActive,
   snapshotForUndo,
@@ -141,7 +150,7 @@ export function createDrawingApi(ctx, {
       }
       const pair = interpolatablePair();
       if (!pair) {
-        toast.error("Draw the same view, with the same tool (Pen or Cutout), on two different slices first");
+        toast.error("Draw on two slices of the same view first (or erase on two)");
         return false;
       }
       const dims = nv.back?.dims;
@@ -215,9 +224,12 @@ export function createDrawingApi(ctx, {
         toast.error("Draw at least two slices in one view first");
         return false;
       }
-      const entries = distinctSliceEntriesForOrientation(axCorSag);
-      if (entries.length < 2) {
-        toast.error("Draw at least two slices in this view first");
+      // Two passes over this view: fill between drawn slices, then carve
+      // between erased ones. Kept apart, so a drawn slice and an erased slice
+      // are never paired with each other.
+      const passes = ["pen", "cutout"].map((tool) => ({ tool, entries: distinctSliceEntriesForOrientation(axCorSag, tool) }));
+      if (passes.every((p) => p.entries.length < 2)) {
+        toast.error("Draw (or erase) on at least two slices in this view first");
         return false;
       }
       const dims = nv.back?.dims;
@@ -232,58 +244,50 @@ export function createDrawingApi(ctx, {
       // for a pair that doesn't connect (SMALL-FIXES follow-up). Validated
       // PER PAIR so one bad gap doesn't block the rest of the batch.
       const preSnapshot = rleEncode(nv.drawBitmap);
-      let totalFilled = 0;
+      const done = { pen: 0, cutout: 0 };
       let mutated = false;
       const skipped = [];
-      const toolMismatch = [];
-      for (let i = 0; i < entries.length - 1; i++) {
-        const a = entries[i], b = entries[i + 1];
-        const toolA = a.tool || "pen", toolB = b.tool || "pen";
-        if (toolA !== toolB) {
-          toolMismatch.push([a.slice, b.slice]);
-          continue;
+      for (const { tool, entries } of passes) {
+        const mode = tool === "cutout" ? "void" : "fill";
+        for (let i = 0; i < entries.length - 1; i++) {
+          const a = entries[i], b = entries[i + 1];
+          const result = interpolateSlices({
+            bitmap: nv.drawBitmap,
+            dims: [nx, ny, nz],
+            axCorSag,
+            sliceA: a.slice,
+            sliceB: b.slice,
+            label: a.label,
+            mode,
+            maskA: mode === "void" ? a.footprint : null,
+            maskB: mode === "void" ? b.footprint : null,
+          });
+          if (result.disconnected) {
+            skipped.push([a.slice, b.slice]);
+            continue;
+          }
+          if (result.filled > 0) mutated = true;
+          done[tool] += result.filled;
         }
-        const mode = toolA === "cutout" ? "void" : "fill";
-        const result = interpolateSlices({
-          bitmap: nv.drawBitmap,
-          dims: [nx, ny, nz],
-          axCorSag,
-          sliceA: a.slice,
-          sliceB: b.slice,
-          label: a.label,
-          mode,
-          maskA: mode === "void" ? a.footprint : null,
-          maskB: mode === "void" ? b.footprint : null,
-        });
-        if (result.disconnected) {
-          skipped.push([a.slice, b.slice]);
-          continue;
-        }
-        if (result.filled > 0) mutated = true;
-        totalFilled += result.filled;
       }
       if (mutated) {
         drawHistory.current.push(preSnapshot);
         emitHistory();
         try { nv.refreshDrawing(true); } catch (_e) { /* redraw is best-effort */ }
       }
-      const skipParts = [];
-      if (skipped.length) {
-        skipParts.push(`${skipped.length} gap${skipped.length === 1 ? "" : "s"} don't connect (${skipped.map(([a, b]) => `${a}↔${b}`).join(", ")})`);
-      }
-      if (toolMismatch.length) {
-        skipParts.push(`${toolMismatch.length} gap${toolMismatch.length === 1 ? "" : "s"} mix Pen/Cutout (${toolMismatch.map(([a, b]) => `${a}↔${b}`).join(", ")})`);
-      }
-      const skipDesc = skipParts.length ? ` Skipped: ${skipParts.join("; ")}.` : "";
-      if (totalFilled > 0) {
-        toast.success(
-          `Interpolated ${totalFilled} slice${totalFilled === 1 ? "" : "s"} across ${entries.length} drawn slices`,
-          { description: (skipDesc ? `Undo to revert.${skipDesc}` : "Undo to revert") }
-        );
-      } else if (skipParts.length) {
+      const skipDesc = skipped.length
+        ? ` Skipped: ${skipped.length} gap${skipped.length === 1 ? "" : "s"} that don't connect (${skipped.map(([a, b]) => `${a}↔${b}`).join(", ")}).`
+        : "";
+      if (done.pen > 0 || done.cutout > 0) {
+        const parts = [];
+        if (done.pen > 0) parts.push(`filled ${done.pen} slice${done.pen === 1 ? "" : "s"}`);
+        if (done.cutout > 0) parts.push(`carved ${done.cutout} slice${done.cutout === 1 ? "" : "s"} between erasures`);
+        const text = parts.join(", ");
+        toast.success(text[0].toUpperCase() + text.slice(1), { description: (skipDesc ? `Undo to revert.${skipDesc}` : "Undo to revert") });
+      } else if (skipped.length) {
         toast.error("No slices interpolated", { description: `All gaps were rejected.${skipDesc}` });
       } else {
-        toast.info("Drawn slices are all adjacent — nothing to fill between them");
+        toast.info("The slices are all adjacent — nothing to fill between them");
       }
       return true;
     },
@@ -405,6 +409,89 @@ export function createDrawingApi(ctx, {
         toast.error(`Failed to load ${file.name} as drawing`, { description: err?.message });
         return false;
       }
+    },
+
+    // Erase every drawn voxel that a mask file marks, as ONE undoable edit
+    // (lesion quality-check fixes, lib/lesionQc.js::applyQcFix). The mask is
+    // read through niivue's own loadDrawing, the same path loadDrawingFromVolume
+    // uses, so its voxels come out in exactly the bitmap's order whatever the
+    // file's orientation; the drawing is then put back with those voxels
+    // cleared. Pen colours are kept (a rebuilt binary mask would lose them).
+    // Returns the number of voxels cleared, or null if the mask doesn't fit the
+    // drawing's grid (the drawing is left untouched).
+    removeVoxelsFromMask: async (file) => {
+      const nv = nvRef.current;
+      if (!nv?.drawBitmap) return null;
+      const before = nv.drawBitmap.slice();
+      let ok = false;
+      try {
+        const volume = await NVImage.loadFromFile({ file, name: file.name });
+        ok = nv.loadDrawing(volume) && nv.drawBitmap?.length === before.length;
+      } catch (_e) { ok = false; }
+      if (!ok) {
+        if (nv.drawBitmap?.length === before.length) nv.drawBitmap.set(before);
+        try { nv.refreshDrawing(true); } catch (_e) {}
+        return null;
+      }
+      const mask = nv.drawBitmap;          // now the removal mask, in bitmap order
+      const after = before.slice();
+      let n = 0;
+      for (let i = 0; i < after.length; i++) {
+        if (mask[i] && after[i]) { after[i] = 0; n += 1; }
+      }
+      nv.drawBitmap.set(after);
+      if (n > 0) drawHistory.current.push(rleEncode(before));
+      try { nv.refreshDrawing(true); } catch (_e) {}
+      emitHistory();
+      return n;
+    },
+
+    // Move / turn / resize the drawing itself (Draw panel's position block).
+    // The transform is ABSOLUTE, measured from the drawing as it was before the
+    // first move ("the base"), so holding a jog bar never piles up rounding:
+    // every frame redraws the base, never the previous frame. Any other edit
+    // (a stroke, undo, interpolate…) makes the current drawing the new base and
+    // the adjustment starts again from zero — see getDrawingTransform.
+    // `live` = still being held: redraw only. The release (live false) pushes
+    // ONE undo entry for the whole gesture.
+    transformDrawing: (transform, { live = false } = {}) => {
+      const nv = nvRef.current;
+      const back = nv?.back;
+      if (!nv?.drawBitmap || !back?.matRAS) return false;
+      const d = back.dimsRAS || back.dims;
+      const dims = [d[1], d[2], d[3]];
+      if (nv.drawBitmap.length !== dims[0] * dims[1] * dims[2]) return false;
+      let st = nv.__drawMove;
+      const current = !!st && st.lastOut && sameBytes(nv.drawBitmap, st.lastOut);
+      if (!current) {
+        st = { base: nv.drawBitmap.slice(), lastOut: null, transform: IDENTITY_TRANSFORM, gestureStart: null };
+        nv.__drawMove = st;
+      }
+      if (!st.gestureStart) st.gestureStart = nv.drawBitmap.slice();
+      const t = normalizeTransform(transform);
+      const out = isIdentityTransform(t)
+        ? st.base.slice()
+        : transformLabels(st.base, dims, mat4ToRows(back.matRAS), t);
+      nv.drawBitmap.set(out);
+      st.lastOut = out;
+      st.transform = t;
+      try { nv.refreshDrawing(true); } catch (_e) {}
+      if (!live) {
+        if (!sameBytes(st.gestureStart, out)) drawHistory.current.push(rleEncode(st.gestureStart));
+        st.gestureStart = null;
+        emitHistory();
+      }
+      return true;
+    },
+    // The adjustment the drawing currently carries, or the identity once the
+    // drawing has been changed any other way since.
+    getDrawingTransform: () => {
+      const nv = nvRef.current;
+      const st = nv?.__drawMove;
+      if (!st?.lastOut || !nv.drawBitmap || !sameBytes(nv.drawBitmap, st.lastOut)) return IDENTITY_TRANSFORM;
+      // An empty drawing carries no adjustment, whatever the last move was.
+      if (!st.lastOut.some((x) => x !== 0)) return IDENTITY_TRANSFORM;
+      return st.transform;
     },
 
     drawClear: () => {

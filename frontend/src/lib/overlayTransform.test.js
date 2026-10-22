@@ -1,6 +1,6 @@
 import {
   IDENTITY_TRANSFORM, isIdentityTransform, normalizeTransform, transformMatrix,
-  transformedAffine, volumeCentreMM, describeTransform,
+  transformedAffine, volumeCentreMM, describeTransform, wrapAngle,
 } from "./overlayTransform";
 import { setNiftiAffine, readNiftiTransforms } from "./niftiHeader";
 
@@ -109,5 +109,28 @@ describe("writing the adjusted position into a NIfTI header", () => {
     const copy = junk.slice();
     expect(setNiftiAffine(junk, MNI).ok).toBe(false);
     expect(junk).toEqual(copy);
+  });
+});
+
+describe("turning has no limit", () => {
+  test("angles wrap round to the same turn within (-180, 180]", () => {
+    expect(wrapAngle(190)).toBe(-170);
+    expect(wrapAngle(-190)).toBe(170);
+    expect(wrapAngle(540)).toBe(180);
+    expect(wrapAngle(-180)).toBe(180);
+    expect(wrapAngle(720 + 45)).toBe(45);
+    expect(wrapAngle(0)).toBe(0);
+  });
+
+  test("no floating-point noise for the number box", () => {
+    expect(wrapAngle(126.95)).toBe(126.95);
+    expect(wrapAngle(190.37)).toBe(-169.63);
+  });
+
+  test("a wrapped angle is the same turn, not a clamped one", () => {
+    const m1 = transformMatrix({ translation: [0, 0, 0], rotation: [0, 0, 250], scale: 1 });
+    const m2 = transformMatrix(normalizeTransform({ rotation: [0, 0, 250] }));
+    m1.flat().forEach((v, i) => expect(m2.flat()[i]).toBeCloseTo(v, 9));
+    expect(normalizeTransform({ rotation: [0, 0, 250] }).rotation[2]).toBe(-110);
   });
 });

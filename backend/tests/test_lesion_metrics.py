@@ -679,6 +679,34 @@ def test_qc_pen_colours_are_not_a_finding(synthetic_atlas):
         assert body["needs_attention"] is False, body["flags"]
 
 
+def _decode_mask(b64):
+    import base64, gzip
+    img = nib.Nifti1Image.from_bytes(gzip.decompress(base64.b64decode(b64)))
+    return np.asarray(img.dataobj).astype(bool)
+
+
+@pytest.mark.skipif(not hasattr(getattr(lesion_metrics.lqtpy, "qc", None), "fix"),
+                    reason="lqtpy.qc.fix arrived in lqtpy 0.6.0")
+def test_qc_fix_removes_the_speck_and_nothing_else(synthetic_atlas):
+    data = _sphere_plus_speck_lesion()
+    lesion_id = _upload(data)
+    r = client.post("/api/lesion/qc/fix", json={"lesion_id": lesion_id, "finding_ids": ["specks"]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    removed = _decode_mask(body["removed_mask"])
+    assert removed.shape == data.shape
+    assert removed[2, 2, 2]                                  # the speck
+    assert body["voxels_removed"] == int(removed.sum()) == 1  # and only the speck
+    assert "specks" in body["applied"]
+
+
+def test_qc_fix_refuses_findings_it_must_not_fix(synthetic_atlas):
+    lesion_id = _upload(_sphere_plus_speck_lesion())
+    for ids in (["sparse_slices"], ["holes"], [], ["specks", "hollow"]):
+        r = client.post("/api/lesion/qc/fix", json={"lesion_id": lesion_id, "finding_ids": ids})
+        assert r.status_code in (400, 503), (ids, r.status_code, r.text)
+
+
 def test_qc_unknown_tier_falls_back_to_full(synthetic_atlas):
     lesion_id = _upload(_solid_sphere_lesion())
     r = client.post("/api/lesion/qc", json={"lesion_id": lesion_id, "mni": False, "tier": "turbo"})

@@ -59,6 +59,17 @@ export function createNavigationApi(ctx, { scheduleRedraw, applyZoomFactor, rese
       updateTileSliceInfo();
     },
 
+    // Which way the nose points in SAGITTAL tiles (mosaic ones included):
+    // off = right (the default), on = left. NiiVue turns the view to the
+    // head's other side and swaps its A/P letters to match.
+    setSagittalNoseLeft: (on) => {
+      const nv = nvRef.current;
+      if (!nv) return;
+      nv.opts.sagittalNoseLeft = !!on;
+      scheduleRedraw(false);
+      updateTileSliceInfo();
+    },
+
     // Toggle NiiVue's native A/P/S/I/L/R orientation letters on the 2D tiles.
     setOrientationLabels: (on) => {
       const nv = nvRef.current;
