@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { normalizeTransform, isIdentityTransform } from "@/lib/overlayTransform";
+import { useCallback, useRef, useState } from "react";
+import { dicomSourceOf } from "@/lib/dicomSource";
 import { toast } from "sonner";
 import { BASE_VOLUME } from "@/lib/atlasConfig";
 import { convertDicom, fetchDicomSeriesFile } from "@/lib/dicom";
@@ -46,24 +46,21 @@ export function useBaseVolume({
   // real byte-progress is available from niivue's loader) so the canvas
   // doesn't just sit there looking stuck.
   const [baseLoading, setBaseLoading] = useState(false);
-  // Manual move / rotate / scale of the base (lib/overlayTransform.js). Lives
-  // only as long as this base does: every path that swaps the base clears it,
-  // because the new volume starts from its own file position. Not stored in
-  // workspace files — they don't carry a custom base either.
-  const [baseTransform, setBaseTransform] = useState(undefined);
-  const handleBaseTransform = (_, t) => {
-    const next = normalizeTransform(t);
-    if (!viewerRef.current?.setBaseTransform?.(next)) return;
-    setBaseTransform(isIdentityTransform(next) ? undefined : next);
-  };
-  const handleBaseUpload = async (file) => {
+  // Where a DICOM-converted base came from ({ type: "folder"|"zip", path,
+  // seriesId, description }), so a workspace saved with links can convert it
+  // again instead of carrying the converted volume. Null for any other base.
+  const [baseDicom, setBaseDicom] = useState(null);
+  const dicomSourceRef = useRef(null);
+  // opts.fullPath: where the file is on disk when the File itself can't say
+  // (a file rebuilt from bytes — e.g. reopened from a workspace link).
+  const handleBaseUpload = async (file, opts = {}) => {
     setBaseLoading(true);
     try {
       const ok = await viewerRef.current?.replaceBaseVolume(file);
       if (ok) {
-        setBaseTransform(undefined);
+        setBaseDicom(null);
         setBaseLabel(file.name);
-        setBaseFullPath(window.mrlatte?.getPathForFile?.(file) || null);
+        setBaseFullPath(opts.fullPath || window.mrlatte?.getPathForFile?.(file) || null);
         setDicomDownload(null);
         refreshBaseOverlayMeta();
       }
@@ -78,15 +75,19 @@ export function useBaseVolume({
   // avoid fetching+rendering MNI152 first just to immediately replace it —
   // so there's nothing to call replaceBaseVolume with here).
   const markBaseLoadedExternally = (name, fullPath) => {
-    setBaseTransform(undefined);
+    setBaseDicom(null);
     setBaseLabel(name);
     setBaseFullPath(fullPath || null);
     setDicomDownload(null);
     refreshBaseOverlayMeta();
   };
 
-  const handleDicomImport = async (fileArr) => {
+  // opts.source: where these DICOM files came from, when the Files can't say
+  // (reread from a workspace link); opts.seriesId: load that series straight
+  // away (reopening a workspace) instead of offering the list.
+  const handleDicomImport = async (fileArr, opts = {}) => {
     if (!fileArr?.length) return;
+    dicomSourceRef.current = opts.source || dicomSourceOf(fileArr);
     setDicomJob(null);
     setDicomDownload(null);
     setDicomProgress({ stage: "upload", fraction: 0 });
@@ -103,9 +104,10 @@ export function useBaseVolume({
         return;
       }
       setDicomProgress(null);
-      if (series.length === 1) {
-        // Only one series — load it straight away.
-        await loadDicomSeries(res.job_id, series[0]);
+      const wanted = opts.seriesId != null ? series.find((x) => String(x.id) === String(opts.seriesId)) : null;
+      if (wanted || series.length === 1) {
+        // The series a workspace asked for, or the only one — load it now.
+        await loadDicomSeries(res.job_id, wanted || series[0]);
       } else {
         setLoadedSeriesId(null);
         setDicomJob({ jobId: res.job_id, series });
@@ -123,9 +125,9 @@ export function useBaseVolume({
       const niftiFile = await fetchDicomSeriesFile(jobId, s.id);
       const ok = await viewerRef.current?.replaceBaseVolume(niftiFile);
       if (ok) {
-        setBaseTransform(undefined);
         setBaseLabel(`DICOM · ${s.description || s.id}`);
         setBaseFullPath(null); // server-converted NIfTI, no local source path
+        setBaseDicom(dicomSourceRef.current ? { ...dicomSourceRef.current, seriesId: s.id, description: s.description || null } : null);
         setLoadedSeriesId(s.id);
         setDicomDownload({ jobId, seriesId: s.id, name: s.description || s.id });
         refreshBaseOverlayMeta();
@@ -143,7 +145,7 @@ export function useBaseVolume({
   const handleResetBase = async () => {
     const ok = await viewerRef.current?.resetToBase(BASE_VOLUME);
     if (ok) {
-      setBaseTransform(undefined);
+      setBaseDicom(null);
       setBaseLabel(BASE_VOLUME.name);
       setBaseFullPath(null);
       setBaseVisible(true);
@@ -188,13 +190,12 @@ export function useBaseVolume({
     handleDicomImport,
     loadDicomSeries,
     handleResetBase,
+    baseDicom,
     handleBaseVisibilityToggle,
     handleBaseOpacity,
     handleBaseColormap,
     handleBaseCalRange,
     handleBaseColorbarToggle,
     refreshBaseOverlayMeta,
-    baseTransform,
-    handleBaseTransform,
   };
 }

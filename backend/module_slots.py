@@ -90,6 +90,30 @@ def validate_tractogram(path: Path):
 _LNM_KEYS = ("A", "mask", "affine", "grid", "covs", "G", "dim")
 
 
+class _NpzShape:
+    """Shape (and ndim) of one array in an open .npz, read from its .npy header
+    alone — the data is never decompressed. Falls back to loading the array if
+    the header is in a format this reader doesn't know."""
+
+    def __init__(self, z, key):
+        import numpy as np
+        fmt = np.lib.format
+        shape = None
+        try:
+            with z.zip.open(key + ".npy") as f:
+                version = fmt.read_magic(f)
+                if version == (1, 0):
+                    shape = fmt.read_array_header_1_0(f)[0]
+                elif version == (2, 0):
+                    shape = fmt.read_array_header_2_0(f)[0]
+        except Exception:  # noqa: BLE001 — fall back to the full read below
+            shape = None
+        if shape is None:
+            shape = z[key].shape
+        self.shape = tuple(int(d) for d in shape)
+        self.ndim = len(self.shape)
+
+
 def validate_lnm_bundle(path: Path):
     """A DA-LNM connectome bundle consumable by lnm_backend.Connectome.
 
@@ -111,7 +135,14 @@ def validate_lnm_bundle(path: Path):
         if missing:
             return False, f"missing array(s): {', '.join(missing)}", {}
 
-        A, mask, covs, G = z["A"], z["mask"], z["covs"], z["G"]
+        # `A` (voxels x components) and `covs` (subjects x D x D) are the bulk of
+        # the bundle. mmap_mode does nothing for an .npz, so indexing them would
+        # decompress hundreds of MB — over the network when the slot is linked to
+        # a share, which made every module-status call take ~15 s. Only their
+        # SHAPES are checked, so read just each array's .npy header.
+        A = _NpzShape(z, "A")
+        covs = _NpzShape(z, "covs")
+        mask, G = z["mask"], z["G"]
         affine, grid = z["affine"], z["grid"]
         try:
             D = int(z["dim"])
@@ -152,9 +183,31 @@ def validate_lnm_bundle(path: Path):
             pass
 
 
+def _cached(fn):
+    """Remember each file's verdict for as long as the file is unchanged (same
+    size and modification time). Slot payloads are often linked from a network
+    share, and the module status is asked for at every start and every Module
+    Store refresh; re-reading an unchanged file each time bought nothing."""
+    cache = {}
+
+    def wrapper(path: Path):
+        try:
+            st = Path(path).stat()
+            key = (str(path), st.st_size, st.st_mtime_ns)   # no resolve(): on a share every path part is a network round trip
+        except OSError:
+            return fn(path)          # unreadable: let the validator say why
+        if key not in cache:
+            cache[key] = fn(path)
+        return cache[key]
+
+    wrapper.__name__ = fn.__name__
+    wrapper.cache = cache
+    return wrapper
+
+
 VALIDATORS = {
-    "tractogram": validate_tractogram,
-    "lnm-bundle": validate_lnm_bundle,
+    "tractogram": _cached(validate_tractogram),
+    "lnm-bundle": _cached(validate_lnm_bundle),
 }
 
 

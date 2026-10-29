@@ -38,11 +38,7 @@ export function ToggleButton({
       title={title}
       aria-pressed={!!pressed}
       data-testid={testId}
-      className={`flex items-center gap-1 px-1.5 py-1 text-[9px] uppercase tracking-[0.15em] transition-colors border flex-shrink-0 ${
-        pressed
-          ? "bg-panel-hover text-foreground border-muted-foreground"
-          : "bg-transparent text-muted-foreground border-border hover:text-foreground"
-      } ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${className}`}
+      className={`btn-mini flex-shrink-0 ${label ? "" : "w-[26px] px-0"} ${className}`}
     >
       {Icon && <Icon size={iconSize} />}
       {label && <span>{label}</span>}

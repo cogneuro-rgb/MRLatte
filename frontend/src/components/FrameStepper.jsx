@@ -55,7 +55,7 @@ export default function FrameStepper({ frame, nFrames, onStepFrame, onSetFrame, 
           ) : (
             <div
               style={{ width: PANEL_WIDTH - PANEL_PAD_X, height: GRAPH_HEIGHT }}
-              className="flex items-center justify-center font-mono text-[10px] text-zinc-500"
+              className="flex items-center justify-center font-mono text-[11px] text-[#8C857B]"
             >
               Move the crosshair onto the volume
             </div>
@@ -70,7 +70,7 @@ export default function FrameStepper({ frame, nFrames, onStepFrame, onSetFrame, 
       >
         <button
           onClick={() => onStepFrame(-1)}
-          className="text-zinc-300 hover:text-white transition-colors"
+          className="text-[#D9D4CC] hover:text-[#F3EFE8] transition-colors"
           title="Previous frame"
           data-testid="frame-stepper-prev"
         >
@@ -87,27 +87,27 @@ export default function FrameStepper({ frame, nFrames, onStepFrame, onSetFrame, 
           data-testid="frame-stepper-slider"
         >
           <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-white/20">
-            <SliderPrimitive.Range className="absolute h-full bg-zinc-100" />
+            <SliderPrimitive.Range className="absolute h-full bg-[#F3EFE8]" />
           </SliderPrimitive.Track>
-          <SliderPrimitive.Thumb className="block h-3 w-3 rounded-full bg-zinc-100 shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/70" />
+          <SliderPrimitive.Thumb className="block h-3 w-3 rounded-full bg-[#F3EFE8] shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/70" />
         </SliderPrimitive.Root>
 
         <button
           onClick={() => onStepFrame(1)}
-          className="text-zinc-300 hover:text-white transition-colors"
+          className="text-[#D9D4CC] hover:text-[#F3EFE8] transition-colors"
           title="Next frame"
           data-testid="frame-stepper-next"
         >
           <ChevronRight size={16} />
         </button>
 
-        <div className="font-mono text-[10px] text-zinc-200 tabular-nums whitespace-nowrap" data-testid="frame-stepper-label">
+        <div className="font-mono text-[11px] text-[#E6E1D9] tabular-nums whitespace-nowrap" data-testid="frame-stepper-label">
           Frame {frame + 1} / {nFrames}
         </div>
 
         <button
           onClick={() => setGraphOpen((v) => !v)}
-          className={`transition-colors ${graphOpen ? "text-white" : "text-zinc-400 hover:text-white"}`}
+          className={`transition-colors ${graphOpen ? "text-[#F3EFE8]" : "text-[#BDB6AB] hover:text-[#F3EFE8]"}`}
           title="Toggle timeseries graph"
           data-testid="frame-stepper-graph-toggle"
         >

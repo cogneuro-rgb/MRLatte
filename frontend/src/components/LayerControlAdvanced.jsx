@@ -1,11 +1,19 @@
 import React, { useContext, useEffect, useRef, useState, useCallback } from "react";
-import { Eye, EyeOff, Trash2, ChevronDown, ChevronRight, Pencil, Download, Scissors, Copy, FileText } from "lucide-react";
+import { Eye, EyeOff, Trash2, ChevronDown, ChevronRight, Pencil, Download, Scissors, Copy, FileText, Lock, LockOpen, StickyNote } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
+import { ContextMenu, useContextMenu } from "@/components/ui/context-menu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { ToggleButton } from "@/components/ui/toggle-button";
-import { colormapGradient, colormapRampGradient } from "@/lib/colormaps";
+import { Switch } from "@/components/ui/switch";
+import { ColormapPicker } from "@/components/ui/colormap-picker";
+import { colormapGradient, colormapRampGradient, colormapSample } from "@/lib/colormaps";
 import { NiftiHeaderContext } from "@/components/NiftiHeaderDialog";
 import { OverlayTransformControls } from "@/components/OverlayTransformControls";
+
+// "Lock the colour range to the visibility values", per layer. Provided by the
+// Dashboard (it owns overlayMeta, where the flag lives): { isLocked(id),
+// setLocked(id, on) }. Without a provider there is no lock toggle.
+export const ColorLockContext = React.createContext(null);
 
 const COLORMAPS = [
   "gray", "hsv", "polar_angle", "warm", "cool", "actc", "random", "red", "green",
@@ -14,7 +22,7 @@ const COLORMAPS = [
 ];
 
 /**
- * Editable threshold label — click to edit as a textbox.
+ * Editable threshold value — click to edit as a textbox.
  */
 const ThresholdValue = ({ value, onCommit, testId, align = "left" }) => {
   const [editing, setEditing] = useState(false);
@@ -40,6 +48,7 @@ const ThresholdValue = ({ value, onCommit, testId, align = "left" }) => {
     setEditing(false);
   };
 
+  const box = "h-[22px] w-[52px] rounded-[5px] bg-background border font-mono text-[11.5px] tabular-nums px-1.5";
   if (editing) {
     return (
       <input
@@ -51,9 +60,7 @@ const ThresholdValue = ({ value, onCommit, testId, align = "left" }) => {
           if (e.key === "Enter") commit();
           else if (e.key === "Escape") setEditing(false);
         }}
-        className={`w-16 bg-background border border-muted-foreground text-foreground font-mono text-[10px] px-1 py-0.5 focus:outline-none focus:border-foreground tabular-nums ${
-          align === "right" ? "text-right" : "text-left"
-        }`}
+        className={`${box} border-crema text-foreground focus:outline-none ${align === "right" ? "text-right" : "text-left"}`}
         data-testid={`${testId}-input`}
       />
     );
@@ -61,13 +68,142 @@ const ThresholdValue = ({ value, onCommit, testId, align = "left" }) => {
   return (
     <button
       onClick={() => setEditing(true)}
-      className={`font-mono text-[10px] text-muted-foreground hover:text-foreground hover:underline tabular-nums px-1 ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
+      className={`${box} border-edge text-foreground text-center hover:border-muted-foreground transition-colors`}
+      title="Click to type a value"
       data-testid={testId}
     >
       {value != null ? Number(value).toFixed(2) : "—"}
     </button>
+  );
+};
+
+// Small square action button in the card's identity row.
+const RowAction = ({ onClick, title, testId, danger = false, children, ...rest }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    aria-label={title}
+    className={`inline-grid h-6 w-6 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:bg-panel-hover ${
+      danger ? "hover:text-destructive" : "hover:text-foreground"
+    }`}
+    data-testid={testId}
+    {...rest}
+  >
+    {children}
+  </button>
+);
+
+// A labelled on/off row: "Mask zero voxels ........ [switch]".
+const SwitchRow = ({ label, checked, onChange, testId }) => (
+  <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+    <span className="flex-1">{label}</span>
+    <Switch checked={checked} onCheckedChange={onChange} label={label} testId={testId} />
+  </div>
+);
+
+/**
+ * The Levels-style threshold slider: the voxel-value histogram (64 bins of
+ * non-zero voxels, log-scaled heights so a small tail stays visible beside the
+ * noise peak) above the colour strip, with the handles on the strip. Bars
+ * inside the visible window take the colour map's own colour for their value;
+ * bars that are hidden on the canvas grey out, and the strip dims the same
+ * bands. The whole area is draggable (the nearest handle follows).
+ */
+const LevelsSlider = ({
+  histogram, colormap, invert, globalMin, globalMax, lo, hi, colourLo, colourHi,
+  invertThreshold, rampGrad, sliderValue, sliderMax, onSliderChange, label, testId,
+}) => {
+  const range = globalMax - globalMin;
+  const loFrac = (lo - globalMin) / range;
+  const hiFrac = (hi - globalMin) / range;
+  const counts = histogram?.counts;
+  const hasBars = !!counts && counts.some((c) => c > 0);
+  const maxLog = hasBars ? Math.log1p(Math.max(...counts)) : 0;
+  const n = counts?.length || 0;
+  const W = n * 10;
+  const colourSpan = colourHi - colourLo;
+  // The dim veil over hidden bands: themed, so it reads on both surfaces.
+  const veil = "bg-background/70";
+
+  return (
+    <div className="relative">
+      <div className="relative h-10 overflow-hidden rounded-t-md border border-b-0 border-border bg-background">
+        {hasBars && (
+          <svg
+            viewBox={`0 0 ${W} 100`}
+            preserveAspectRatio="none"
+            className="keep-colours absolute inset-x-1 bottom-0 top-1.5 h-[calc(100%-6px)] w-[calc(100%-8px)] text-subtle"
+            aria-hidden="true"
+          >
+            {counts.map((c, i) => {
+              const h = maxLog > 0 ? (Math.log1p(c) / maxLog) * 96 : 0;
+              if (h <= 0) return null;
+              const v = globalMin + ((i + 0.5) / n) * range;
+              const inside = v >= lo && v <= hi;
+              const shown = inside !== !!invertThreshold;
+              let fill = "currentColor";
+              if (shown) {
+                const t = colourSpan > 0 ? Math.max(0, Math.min(1, (v - colourLo) / colourSpan)) : 1;
+                fill = colormapSample(colormap, invert ? 1 - t : t);
+              }
+              return (
+                <rect
+                  key={i}
+                  x={i * 10 + 1}
+                  y={100 - h}
+                  width="8"
+                  height={h}
+                  rx="1.5"
+                  fill={fill}
+                  fillOpacity={shown ? 1 : 0.22}
+                />
+              );
+            })}
+            <g className="text-foreground">
+              {[loFrac, hiFrac].map((f, i) => (
+                <line
+                  key={i}
+                  x1={f * W}
+                  x2={f * W}
+                  y1="0"
+                  y2="100"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeDasharray="3 3"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
+          </svg>
+        )}
+      </div>
+      <div className="keep-colours relative h-2 rounded-b" style={{ background: rampGrad }}>
+        {/* Dim whichever bands are HIDDEN on the canvas. Normally voxels
+            outside [lo, hi] are hidden; with "show outside the window"
+            (invertThreshold) it is the middle that is hidden. */}
+        {invertThreshold ? (
+          <div className={`absolute inset-y-0 ${veil}`}
+            style={{ left: `${Math.max(0, loFrac) * 100}%`, width: `${Math.max(0, hiFrac - loFrac) * 100}%` }} />
+        ) : (
+          <>
+            <div className={`absolute inset-y-0 left-0 rounded-bl ${veil}`} style={{ width: `${Math.max(0, loFrac) * 100}%` }} />
+            <div className={`absolute inset-y-0 right-0 rounded-br ${veil}`} style={{ width: `${Math.max(0, 1 - hiFrac) * 100}%` }} />
+          </>
+        )}
+      </div>
+      <RangeSlider
+        value={sliderValue}
+        min={0}
+        max={sliderMax}
+        step={1}
+        onValueChange={onSliderChange}
+        minStepsBetweenThumbs={0}
+        label={label}
+        className="!absolute inset-0 items-end cursor-pointer"
+        thumbClassName="translate-y-[5px]"
+        data-testid={testId}
+      />
+    </div>
   );
 };
 
@@ -112,7 +248,7 @@ export const LayerControlAdvanced = ({
   onIgnoreZeroChange,
   onInvertThresholdChange,
   // Colormap-direction invert (item 55). Only wired by the caller for
-  // continuous/activation layers — omitted (undefined) for base volume and
+  // continuous/activation layers and the base volume — omitted (undefined) for
   // categorical atlases, so the toggle simply doesn't render there.
   colormapInverted,
   onColormapInvertChange,
@@ -145,10 +281,17 @@ export const LayerControlAdvanced = ({
   // the callback — lesion masks and activation maps do, atlases don't.
   transform,
   onTransformChange,
+  // The visibility window's heading: "Threshold" / "Visibility" by default,
+  // the base volume calls it "Window".
+  thresholdLabel,
 }) => {
   // Controls whether the advanced section (threshold, colormap, atlas) is shown.
   // Collapses by default to keep the sidebar compact when many layers are loaded.
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const cardMenu = useContextMenu();
+  // Sidebar declutter: the notes field shows once there is a note, or after
+  // the note button is pressed; an empty one folds away again on leaving it.
+  const [noteOpen, setNoteOpen] = useState(false);
   const showHeader = useContext(NiftiHeaderContext);
 
   // Item 114 (retroactive case): `defaultExpanded` only seeds state at mount,
@@ -214,6 +357,7 @@ export const LayerControlAdvanced = ({
   // onColorRangeChange AND provides thresholds. Defaults to the full range so
   // the slider is meaningful even before the user touches it.
   const hasColorRange = hasThresholds && !!onColorRangeChange;
+  const visibilityLabel = thresholdLabel || (hasColorRange ? "Visibility" : "Threshold");
   const cLo = hasColorRange
     ? Math.max(globalMin, Math.min(globalMax, colorMin ?? globalMin)) : globalMin;
   const cHi = hasColorRange
@@ -229,6 +373,8 @@ export const LayerControlAdvanced = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [globalMin, globalMax, onColorRangeChange, layer.id]
   );
+  const colorLock = useContext(ColorLockContext);
+  const colorLocked = !!colorLock?.isLocked(layer.id);
   const handleColorLoText = (v) => onColorRangeChange?.(layer.id, Math.min(v, cSortedHi), Math.max(v, cSortedHi));
   const handleColorHiText = (v) => onColorRangeChange?.(layer.id, Math.min(cSortedLo, v), Math.max(cSortedLo, v));
 
@@ -239,198 +385,275 @@ export const LayerControlAdvanced = ({
   const activeGrad = colormapGradient(colormap, { frac0: 0, frac1: 1, direction: "to right", invert });
   // The true value→colour ramp given the current colour-scaling window. Drawn
   // under BOTH sliders so colours stay consistent; the visibility slider dims
-  // its hidden regions on top of it.
+  // its hidden regions on top of it. Without a separate colour range the
+  // visibility window is the colour window.
+  const rampLo = hasColorRange ? cSortedLo : sortedLo;
+  const rampHi = hasColorRange ? cSortedHi : sortedHi;
   const rampGrad = hasThresholds
-    ? colormapRampGradient(colormap, (cSortedLo - globalMin) / range, (cSortedHi - globalMin) / range, { direction: "to right", invert })
+    ? colormapRampGradient(colormap, (rampLo - globalMin) / range, (rampHi - globalMin) / range, { direction: "to right", invert })
     : activeGrad;
-  // Fractional positions (0..1) of the visibility handles, for the dimming
-  // overlay drawn on the visibility slider.
-  const visLoFrac = hasThresholds ? (sortedLo - globalMin) / range : 0;
-  const visHiFrac = hasThresholds ? (sortedHi - globalMin) / range : 1;
 
-  return (
-    <div
-      className={`group border border-border bg-panel hover:bg-panel-hover transition-colors ${
-        visible ? "border-l-2 border-l-foreground" : ""
-      }`}
-      data-testid={`layer-${layer.id}`}
-    >
-      {/* Identity row: swatch | name/description | actions (edit, download, remove, expand) */}
-      <div className="flex items-start gap-2 px-3 py-2">
+  // Right-click on the card (inbox 28 Oct): the card's own buttons as a menu.
+  // Not in a text field, which keeps the system's cut / copy / paste menu.
+  const openCardMenu = (e) => {
+    if (e.target.closest("input, textarea, [contenteditable]")) return;
+    const items = [
+      onToggle && { label: visible ? "Hide" : "Show", onSelect: () => onToggle(layer.id) },
+      onClipChange && { label: "Clip to the clip plane", checked: !!clipOn, onSelect: () => onClipChange(!clipOn) },
+      hasThresholds && onAutoThreshold && { label: `Auto ${visibilityLabel.toLowerCase()}`, onSelect: () => onAutoThreshold(layer.id) },
+      hasColorRange && onAutoColorRange && { label: "Auto colour range", disabled: colorLocked, onSelect: () => onAutoColorRange(layer.id) },
+      "-",
+      showHeader && { label: "View NIfTI header", onSelect: () => showHeader(layer) },
+      onEdit && { label: "Edit in Draw Mask", onSelect: () => onEdit(layer.id) },
+      onDuplicate && { label: "Duplicate", onSelect: () => onDuplicate(layer.id) },
+      onDownload && { label: "Download (.nii.gz)", onSelect: () => onDownload(layer.id) },
+      { label: expanded ? "Collapse controls" : "Expand controls", onSelect: () => setExpanded((v) => !v) },
+      "-",
+      removable && { label: "Remove layer", danger: true, onSelect: () => onRemove?.(layer.id) },
+    ].filter(Boolean).filter((it, i, all) => it !== "-" || (i > 0 && i < all.length - 1 && all[i - 1] !== "-"));
+    cardMenu.open(e, items);
+  };
+
+  // Sidebar declutter: a hidden layer whose controls are folded is one line:
+  // show, swatch, name. The name opens the full card (description, row
+  // actions, notes, Clip, and a lesion's analysis tools).
+  if (!visible && !expanded) {
+    return (
+      <div
+        className="group relative flex items-center gap-1.5 rounded-lg border border-border bg-card py-1 pl-1 pr-2"
+        data-testid={`layer-${layer.id}`}
+        data-compact="true"
+        onContextMenu={openCardMenu}
+      >
+        <ContextMenu menu={cardMenu.menu} onClose={cardMenu.close} label={`${layer.name} actions`} />
+        <button
+          type="button"
+          onClick={() => onToggle?.(layer.id)}
+          aria-pressed={false}
+          title="Show layer"
+          aria-label="Show layer"
+          className="icon-btn h-6 w-6 flex-shrink-0"
+          data-testid={`toggle-${layer.id}`}
+        >
+          <EyeOff size={14} />
+        </button>
         <span
-          className="mt-1 h-3 w-3 flex-shrink-0 border border-border"
+          className="keep-colours h-3 w-3 flex-shrink-0 rounded-[3px]"
           style={{ background: activeGrad }}
           title={`Colormap: ${colormap}`}
           data-testid={`colormap-swatch-${layer.id}`}
         />
-        <div className="flex-1 min-w-0">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          title={layer.fullPath || layer.name}
+          className="flex min-h-[24px] min-w-0 flex-1 items-center gap-2 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          data-testid={`expand-${layer.id}`}
+        >
+          <span className="min-w-0 flex-1 truncate">{layer.name}</span>
+          {notes && <StickyNote size={12} className="flex-shrink-0 text-subtle" role="img" aria-label="Has a note" />}
+          <ChevronRight size={14} className="flex-shrink-0" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`group relative rounded-lg border bg-card p-2.5 space-y-2 transition-colors ${
+        expanded ? "border-edge" : "border-border"
+      }`}
+      data-testid={`layer-${layer.id}`}
+      onContextMenu={openCardMenu}
+    >
+      <ContextMenu menu={cardMenu.menu} onClose={cardMenu.close} label={`${layer.name} actions`} />
+      {/* Identity: swatch and full name, then the file's size/description
+          with the row actions (header, edit, duplicate, download, remove,
+          expand). */}
+      <div>
+        <div className="flex items-start gap-2">
+          <span
+            className="keep-colours mt-[3px] h-3 w-3 flex-shrink-0 rounded-[3px]"
+            style={{ background: activeGrad }}
+            title={`Colormap: ${colormap}`}
+            data-testid={`colormap-swatch-${layer.id}`}
+          />
           <div
-            className={`truncate text-[12px] font-medium ${visible ? "text-foreground" : "text-muted-foreground"}`}
+            className={`min-w-0 flex-1 break-words text-[13px] font-medium leading-[18px] ${visible ? "text-foreground" : "text-muted-foreground"}`}
             title={layer.fullPath || layer.name}
           >
             {layer.name}
           </div>
-          {layer.description && (
-            <div className="truncate font-mono text-[10px] text-muted-foreground mt-0.5">{layer.description}</div>
-          )}
-          {onNotesChange && (
-            <textarea
-              value={notes || ""}
-              onChange={(e) => onNotesChange(layer.id, e.target.value)}
-              onInput={(e) => {
-                // Item 15: auto-expand up to 10 lines, shrink when text is deleted.
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                const lineH = parseFloat(getComputedStyle(el).lineHeight) || 14;
-                el.style.height = Math.min(el.scrollHeight, lineH * 10) + "px";
-              }}
-              placeholder="Add notes…"
-              rows={1}
-              title={layer.fullPath ? `File: ${layer.fullPath}` : undefined}
-              className="mt-1 w-full resize-none overflow-y-auto bg-background border border-border text-foreground font-mono text-[10px] px-1.5 py-1 leading-snug placeholder:text-subtle focus:outline-none focus:border-muted-foreground"
-              data-testid={`notes-${layer.id}`}
-            />
-          )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="mt-0.5 flex items-center gap-0.5 pl-5">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-subtle" title={layer.description}>
+            {layer.description}
+          </span>
+          {onNotesChange && !notes && !noteOpen && (
+            <RowAction onClick={() => setNoteOpen(true)} title="Add a note" testId={`add-note-${layer.id}`}>
+              <StickyNote size={13} />
+            </RowAction>
+          )}
           {showHeader && (
-            <button
-              onClick={() => showHeader(layer)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid={`header-${layer.id}`}
-              title="View NIfTI header"
-            >
-              <FileText size={11} />
-            </button>
+            <RowAction onClick={() => showHeader(layer)} title="View NIfTI header" testId={`header-${layer.id}`}>
+              <FileText size={13} />
+            </RowAction>
           )}
           {onEdit && (
-            <button
-              onClick={() => onEdit(layer.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid={`edit-${layer.id}`}
-              title="Edit in Draw Mask (erase / continue drawing)"
-            >
-              <Pencil size={11} />
-            </button>
+            <RowAction onClick={() => onEdit(layer.id)} title="Edit in Draw Mask (erase / continue drawing)" testId={`edit-${layer.id}`}>
+              <Pencil size={13} />
+            </RowAction>
           )}
           {onDuplicate && (
-            <button
-              onClick={() => onDuplicate(layer.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid={`duplicate-${layer.id}`}
-              title="Duplicate this mask as a new layer"
-            >
-              <Copy size={11} />
-            </button>
+            <RowAction onClick={() => onDuplicate(layer.id)} title="Duplicate this mask as a new layer" testId={`duplicate-${layer.id}`}>
+              <Copy size={13} />
+            </RowAction>
           )}
           {onDownload && (
-            <button
-              onClick={() => onDownload(layer.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid={`download-${layer.id}`}
-              title="Download this mask (.nii.gz)"
-            >
-              <Download size={11} />
-            </button>
+            <RowAction onClick={() => onDownload(layer.id)} title="Download this mask (.nii.gz)" testId={`download-${layer.id}`}>
+              <Download size={13} />
+            </RowAction>
           )}
           {removable && (
-            <button
-              onClick={() => onRemove?.(layer.id)}
-              className="flex items-center gap-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-destructive transition-colors"
-              data-testid={`remove-${layer.id}`}
-              title="Remove layer"
-            >
-              <Trash2 size={10} />
-            </button>
+            <RowAction onClick={() => onRemove?.(layer.id)} title="Remove layer" testId={`remove-${layer.id}`} danger>
+              <Trash2 size={13} />
+            </RowAction>
           )}
-          <button
+          <RowAction
             onClick={() => setExpanded((v) => !v)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            data-testid={`expand-${layer.id}`}
-            aria-label={expanded ? "Collapse controls" : "Expand controls"}
+            title={expanded ? "Collapse controls" : "Expand controls"}
+            testId={`expand-${layer.id}`}
+            aria-expanded={expanded}
           >
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          </button>
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </RowAction>
         </div>
       </div>
 
+      {onNotesChange && (notes || noteOpen) && (
+        <textarea
+          autoFocus={!notes}
+          value={notes || ""}
+          onChange={(e) => onNotesChange(layer.id, e.target.value)}
+          onBlur={(e) => { if (!e.currentTarget.value) setNoteOpen(false); }}
+          onInput={(e) => {
+            // Item 15: auto-expand up to 10 lines, shrink when text is deleted.
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            const lineH = parseFloat(getComputedStyle(el).lineHeight) || 16;
+            el.style.height = Math.min(el.scrollHeight, lineH * 10) + "px";
+          }}
+          placeholder="Add notes…"
+          rows={1}
+          title={layer.fullPath ? `File: ${layer.fullPath}` : undefined}
+          className="field block w-full resize-none overflow-y-auto py-[5px] leading-4"
+          data-testid={`notes-${layer.id}`}
+        />
+      )}
+
       {/* Primary controls: visibility, opacity, clip — same row, same order,
           on every card type (item 119). */}
-      <div className="flex items-center gap-2 px-3 pb-2 pt-0">
-        <ToggleButton
-          pressed={visible}
-          onPressedChange={() => onToggle?.(layer.id)}
-          icon={visible ? Eye : EyeOff}
-          testId={`toggle-${layer.id}`}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onToggle?.(layer.id)}
+          aria-pressed={!!visible}
           title={visible ? "Hide layer" : "Show layer"}
-        />
+          aria-label={visible ? "Hide layer" : "Show layer"}
+          className="icon-btn h-6 w-6 flex-shrink-0"
+          data-testid={`toggle-${layer.id}`}
+        >
+          {visible ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
         {visible && onOpacityChange && (
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-subtle w-12 flex-shrink-0">opacity</span>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="flex-shrink-0 text-[13px] text-muted-foreground">Opacity</span>
             <Slider
               value={[opacity * 100]}
               max={100}
               step={1}
               onValueChange={(v) => onOpacityChange(layer.id, v[0] / 100)}
-              className="cursor-pointer flex-1"
+              className="flex-1 cursor-pointer"
+              aria-label="Opacity"
               data-testid={`opacity-${layer.id}`}
             />
-            <span className="font-mono text-[10px] text-muted-foreground tabular-nums w-8 text-right">{Math.round(opacity * 100)}%</span>
+            <EditableNumber value={opacity * 100} min={0} max={100} integer onCommit={(v) => onOpacityChange(layer.id, v / 100)} label="Opacity, %"
+              className="w-9 text-right font-mono text-[11.5px] text-muted-foreground">{Math.round(opacity * 100)}%</EditableNumber>
           </div>
         )}
+        {(!visible || !onOpacityChange) && <span className="flex-1" />}
         {onClipChange && (
-          <ToggleButton
-            pressed={clipOn}
-            onPressedChange={(v) => onClipChange(v)}
-            icon={Scissors}
-            label="Clip"
-            testId={`clip-${layer.id}`}
+          <button
+            type="button"
+            onClick={() => onClipChange(!clipOn)}
+            aria-pressed={!!clipOn}
             title={clipOn ? "Unclip this layer from 3D clip plane" : "Clip this layer to 3D clip plane"}
-          />
+            className="btn-mini flex-shrink-0"
+            data-testid={`clip-${layer.id}`}
+          >
+            <Scissors size={12} />
+            Clip
+          </button>
         )}
       </div>
 
       {/* Expanded advanced controls */}
       {expanded && visible && (
-        <div className="px-3 pb-3 pt-1 space-y-2.5 border-t border-border">
+        <div className="space-y-3 pt-1">
 
           {/* Colour-scaling range (mrview-style contrast). Sets which data
               values map to the colormap's endpoints — independent of the
               visibility window below. The track shows the resulting value→colour
               ramp (clamped flat outside the handles). */}
           {hasColorRange && (
-            <div className="space-y-1.5" data-testid={`color-range-block-${layer.id}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">colour range</span>
-                  {onAutoColorRange && (
-                    <button
-                      onClick={() => onAutoColorRange(layer.id)}
-                      className="font-mono text-[8px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground border border-border px-1 py-0.5 transition-colors"
-                      title="Auto-contrast (robust 2–98% window)"
-                      data-testid={`auto-color-${layer.id}`}
-                    >
-                      auto
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <ThresholdValue
-                    value={cSortedLo}
-                    onCommit={handleColorLoText}
-                    testId={`color-lo-${layer.id}`}
-                    align="left"
-                  />
-                  <span className="font-mono text-[10px] text-subtle">–</span>
-                  <ThresholdValue
-                    value={cSortedHi}
-                    onCommit={handleColorHiText}
-                    testId={`color-hi-${layer.id}`}
-                    align="right"
-                  />
+            <div className="space-y-2" data-testid={`color-range-block-${layer.id}`}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="cap flex-1 whitespace-nowrap text-subtle">Colour range</span>
+                {/* One unit, so a narrow panel moves it below the label whole. */}
+                <div className="ml-auto flex items-center gap-1.5">
+                {colorLocked ? (
+                  <span className="px-1 font-mono text-[11.5px] text-muted-foreground" data-testid={`color-locked-values-${layer.id}`}>
+                    {Number(cSortedLo).toFixed(2)} – {Number(cSortedHi).toFixed(2)}
+                  </span>
+                ) : (
+                  <>
+                    <ThresholdValue value={cSortedLo} onCommit={handleColorLoText} testId={`color-lo-${layer.id}`} align="left" />
+                    <span className="text-[11px] text-subtle">–</span>
+                    <ThresholdValue value={cSortedHi} onCommit={handleColorHiText} testId={`color-hi-${layer.id}`} align="right" />
+                  </>
+                )}
+                {onAutoColorRange && (
+                  <button
+                    onClick={() => onAutoColorRange(layer.id)}
+                    className="btn-mini"
+                    title="Auto-contrast (robust 2–98% window)"
+                    data-testid={`auto-color-${layer.id}`}
+                    disabled={colorLocked}
+                  >
+                    Auto
+                  </button>
+                )}
+                {colorLock && (
+                  <button
+                    onClick={() => colorLock.setLocked(layer.id, !colorLocked)}
+                    aria-pressed={colorLocked}
+                    aria-label={colorLocked ? "Locked to the visibility values" : "Lock the colour range to the visibility values"}
+                    className="btn-mini w-[26px] px-0"
+                    title={colorLocked
+                      ? "Locked to the visibility values: the colour range follows them. Click to unlock."
+                      : "Lock the colour range to the visibility values"}
+                    data-testid={`color-lock-${layer.id}`}
+                  >
+                    {colorLocked ? <Lock size={12} /> : <LockOpen size={12} />}
+                  </button>
+                )}
                 </div>
               </div>
-              <div className="relative h-4 rounded-none" style={{ background: rampGrad }}>
+              <div
+                className={`keep-colours relative h-2.5 rounded shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] ${colorLocked ? "opacity-55" : ""}`}
+                style={{ background: rampGrad }}
+              >
                 <RangeSlider
                   value={[toSlider(cSortedLo), toSlider(cSortedHi)]}
                   min={0}
@@ -438,197 +661,126 @@ export const LayerControlAdvanced = ({
                   step={1}
                   onValueChange={handleColorSlider}
                   minStepsBetweenThumbs={0}
-                  className="absolute inset-0 cursor-pointer"
+                  disabled={colorLocked}
+                  label="Colour range"
+                  className={`!absolute inset-x-0 -inset-y-[5px] ${colorLocked ? "" : "cursor-pointer"}`}
+                  thumbClassName="h-4"
                   data-testid={`color-range-${layer.id}`}
                 />
               </div>
             </div>
           )}
 
-          {/* Visibility threshold dual-handle slider. Voxels outside the
-              window are hidden (or inside, when inverted). Drawn over the same
-              colour ramp, with the hidden regions dimmed. */}
+          {/* Visibility threshold: the Levels-style histogram slider. Voxels
+              outside the window are hidden (or inside, when inverted). */}
           {hasThresholds && onCalRangeChange && (
-            <div className="space-y-1.5" data-testid={`threshold-block-${layer.id}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-                    {hasColorRange ? "visibility" : "threshold"}
-                  </span>
-                  {onAutoThreshold && (
-                    <button
-                      onClick={() => onAutoThreshold(layer.id)}
-                      className="font-mono text-[8px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground border border-border px-1 py-0.5 transition-colors"
-                      title="Auto-threshold (robust 2–98% window)"
-                      data-testid={`auto-threshold-${layer.id}`}
-                    >
-                      auto
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <ThresholdValue
-                    value={sortedLo}
-                    onCommit={handleLoText}
-                    testId={`threshold-lo-${layer.id}`}
-                    align="left"
-                  />
-                  <span className="font-mono text-[10px] text-subtle">–</span>
-                  <ThresholdValue
-                    value={sortedHi}
-                    onCommit={handleHiText}
-                    testId={`threshold-hi-${layer.id}`}
-                    align="right"
-                  />
+            <div className="space-y-2" data-testid={`threshold-block-${layer.id}`}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="cap flex-1 whitespace-nowrap text-subtle">{visibilityLabel}</span>
+                <div className="ml-auto flex items-center gap-1.5">
+                {onAutoThreshold && (
+                  <button
+                    onClick={() => onAutoThreshold(layer.id)}
+                    className="btn-mini"
+                    title="Auto-threshold (robust 2–98% window)"
+                    data-testid={`auto-threshold-${layer.id}`}
+                  >
+                    Auto
+                  </button>
+                )}
+                <ThresholdValue value={sortedLo} onCommit={handleLoText} testId={`threshold-lo-${layer.id}`} align="left" />
+                <span className="text-[11px] text-subtle">–</span>
+                <ThresholdValue value={sortedHi} onCommit={handleHiText} testId={`threshold-hi-${layer.id}`} align="right" />
                 </div>
               </div>
-              <div
-                className="relative h-10 rounded-none overflow-hidden"
-                style={{ background: hasColorRange ? rampGrad : activeGrad }}
-              >
-                {/* Voxel-value histogram (log-scaled bar heights so a dominant
-                    bin doesn't flatten the rest — matches mricrogl/FSLeyes'
-                    threshold widgets, makes it visual instead of just numeric). */}
-                {histogram && histogram.counts.some((c) => c > 0) && (
-                  <div className="absolute inset-0 flex items-end pointer-events-none">
-                    {histogram.counts.map((c, i) => {
-                      const maxLog = Math.log1p(Math.max(...histogram.counts));
-                      const h = maxLog > 0 ? (Math.log1p(c) / maxLog) * 100 : 0;
-                      return (
-                        <div
-                          key={i}
-                          style={{ height: `${h}%` }}
-                          className="flex-1 bg-foreground/40"
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-                {/* Dim whichever bands are actually HIDDEN on the canvas. Normally
-                    voxels OUTSIDE [lo, hi] are hidden, so the outer bands darken and
-                    the middle stays bright. When "show outside thresholds" is on
-                    (invertThreshold), it's the opposite: voxels INSIDE the window are
-                    hidden, so the middle darkens and the outer bands stay bright. */}
-                {invertThreshold ? (
-                  <div className="absolute inset-y-0 bg-black/65 pointer-events-none"
-                    style={{
-                      left: `${Math.max(0, visLoFrac) * 100}%`,
-                      width: `${Math.max(0, visHiFrac - visLoFrac) * 100}%`,
-                    }} />
-                ) : (
-                  <>
-                    <div className="absolute inset-y-0 left-0 bg-black/65 pointer-events-none"
-                      style={{ width: `${Math.max(0, visLoFrac) * 100}%` }} />
-                    <div className="absolute inset-y-0 right-0 bg-black/65 pointer-events-none"
-                      style={{ width: `${Math.max(0, 1 - visHiFrac) * 100}%` }} />
-                  </>
-                )}
-                <RangeSlider
-                  value={[toSlider(sortedLo), toSlider(sortedHi)]}
-                  min={0}
-                  max={SLIDER_STEPS}
-                  step={1}
-                  onValueChange={handleSliderChange}
-                  minStepsBetweenThumbs={0}
-                  className="absolute inset-0 cursor-pointer"
-                  data-testid={`threshold-${layer.id}`}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[9px] text-subtle font-mono tabular-nums">
+              <LevelsSlider
+                histogram={histogram}
+                colormap={colormap}
+                invert={invert}
+                globalMin={globalMin}
+                globalMax={globalMax}
+                lo={sortedLo}
+                hi={sortedHi}
+                colourLo={rampLo}
+                colourHi={rampHi}
+                invertThreshold={invertThreshold}
+                rampGrad={rampGrad}
+                sliderValue={[toSlider(sortedLo), toSlider(sortedHi)]}
+                sliderMax={SLIDER_STEPS}
+                onSliderChange={handleSliderChange}
+                label={visibilityLabel}
+                testId={`threshold-${layer.id}`}
+              />
+              {/* Data min | what's visible now | data max. In a narrow panel the
+                  count wraps inside its own column, so min and max stay put. */}
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 font-mono text-[11px] text-subtle">
                 <span>{Number(globalMin).toFixed(2)}</span>
-                {thresholdVolume && (
-                  <span data-testid={`threshold-volume-${layer.id}`}>
-                    {thresholdVolume.voxelCount.toLocaleString()} vox · {thresholdVolume.volumeCM3.toFixed(2)} mL visible
-                  </span>
-                )}
+                <span className="text-center text-muted-foreground" data-testid={thresholdVolume ? `threshold-volume-${layer.id}` : undefined}>
+                  {thresholdVolume && `${thresholdVolume.voxelCount.toLocaleString()} vox · ${thresholdVolume.volumeCM3.toFixed(2)} mL visible`}
+                </span>
                 <span>{Number(globalMax).toFixed(2)}</span>
               </div>
             </div>
           )}
 
-          {/* Threshold direction toggle (inside ↔ outside) */}
-          {hasThresholds && onInvertThresholdChange && (
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-                show {invertThreshold ? "outside" : "inside"} thresholds
-              </span>
-              <ToggleButton
-                pressed={invertThreshold}
-                onPressedChange={(v) => onInvertThresholdChange(layer.id, v)}
-                label={invertThreshold ? "on" : "off"}
-                testId={`invert-threshold-${layer.id}`}
-              />
+          {/* On/off settings: threshold direction (inside ↔ outside), colormap
+              direction (item 55; continuous/activation overlays only — the
+              caller omits it for categorical atlases), and mask-zero (shown
+              whenever the volume actually contains a zero-valued voxel). */}
+          {((hasThresholds && onInvertThresholdChange) || onColormapInvertChange || (hasZeroVoxels && onIgnoreZeroChange)) && (
+            <div className="space-y-2">
+              {hasThresholds && onInvertThresholdChange && (
+                <SwitchRow
+                  label="Show outside the window"
+                  checked={!!invertThreshold}
+                  onChange={(v) => onInvertThresholdChange(layer.id, v)}
+                  testId={`invert-threshold-${layer.id}`}
+                />
+              )}
+              {onColormapInvertChange && (
+                <SwitchRow
+                  label="Invert colour map"
+                  checked={!!colormapInverted}
+                  onChange={(v) => onColormapInvertChange(layer.id, v)}
+                  testId={`invert-colormap-${layer.id}`}
+                />
+              )}
+              {hasZeroVoxels && onIgnoreZeroChange && (
+                <SwitchRow
+                  label="Mask zero voxels"
+                  checked={!!ignoreZeroVoxels}
+                  onChange={(v) => onIgnoreZeroChange(layer.id, v)}
+                  testId={`mask-zero-${layer.id}`}
+                />
+              )}
             </div>
           )}
 
-          {/* Colormap-direction invert (item 55) — continuous/activation
-              overlays only; the caller omits the props for base volume and
-              categorical atlases, so this never renders for those. */}
-          {onColormapInvertChange && (
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-                invert colormap
-              </span>
-              <ToggleButton
-                pressed={colormapInverted}
-                onPressedChange={(v) => onColormapInvertChange(layer.id, v)}
-                label={colormapInverted ? "on" : "off"}
-                testId={`invert-colormap-${layer.id}`}
-              />
-            </div>
-          )}
-
-          {/* Mask-zero toggle — shown whenever the volume actually contains a
-              zero-valued voxel, regardless of whether its data range
-              straddles zero (an all-non-negative map can still have real
-              zeros worth masking). */}
-          {hasZeroVoxels && onIgnoreZeroChange && (
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-                mask zero voxels
-              </span>
-              <ToggleButton
-                pressed={ignoreZeroVoxels}
-                onPressedChange={(v) => onIgnoreZeroChange(layer.id, v)}
-                label={ignoreZeroVoxels ? "on" : "off"}
-                testId={`mask-zero-${layer.id}`}
-              />
-            </div>
-          )}
-
-          {/* Colormap selector */}
+          {/* Colormap: a field that opens the grid of colour-map tiles. */}
           {showColormap && onColormapChange && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">colormap</span>
-                <span className="font-mono text-[10px] text-foreground">{colormap}</span>
-              </div>
-              <select
+            <div className="flex items-start gap-2">
+              <span className="w-[84px] flex-shrink-0 pt-[5px] text-[13px] text-muted-foreground">Colour map</span>
+              <ColormapPicker
                 value={colormap}
-                onChange={(e) => onColormapChange(layer.id, e.target.value)}
-                className="w-full bg-background border border-border text-foreground font-mono text-[11px] px-2 py-1 focus:outline-none focus:border-muted-foreground cursor-pointer"
-                data-testid={`colormap-${layer.id}`}
-              >
-                {COLORMAPS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                options={COLORMAPS}
+                invert={invert}
+                onChange={(c) => onColormapChange(layer.id, c)}
+                testId={`colormap-${layer.id}`}
+              />
             </div>
           )}
 
           {/* Label-atlas selector */}
           {labelAtlasOptions && labelAtlasOptions.length > 0 && onLabelAtlasChange && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">label atlas</span>
-                <span className="font-mono text-[10px] text-foreground">
-                  {labelAtlasOptions.find((a) => a.id === labelAtlasId)?.short || "—"}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="w-[84px] flex-shrink-0 text-[13px] text-muted-foreground" title="Names the region under the crosshair">
+                Label atlas
+              </span>
               <select
                 value={labelAtlasId || ""}
                 onChange={(e) => onLabelAtlasChange(layer.id, e.target.value || null)}
-                className="w-full bg-background border border-border text-foreground font-mono text-[11px] px-2 py-1 focus:outline-none focus:border-muted-foreground cursor-pointer"
+                className="field min-w-0 flex-1 cursor-pointer"
+                title={labelAtlasOptions.find((a) => a.id === labelAtlasId)?.name || "None"}
                 data-testid={`label-atlas-${layer.id}`}
               >
                 <option value="">— none —</option>
@@ -652,7 +804,7 @@ export const LayerControlAdvanced = ({
           lesion from the canvas should not take its analysis tools away. */}
       {expanded && extra && (
         <div
-          className="px-3 pb-3 pt-2 space-y-2 border-t border-border"
+          className="space-y-2 border-t border-border pt-2.5"
           data-testid={`layer-extra-${layer.id}`}
         >
           {extra}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { classifyNiftiBuffer } from "@/lib/niftiClassify";
 import { BASE_VOLUME } from "@/lib/atlasConfig";
+import { isWorkspaceFileName, parseWorkspaceBytes } from "@/lib/workspace";
 
 const READ_ERROR_MESSAGE = {
   "too-large": "That file is too large to quick-open (over 1.5 GB).",
@@ -53,6 +54,8 @@ const READ_ERROR_MESSAGE = {
  *   activation map is added as an overlay on the current base.
  */
 export function useQuickOpenFile({
+  applyWorkspace,
+  rememberBaseFile,
   viewerReady,
   handleBaseUpload,
   markBaseLoadedExternally,
@@ -69,7 +72,7 @@ export function useQuickOpenFile({
   const appliedRef = useRef(false);
 
   const cbRef = useRef(null);
-  cbRef.current = { handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer, setAsymmetric, setSliceType, setFocusMode };
+  cbRef.current = { handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer, setAsymmetric, setSliceType, setFocusMode, applyWorkspace, rememberBaseFile };
 
   // Phase 1. Runs once per window: getPendingOpenFile CONSUMES the queued
   // request, so a second run (React StrictMode re-invokes mount effects in
@@ -135,6 +138,7 @@ export function useQuickOpenFile({
             if (!r) continue;
             overlays.push({
               file: new File([r.res.bytes], r.res.name),
+              filePath: o.filePath,
               type: o.type || (r.classified.kind === "lesion" ? "lesion" : "activation"),
             });
           }
@@ -152,6 +156,18 @@ export function useQuickOpenFile({
           return;
         }
 
+        // A workspace (.mrlatte, or a pre-0.5.0 .nvws.json) double-clicked in
+        // Explorer: open on the template, then restore it once the viewer is up.
+        if (isWorkspaceFileName(res.name)) {
+          try {
+            resolvedRef.current = { kind: "workspace", ws: parseWorkspaceBytes(res.bytes), name: res.name };
+          } catch (_e) {
+            resolvedRef.current = { kind: "error", title: "Not a readable workspace", message: res.name };
+          }
+          setInitialBaseVolume(BASE_VOLUME);
+          return;
+        }
+
         const classified = await classifyNiftiBuffer(res.bytes, res.name);
         if (!classified.ok) {
           resolvedRef.current = { kind: "error", title: "Not a NIfTI file", message: res.name };
@@ -162,7 +178,7 @@ export function useQuickOpenFile({
         const file = new File([res.bytes], res.name);
 
         if (classified.kind === "activation" || classified.kind === "lesion") {
-          resolvedRef.current = { kind: classified.kind, file, classified };
+          resolvedRef.current = { kind: classified.kind, file, classified, filePath: pending.filePath };
           setInitialBaseVolume(BASE_VOLUME);
           return;
         }
@@ -187,9 +203,14 @@ export function useQuickOpenFile({
     if (!resolved) return; // phase 1 hasn't settled — viewerReady can't be true yet regardless, since it gates the viewer's own mount
     appliedRef.current = true;
 
-    const { handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer, setAsymmetric, setSliceType, setFocusMode } = cbRef.current;
+    const { handleBaseUpload, markBaseLoadedExternally, addUserFile, removeUserLayer, setAsymmetric, setSliceType, setFocusMode, applyWorkspace, rememberBaseFile } = cbRef.current;
 
     if (resolved.kind === "none") return;
+
+    if (resolved.kind === "workspace") {
+      applyWorkspace?.(resolved.ws);
+      return;
+    }
 
     if (resolved.kind === "error") {
       toast.error(resolved.title, { description: resolved.message });
@@ -205,10 +226,11 @@ export function useQuickOpenFile({
         if (resolved.base) {
           URL.revokeObjectURL(resolved.base.blobUrl); // niivue has already read it into memory
           markBaseLoadedExternally(resolved.base.file.name, resolved.base.filePath);
+          rememberBaseFile?.(resolved.base.file);   // so a workspace saved now embeds it
         }
         let added = 0;
         for (const o of resolved.overlays) {
-          if (await addUserFile(o.file, o.type)) added++;
+          if (await addUserFile(o.file, o.type, { fullPath: o.filePath })) added++;
         }
         setAsymmetric(false);
         setSliceType(resolved.overlays.length || resolved.base?.kind === "timeseries" ? "multiplanar" : "render");
@@ -225,6 +247,7 @@ export function useQuickOpenFile({
     if (resolved.kind === "base" || resolved.kind === "timeseries") {
       if (resolved.blobUrl) URL.revokeObjectURL(resolved.blobUrl); // niivue has already read it into memory
       markBaseLoadedExternally(resolved.file.name, resolved.filePath);
+      rememberBaseFile?.(resolved.file);   // so a workspace saved now embeds it
       setAsymmetric(false);
       setSliceType(resolved.kind === "timeseries" ? "multiplanar" : "render");
       setFocusMode(true);
@@ -239,7 +262,7 @@ export function useQuickOpenFile({
     // timeseries route rather than the base-volume route.
     (async () => {
       const overlayType = resolved.kind; // "activation" | "lesion"
-      const id = await addUserFile(resolved.file, overlayType);
+      const id = await addUserFile(resolved.file, overlayType, { fullPath: resolved.filePath });
       setAsymmetric(false);
       setSliceType("multiplanar");
       setFocusMode(true);

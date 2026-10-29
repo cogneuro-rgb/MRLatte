@@ -3,8 +3,8 @@ import { Image as ImageIcon, Download, RotateCcw } from "lucide-react";
 import { SidebarSection } from "@/components/SidebarSection";
 import LayerControlAdvanced from "@/components/LayerControlAdvanced";
 import FileUploader from "@/components/FileUploader";
-import { ToggleButton } from "@/components/ui/toggle-button";
-import { BASE_VOLUME } from "@/lib/atlasConfig";
+import { Switch } from "@/components/ui/switch";
+import { BASE_VOLUME, NO_BASE } from "@/lib/atlasConfig";
 import { dicomSeriesDownloadUrl } from "@/lib/dicom";
 import { saveBinaryFile } from "@/lib/workspace";
 import { toast } from "sonner";
@@ -18,11 +18,11 @@ import { toast } from "sonner";
  * a relocation, not a redesign.
  */
 export function BaseVolumeSection({
-  viewerReady,
   baseLabel,
   baseVisible,
   baseOpacity,
   baseColormap,
+  baseColormapInvert,
   baseFullPath,
   baseOverlayMeta,
   baseColorbarOn,
@@ -31,6 +31,7 @@ export function BaseVolumeSection({
   handleBaseVisibilityToggle,
   handleBaseOpacity,
   handleBaseColormap,
+  handleBaseColormapInvert,
   handleBaseCalRange,
   handleBaseFullWindow,
   handleBaseAutoWindow,
@@ -45,10 +46,9 @@ export function BaseVolumeSection({
   loadDicomSeries,
   dicomDownload,
   handleResetBase,
+  templateMissing,
   layerNotes,
   onNotesChange,
-  baseTransform,
-  handleBaseTransform,
 }) {
   // Fetch-then-save, rather than the plain <a download> this used to be. Every
   // other .nii.gz the app writes out goes through saveBinaryFile, which opens a
@@ -78,33 +78,31 @@ export function BaseVolumeSection({
   // into LayerControlAdvanced's collapsible `extra` slot, which hid them
   // behind the expand chevron. Restored to always-visible here, rendered as
   // a sibling block right under the card rather than inside `extra`, while
-  // keeping the identity/primary-control layout item 119 established and the
-  // shared ToggleButton component for the colorbar toggle.
+  // keeping the identity/primary-control layout item 119 established; the
+  // colorbar toggle is the shared Switch.
   const baseVolumeControls = (
-    <div className="border border-t-0 border-border bg-panel px-3 py-2 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">window</span>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={handleBaseFullWindow}
-            className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground border border-border px-1.5 py-0.5 transition-colors"
-            data-testid="base-window-full"
-            title="Full intensity range"
-          >full</button>
-          <button
-            onClick={handleBaseAutoWindow}
-            className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground border border-border px-1.5 py-0.5 transition-colors"
-            data-testid="base-window-auto"
-            title="Auto-contrast (robust 2–98% window)"
-          >auto</button>
-        </div>
+    <div className="space-y-2 px-0.5 text-[13px] text-muted-foreground">
+      <div className="flex items-center gap-1.5">
+        <span className="flex-1">Window</span>
+        <button
+          onClick={handleBaseFullWindow}
+          className="btn-mini"
+          data-testid="base-window-full"
+          title="Full intensity range"
+        >Full</button>
+        <button
+          onClick={handleBaseAutoWindow}
+          className="btn-mini"
+          data-testid="base-window-auto"
+          title="Auto-contrast (robust 2–98% window)"
+        >Auto</button>
       </div>
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">colorbar</span>
-        <ToggleButton
-          pressed={baseColorbarOn}
-          onPressedChange={(v) => handleBaseColorbarToggle(null, v)}
-          label={baseColorbarOn ? "on" : "off"}
+      <div className="flex items-center gap-2">
+        <span className="flex-1">Colour bar in the viewer</span>
+        <Switch
+          checked={!!baseColorbarOn}
+          onCheckedChange={(v) => handleBaseColorbarToggle(null, v)}
+          label="Colour bar in the viewer"
           testId="toggle-base-colorbar"
         />
       </div>
@@ -112,12 +110,9 @@ export function BaseVolumeSection({
   );
 
   return (
-    <SidebarSection title="Base Volume" icon={ImageIcon} testId="section-base" defaultOpen={true}>
-      <div className="flex items-center justify-end px-1 pb-1">
-        <div className={`h-1.5 w-1.5 rounded-full ${viewerReady ? "bg-emerald-500" : "bg-amber-500"}`} title={viewerReady ? "WebGL ready" : "Loading"} />
-      </div>
+    <SidebarSection title="Base volume" icon={ImageIcon} testId="section-base" defaultOpen={true} summary={baseLabel}>
       <LayerControlAdvanced
-        layer={{ id: "mni152", name: baseLabel, description: BASE_VOLUME.description, fullPath: baseFullPath }}
+        layer={{ id: "mni152", name: baseLabel, description: baseLabel === NO_BASE.name ? NO_BASE.description : BASE_VOLUME.description, fullPath: baseFullPath }}
         visible={baseVisible}
         opacity={baseOpacity}
         colormap={baseColormap}
@@ -130,24 +125,25 @@ export function BaseVolumeSection({
         onToggle={handleBaseVisibilityToggle}
         onOpacityChange={handleBaseOpacity}
         onColormapChange={handleBaseColormap}
+        colormapInverted={baseColormapInvert}
+        onColormapInvertChange={handleBaseColormapInvert}
         onCalRangeChange={handleBaseCalRange}
+        thresholdLabel="Window"
         histogram={histograms.mni152}
         onRequestHistogram={requestHistogram}
         notes={layerNotes?.mni152}
         onNotesChange={onNotesChange}
-        transform={baseTransform}
-        onTransformChange={handleBaseTransform}
       />
       {baseVolumeControls}
       <FileUploader
-        label="Use Custom Base Image"
-        description=".nii / .nii.gz / .mgz — replaces MNI152"
+        label="Use a custom base image"
+        description=".nii .nii.gz .mgz · replaces MNI152"
         testId="upload-base-button"
         onFile={handleBaseUpload}
       />
       <FileUploader
-        label="Import DICOM Series"
-        description="select a folder of .dcm files (or a .zip) — server-side dcm2niix"
+        label="Import a DICOM series"
+        description="A folder of .dcm files, or a .zip · converted by dcm2niix"
         testId="upload-dicom-button"
         directory
         accept=".dcm,.ima,.zip"
@@ -157,7 +153,7 @@ export function BaseVolumeSection({
       {/* DICOM staged progress bar */}
       {dicomProgress && (
         <div className="space-y-1" data-testid="dicom-progress">
-          <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+          <div className="flex justify-between cap text-subtle">
             <span>
               {dicomProgress.stage === "upload" ? "Uploading" :
                 dicomProgress.stage === "convert" ? "Converting (dcm2niix)" : "Loading series"}
@@ -166,7 +162,7 @@ export function BaseVolumeSection({
               <span>{Math.round(dicomProgress.fraction * 100)}%</span>
             )}
           </div>
-          <div className="h-1 w-full bg-border overflow-hidden">
+          <div className="h-1 w-full overflow-hidden rounded-sm bg-panel-active">
             <div
               className={`h-full bg-foreground transition-all ${dicomProgress.stage !== "upload" ? "animate-pulse" : ""}`}
               style={{ width: dicomProgress.stage === "upload" ? `${dicomProgress.fraction * 100}%` : "100%" }}
@@ -177,8 +173,8 @@ export function BaseVolumeSection({
 
       {/* DICOM series picker (multi-series studies) */}
       {dicomJob && (
-        <div className="space-y-1.5 border border-border p-2" data-testid="dicom-series-picker">
-          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="space-y-1.5 rounded-lg border border-border bg-card p-2.5" data-testid="dicom-series-picker">
+          <div className="cap text-subtle">
             {dicomJob.series.length} series — pick one
           </div>
           <div className="max-h-48 overflow-y-auto space-y-1">
@@ -186,18 +182,18 @@ export function BaseVolumeSection({
               <button
                 key={s.id}
                 onClick={() => loadDicomSeries(dicomJob.jobId, s)}
-                className={`w-full text-left px-2 py-1.5 border hover:border-muted-foreground hover:text-foreground ${
+                className={`w-full rounded-md border px-2 py-1.5 text-left transition-colors hover:bg-panel-hover ${
                   s.id === loadedSeriesId
-                    ? "bg-emerald-500/10 border-emerald-700 text-foreground"
-                    : "bg-transparent border-border text-foreground"
+                    ? "border-edge bg-panel-active text-foreground"
+                    : "border-border bg-transparent text-foreground"
                 }`}
                 data-testid={`dicom-series-${s.id}`}
               >
-                <div className="text-[11px] truncate">
-                  {s.id === loadedSeriesId && <span className="text-emerald-500">✓ </span>}
+                <div className="text-[12px] truncate">
+                  {s.id === loadedSeriesId && <span className="text-ok">✓ </span>}
                   {s.description || s.id}
                 </div>
-                <div className="font-mono text-[9px] text-subtle">
+                <div className="font-mono text-[10.5px] text-subtle">
                   {s.dims ? s.dims.join("×") : "?"} · {s.n_slices ?? "?"} slices · {(s.bytes / 1e6).toFixed(1)} MB
                 </div>
               </button>
@@ -205,7 +201,7 @@ export function BaseVolumeSection({
           </div>
           <button
             onClick={() => { setDicomJob(null); setLoadedSeriesId(null); }}
-            className="w-full py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-foreground"
+            className="btn-ghost w-full"
           >
             Cancel
           </button>
@@ -219,19 +215,20 @@ export function BaseVolumeSection({
           onClick={handleDicomNiftiDownload}
           disabled={dicomSaving}
           title={`Download “${dicomDownload.name}” as NIfTI (.nii.gz)`}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-50"
+          className="btn flex w-full"
           data-testid="download-dicom-nifti"
         >
           <Download size={13} /> {dicomSaving ? "Preparing…" : "Download NIfTI"}
         </button>
       )}
-      {baseLabel !== BASE_VOLUME.name && (
+      {/* Not offered without the template: reinstalling it loads it anyway. */}
+      {baseLabel !== BASE_VOLUME.name && !templateMissing && (
         <button
           onClick={handleResetBase}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1.5 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+          className="btn flex w-full"
           data-testid="reset-base-button"
         >
-          <RotateCcw size={12} />Reset to MNI Template
+          <RotateCcw size={12} />Reset to the MNI template
         </button>
       )}
     </SidebarSection>

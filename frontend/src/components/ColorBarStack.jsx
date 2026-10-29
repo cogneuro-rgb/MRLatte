@@ -1,9 +1,26 @@
-import React, { useState, useEffect } from "react";
-import { colormapGradient } from "@/lib/colormaps";
+import React, { useState, useEffect, useRef } from "react";
+import { colormapGradient, colormapSample } from "@/lib/colormaps";
+
+// The colours voxels actually get across [lo, hi] (bottom→top), given the
+// colour-scaling window [cMin, cMax]: each value's colour is its position in
+// the colour window, clamped to the colormap's ends.
+export function visibleRangeGradient(colormap, lo, hi, cMin, cMax, { invert = false, steps = 32 } = {}) {
+  const cSpan = cMax - cMin;
+  const stops = [];
+  for (let i = 0; i < steps; i++) {
+    const p = i / (steps - 1);
+    const v = lo + p * (hi - lo);
+    let t = cSpan > 0 ? (v - cMin) / cSpan : (v < cMin ? 0 : 1);
+    t = Math.max(0, Math.min(1, t));
+    stops.push(`${colormapSample(colormap, invert ? 1 - t : t)} ${(p * 100).toFixed(1)}%`);
+  }
+  return `linear-gradient(to top, ${stops.join(", ")})`;
+}
 
 /**
  * Horizontal strip of vertical colorbars rendered as an HTML overlay on the
- * left edge of the viewer canvas.
+ * left edge of the viewer canvas. Each bar spans its layer's visibility window
+ * (the values shown), coloured as those values are drawn.
  *
  * Props:
  *   entries — array of { id, name, colormap, calMin, calMax, globalMin, globalMax }
@@ -23,11 +40,27 @@ import { colormapGradient } from "@/lib/colormaps";
  */
 export const ColorBarStack = ({ entries = [] }) => {
   const [startIdx, setStartIdx] = useState(0);
+  const rootRef = useRef(null);
+  const [barHeight, setBarHeight] = useState(160);
+  const hasEntries = entries.length > 0;
 
   // Keep window pinned to the newest 3 when entries are added or removed.
   useEffect(() => {
     setStartIdx(Math.max(0, entries.length - 3));
   }, [entries.length]);
+
+  // Bars are min(160px, 30% of the viewer's height), never under 48px, so at
+  // 200% zoom they don't cover a third of the image. The viewer is the stack's
+  // positioned container; the stack only mounts while there are entries.
+  useEffect(() => {
+    const host = rootRef.current?.offsetParent || rootRef.current?.parentElement;
+    if (!host || typeof ResizeObserver === "undefined") return undefined;
+    const update = () => setBarHeight(Math.max(48, Math.min(160, Math.round(host.clientHeight * 0.3))));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, [hasEntries]);
 
   if (!entries.length) return null;
 
@@ -37,32 +70,43 @@ export const ColorBarStack = ({ entries = [] }) => {
 
   return (
     <div
+      ref={rootRef}
       className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1 pointer-events-none select-none"
       data-testid="colorbar-stack"
     >
       {/* Bar row — newest is rightmost */}
       <div className="flex flex-row gap-3">
         {visible.map((e) => {
-          // The bar spans the COLOUR-scaling range (value→colour), so it shows
-          // the full colormap from colorMin (bottom) to colorMax (top). Falls
-          // back to the global/cal range for overlays predating dual thresholds.
-          const cMin = e.colorMin ?? e.globalMin ?? e.calMin ?? 0;
-          const cMax = e.colorMax ?? e.globalMax ?? e.calMax ?? 1;
+          // The bar spans the VISIBILITY window [calMin, calMax] — the values
+          // actually shown — and its labels are those values. Only in "show
+          // outside thresholds" mode (visible voxels at both ends, not one
+          // window) does it span the colour range, with the hidden middle dimmed.
+          const hasWindow = typeof e.calMin === "number" && typeof e.calMax === "number" && e.calMax > e.calMin;
+          const byVisibility = hasWindow && !e.invertThreshold;
+          // Colour-scaling window (value→colour). A layer without its own colour
+          // range (retinotopy, older overlays) is coloured across its visibility
+          // window, as niivue draws it; otherwise fall back to the global range.
+          const colorLo = e.colorMin ?? (byVisibility ? e.calMin : e.globalMin ?? e.calMin ?? 0);
+          const colorHi = e.colorMax ?? (byVisibility ? e.calMax : e.globalMax ?? e.calMax ?? 1);
+          const cMin = byVisibility ? e.calMin : colorLo;
+          const cMax = byVisibility ? e.calMax : colorHi;
           const cRange = cMax - cMin;
-          const gradient = colormapGradient(e.colormap, {
-            frac0: 0,
-            frac1: 1,
-            direction: "to top",
-            steps: 32,
-            invert: !!e.colormapInverted, // item 55 follow-up
-          });
+          const gradient = byVisibility
+            ? visibleRangeGradient(e.colormap, e.calMin, e.calMax, colorLo, colorHi, { invert: !!e.colormapInverted })
+            : colormapGradient(e.colormap, {
+              frac0: 0,
+              frac1: 1,
+              direction: "to top",
+              steps: 32,
+              invert: !!e.colormapInverted, // item 55 follow-up
+            });
           // Visibility-cutoff ticks: where the [calMin, calMax] window falls
           // inside the colour range, mark it (mrview draws the transparency
           // threshold as a line on the colorbar). Fraction measured from the
           // bottom; skip cutoffs at/outside the ends (they're just the edge).
           const tickFrac = (v) => (cRange > 0 ? (v - cMin) / cRange : 0);
           const ticks = [];
-          for (const v of [e.calMin, e.calMax]) {
+          for (const v of byVisibility ? [] : [e.calMin, e.calMax]) {
             if (typeof v !== "number") continue;
             const f = tickFrac(v);
             if (f > 0.001 && f < 0.999) ticks.push(f);
@@ -74,7 +118,7 @@ export const ColorBarStack = ({ entries = [] }) => {
           // When invertThreshold is on ("show outside thresholds"), voxels
           // INSIDE the window are hidden instead, so the dim band flips to
           // the middle.
-          const hasCutoffs = typeof e.calMin === "number" && typeof e.calMax === "number";
+          const hasCutoffs = !byVisibility && typeof e.calMin === "number" && typeof e.calMax === "number";
           const loFrac = hasCutoffs ? Math.min(1, Math.max(0, tickFrac(e.calMin))) : 0;
           const hiFrac = hasCutoffs ? Math.min(1, Math.max(0, tickFrac(e.calMax))) : 1;
           const invertThreshold = !!e.invertThreshold;
@@ -87,7 +131,7 @@ export const ColorBarStack = ({ entries = [] }) => {
             >
               {/* Max label */}
               <div
-                className="font-mono text-[9px] text-zinc-100 tabular-nums"
+                className="font-mono text-[10.5px] text-[#D9D4CC]"
                 data-testid={`colorbar-max-${e.id}`}
               >
                 {Number(cMax).toFixed(2)}
@@ -95,8 +139,8 @@ export const ColorBarStack = ({ entries = [] }) => {
 
               {/* Gradient bar + visibility ticks */}
               <div
-                className="relative border border-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
-                style={{ width: "28px", height: "160px", background: gradient }}
+                className="keep-colours relative overflow-hidden rounded-[3px] border border-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
+                style={{ width: "28px", height: `${barHeight}px`, background: gradient }}
               >
                 {hasCutoffs && (invertThreshold ? (
                   <div
@@ -129,7 +173,7 @@ export const ColorBarStack = ({ entries = [] }) => {
 
               {/* Min label */}
               <div
-                className="font-mono text-[9px] text-zinc-100 tabular-nums"
+                className="font-mono text-[10.5px] text-[#D9D4CC]"
                 data-testid={`colorbar-min-${e.id}`}
               >
                 {Number(cMin).toFixed(2)}
@@ -137,7 +181,7 @@ export const ColorBarStack = ({ entries = [] }) => {
 
               {/* Layer name */}
               <div
-                className="font-mono text-[8px] text-zinc-500 w-[28px] truncate text-center"
+                className="w-[44px] truncate text-center text-[10.5px] text-[#BDB6AB]"
                 title={e.name}
               >
                 {e.name}
@@ -153,24 +197,24 @@ export const ColorBarStack = ({ entries = [] }) => {
           <button
             onClick={() => setStartIdx((i) => Math.max(0, i - 1))}
             disabled={!canGoOlder}
-            className={`font-mono text-[9px] uppercase tracking-[0.15em] transition-colors px-1 ${
-              canGoOlder ? "text-zinc-400 hover:text-zinc-100" : "text-zinc-700 cursor-default"
+            className={`px-1 text-[11px] transition-colors ${
+              canGoOlder ? "text-[#BDB6AB] hover:text-[#F3EFE8]" : "text-[#4A463F] cursor-default"
             }`}
             title="Show older colorbars"
             data-testid="colorbar-older"
           >
-            ◄ older
+            ◂ Older
           </button>
           <button
             onClick={() => setStartIdx((i) => Math.min(entries.length - 3, i + 1))}
             disabled={!canGoNewer}
-            className={`font-mono text-[9px] uppercase tracking-[0.15em] transition-colors px-1 ${
-              canGoNewer ? "text-zinc-400 hover:text-zinc-100" : "text-zinc-700 cursor-default"
+            className={`px-1 text-[11px] transition-colors ${
+              canGoNewer ? "text-[#BDB6AB] hover:text-[#F3EFE8]" : "text-[#4A463F] cursor-default"
             }`}
             title="Show newer colorbars"
             data-testid="colorbar-newer"
           >
-            newer ►
+            Newer ▸
           </button>
         </div>
       )}

@@ -45,13 +45,14 @@ def _touch(p: Path, content: bytes = b"x"):
 # === _build_manifest / _artifact ==============================================
 
 def test_manifest_shape_excludes_lesion_and_status(tmp_path):
+    """The run's downloadable files are its DATA: the maps and the overlap
+    table. The report is the summary's only figure output (the frontend draws
+    its figures), so no viewer page or image is ever offered, even one left
+    in the folder by an earlier version."""
     out_dir = tmp_path / "job"
     out_dir.mkdir()
 
     # Artifacts the worker would have produced.
-    _touch(out_dir / "brainsprite_lesion.html")
-    _touch(out_dir / "brainsprite_tracts.html")
-    _touch(out_dir / "images" / "retinotopy_disc.png")
     _touch(out_dir / "maps" / "affected_tracts.nii.gz")
     _touch(out_dir / "maps" / "affected_tracts.trk")
     _touch(out_dir / "data" / "atlas_overlap.csv")
@@ -60,44 +61,42 @@ def test_manifest_shape_excludes_lesion_and_status(tmp_path):
     # NEVER appear in the manifest.
     _touch(out_dir / "lesion.nii.gz")
     _touch(out_dir / "status.json")
+    _touch(out_dir / "brainsprite_lesion.html")
+    _touch(out_dir / "images" / "retinotopy_disc.png")
 
-    ctx = {
-        "brainsprite_file": "brainsprite_lesion.html",
-        "dissect_brainsprite": "brainsprite_tracts.html",
-        "retino_disc": "images/retinotopy_disc.png",
-        # lnm_bs_pos/neg deliberately absent -> those stages were skipped.
-    }
-
-    artifacts = srw._build_manifest(out_dir, ctx)
+    artifacts = srw._build_manifest(out_dir, {})
 
     assert artifacts, "expected at least one artifact"
     required_keys = {"rel", "label", "kind", "bytes", "group", "default"}
     for a in artifacts:
         assert set(a.keys()) == required_keys
         assert isinstance(a["bytes"], int) and a["bytes"] > 0
-        assert a["kind"] in {"html", "image", "map", "data"}
-        assert a["group"] in {"Viewers", "Images", "Maps", "Data"}
+        assert a["kind"] in {"map", "data"}
+        assert a["group"] in {"Maps", "Data"}
         assert isinstance(a["default"], bool)
 
     rels = [a["rel"] for a in artifacts]
     assert len(rels) == len(set(rels)), "rel values must be unique"
-    assert "lesion.nii.gz" not in rels
-    assert "status.json" not in rels
-
     assert set(rels) == {
-        "brainsprite_lesion.html", "brainsprite_tracts.html",
-        "images/retinotopy_disc.png", "maps/affected_tracts.nii.gz",
-        "maps/affected_tracts.trk", "data/atlas_overlap.csv",
+        "maps/affected_tracts.nii.gz", "maps/affected_tracts.trk", "data/atlas_overlap.csv",
     }
 
 
 def test_manifest_drops_declared_but_missing_files(tmp_path):
-    """A ctx rel that doesn't actually exist on disk (e.g. a brainsprite
-    render that failed) must not produce a manifest entry."""
+    """A stage that produced nothing (e.g. no dissection ran) leaves no entry."""
     out_dir = tmp_path / "job"
     out_dir.mkdir()
-    ctx = {"brainsprite_file": "brainsprite_lesion.html"}  # never written
-    assert srw._build_manifest(out_dir, ctx) == []
+    assert srw._build_manifest(out_dir, {}) == []
+
+
+def test_worker_has_no_figure_code():
+    """The summary report's figures are drawn by the frontend
+    (lib/report/figures.js), so the worker needs neither nilearn nor
+    matplotlib, and LQTpy Analysis runs without the reports-figures module."""
+    import re
+    src = Path(srw.__file__).read_text(encoding="utf-8")
+    assert not re.search(r"^\s*(import|from)\s+(nilearn|matplotlib)\b", src, re.M)
+    assert "brainsprite_" not in src
 
 
 def test_write_overlap_csv_includes_provenance_comment_line(tmp_path):

@@ -10,6 +10,15 @@ export const BASE_VOLUME = {
   isBase: true,
 };
 
+// The viewer's starting base when the MNI152 template module is not installed
+// (it can be removed in the Atlas Manager): nothing loads until a scan does.
+export const NO_BASE = {
+  id: "none",
+  name: "No base image",
+  url: null,
+  description: "No template is installed. Load a scan below, or reinstall the MNI152 template in the Atlas Manager.",
+};
+
 // ===== Wang & Benson labels (used for crosshair tooltip & legends) =====
 // Wang 2015 max-probability atlas — 25 ROIs, from Kastner Lab's
 // lh/rh.wang15_mplbl.v1_0.mgz. Exact ordering matches the labels file

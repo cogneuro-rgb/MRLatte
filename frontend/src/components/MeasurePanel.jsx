@@ -219,11 +219,11 @@ export const MeasurePanel = ({
 
   const btn = ghostBtnCls;
   const selectCls = panelSelectCls;
-  const coordInputCls = "w-full bg-panel border border-border text-[11px] text-foreground px-1.5 py-1 text-center";
+  const coordInputCls = "w-full bg-panel border border-border text-[12px] text-foreground px-1.5 py-1 text-center";
 
   const pointRow = (m, pt, pi) => (
     <div key={pi} className="flex items-center gap-1.5">
-      <span className="font-mono text-[10px] text-muted-foreground w-3 flex-shrink-0">{pt.label}</span>
+      <span className="font-mono text-[11px] text-muted-foreground w-3 flex-shrink-0">{pt.label}</span>
       {[0, 1, 2].map((ax) => (
         <input key={ax} type="number" value={pt.t[ax]} placeholder={["x", "y", "z"][ax]}
           onChange={(e) => setPointText(m.id, pi, ax, e.target.value)}
@@ -252,7 +252,7 @@ export const MeasurePanel = ({
       {/* Measurements list */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+          <div className="flex items-center gap-2 cap text-subtle">
             <Ruler size={11} /> measurements
           </div>
           <div className="flex items-center gap-1">
@@ -266,20 +266,20 @@ export const MeasurePanel = ({
         </div>
 
         {measurements.length === 0 && (
-          <div className="font-mono text-[9px] text-subtle leading-relaxed">
+          <div className="text-[12px] text-subtle leading-relaxed">
             Add a distance (2 points) or angle (3 points). Set each point from the
             crosshair or by typing MNI mm coordinates.
           </div>
         )}
 
         {measurements.map((m, mi) => (
-          <div key={m.id} className="border border-border bg-panel p-2 space-y-1.5" data-testid={`measurement-${m.id}`}>
+          <div key={m.id} className="border border-border bg-panel p-2 space-y-1.5 rounded-lg" data-testid={`measurement-${m.id}`}>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 flex-shrink-0" style={{ background: colorCss(mi) }} />
               <input value={m.name} onChange={(e) => renameMeasurement(m.id, e.target.value)}
-                className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-[12px] text-foreground focus:outline-none"
                 data-testid={`measurement-name-${m.id}`} />
-              <span className="font-mono text-[11px] text-foreground tabular-nums flex-shrink-0">{measureValue(m)}</span>
+              <span className="font-mono text-[12px] text-foreground tabular-nums flex-shrink-0">{measureValue(m)}</span>
               <button onClick={() => removeMeasurement(m.id)}
                 className="text-muted-foreground hover:text-destructive flex-shrink-0" data-testid={`measurement-remove-${m.id}`}>
                 <Trash2 size={12} />
@@ -296,16 +296,16 @@ export const MeasurePanel = ({
           every visible layer at the moment they're dropped. */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+          <div className="flex items-center gap-2 cap text-subtle">
             <MapPin size={11} /> pins
           </div>
           <button className={btn} onClick={addPin} disabled={!crosshairMM} data-testid="add-pin">
-            <Plus size={11} /> Pin @ Crosshair
+            <Plus size={11} /> Pin at the crosshair
           </button>
         </div>
 
         {pins.length === 0 && (
-          <div className="font-mono text-[9px] text-subtle leading-relaxed">
+          <div className="text-[12px] text-subtle leading-relaxed">
             Drop a pin at the crosshair to record the value at that voxel across every visible layer.
           </div>
         )}
@@ -314,14 +314,14 @@ export const MeasurePanel = ({
           const isOpen = expandedPin === p.id;
           const colorIdx = measurements.length + 1 + pi;
           return (
-            <div key={p.id} className="border border-border bg-panel p-2 space-y-1.5" data-testid={`pin-${p.id}`}>
+            <div key={p.id} className="border border-border bg-panel p-2 space-y-1.5 rounded-lg" data-testid={`pin-${p.id}`}>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 flex-shrink-0" style={{ background: colorCss(colorIdx) }} />
                 <input value={p.name} onChange={(e) => renamePin(p.id, e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent text-[12px] text-foreground focus:outline-none"
                   data-testid={`pin-name-${p.id}`} />
                 <button onClick={() => setExpandedPin(isOpen ? null : p.id)}
-                  className="font-mono text-[9px] text-muted-foreground hover:text-foreground flex-shrink-0"
+                  className="font-mono text-[10.5px] text-muted-foreground hover:text-foreground flex-shrink-0"
                   data-testid={`pin-toggle-${p.id}`}>
                   {isOpen ? "hide" : "values"}
                 </button>
@@ -330,9 +330,9 @@ export const MeasurePanel = ({
                   <Trash2 size={12} />
                 </button>
               </div>
-              <div className="font-mono text-[9px] text-subtle">{fmt(p.mm)}</div>
+              <div className="font-mono text-[10.5px] text-subtle">{fmt(p.mm)}</div>
               {isOpen && (
-                <div className="font-mono text-[10px] text-muted-foreground space-y-0.5 border-t border-border pt-1.5">
+                <div className="font-mono text-[11px] text-muted-foreground space-y-0.5 border-t border-border pt-1.5">
                   {p.values.length === 0 && <div className="text-subtle">No layer values recorded</div>}
                   {p.values.map((v) => (
                     <div key={v.name} className="flex items-center justify-between">
@@ -357,7 +357,7 @@ export const MeasurePanel = ({
 
       {/* Lesion max diameter */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+        <div className="flex items-center gap-2 cap text-subtle">
           <Move3d size={11} /> lesion max diameter (approx · PCA)
         </div>
         {lesionLayers.length > 1 && (
@@ -370,7 +370,7 @@ export const MeasurePanel = ({
           Measure
         </button>
         {diam && (
-          <div className="font-mono text-[10px] text-muted-foreground">
+          <div className="font-mono text-[11px] text-muted-foreground">
             diameter: <span className="text-foreground">{diam.diameterMM.toFixed(1)} mm</span>
             <span className="text-subtle"> · {diam.voxelCount} vox</span>
           </div>
@@ -381,13 +381,13 @@ export const MeasurePanel = ({
 
       {/* Midline shift */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+        <div className="flex items-center gap-2 cap text-subtle">
           <AlignVerticalSpaceAround size={11} /> midline shift (landmark-assisted)
         </div>
         <button className={`w-full ${btn}`} onClick={() => setLandmark(crosshairMM ? [...crosshairMM] : null)} data-testid="midline-set">
-          Set Landmark @ Crosshair
+          Set the landmark at the crosshair
         </button>
-        <div className="font-mono text-[10px] text-muted-foreground">
+        <div className="font-mono text-[11px] text-muted-foreground">
           landmark: <span className="text-foreground">{fmt(landmark)}</span>
           {ms && (
             <div>
@@ -396,7 +396,7 @@ export const MeasurePanel = ({
             </div>
           )}
         </div>
-        <div className="font-mono text-[9px] text-subtle leading-relaxed">
+        <div className="text-[12px] text-subtle leading-relaxed">
           place crosshair on a structure expected at the midline (MNI x≈0).
         </div>
       </div>
@@ -405,7 +405,7 @@ export const MeasurePanel = ({
 
       {/* Lesion volume estimation */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+        <div className="flex items-center gap-2 cap text-subtle">
           <Box size={11} /> lesion volume (voxel count × spacing)
         </div>
         {lesionLayers.length > 1 && (
@@ -416,14 +416,14 @@ export const MeasurePanel = ({
         )}
         <div className="grid grid-cols-2 gap-1">
           <button className={btn} onClick={computeVolume} data-testid="vol-compute" disabled={lesionLayers.length === 0}>
-            Lesion Layer
+            Lesion layer
           </button>
           <button className={btn} onClick={computeDrawingVolume} data-testid="vol-compute-drawing">
-            Current Drawing
+            Current drawing
           </button>
         </div>
         {vol && (
-          <div className="font-mono text-[10px] text-muted-foreground space-y-0.5">
+          <div className="font-mono text-[11px] text-muted-foreground space-y-0.5">
             <div>
               volume: <span className="text-foreground">{vol.volumeCM3.toFixed(2)} cm³</span>
               <span className="text-subtle"> · {vol.volumeMM3.toFixed(0)} mm³</span>
@@ -439,17 +439,17 @@ export const MeasurePanel = ({
 
       {/* ROI intensity statistics */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+        <div className="flex items-center gap-2 cap text-subtle">
           <Sigma size={11} /> ROI intensity stats
         </div>
         <div className="space-y-1">
-          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">mask</div>
+          <div className="cap text-subtle">mask</div>
           <select value={maskSrc} onChange={(e) => setMaskSrc(e.target.value)} className={selectCls} data-testid="roi-stats-mask">
             {maskOptions.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
           </select>
         </div>
         <div className="space-y-1">
-          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">intensity source</div>
+          <div className="cap text-subtle">intensity source</div>
           <select value={intensitySrc} onChange={(e) => setIntensitySrc(e.target.value)} className={selectCls} data-testid="roi-stats-intensity">
             {intensityOptions.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
           </select>
@@ -458,7 +458,7 @@ export const MeasurePanel = ({
           Compute stats
         </button>
         {roiStats && (
-          <div className="font-mono text-[10px] text-muted-foreground space-y-0.5" data-testid="roi-stats-result">
+          <div className="font-mono text-[11px] text-muted-foreground space-y-0.5" data-testid="roi-stats-result">
             <div>mean <span className="text-foreground">{roiStats.mean.toFixed(3)}</span>{" "}
               · sd <span className="text-foreground">{roiStats.sd.toFixed(3)}</span></div>
             <div>min <span className="text-foreground">{roiStats.min.toFixed(3)}</span>{" "}

@@ -69,13 +69,15 @@ async def tract_subsample(
         _cleanup()
         raise HTTPException(status_code=500, detail=f"Subsampling failed: {e}")
 @router.get("/tracts/dissect/available")
-async def tract_dissect_available():
-    """Report whether dipy is installed and the global tract file is present."""
-    try:
-        import nibabel as nib  # noqa: F401
-        from dipy.tracking.utils import target, density_map  # noqa: F401
-    except Exception as e:
-        return {"ok": False, "dipy": False, "reason": str(e)}
+def tract_dissect_available():
+    """Report whether dipy is installed and the global tract file is present.
+
+    A plain `def` so FastAPI runs it in a worker thread: reading the tractogram
+    header (often on a network share) used to block the event loop, holding up
+    every other request at startup. dipy is looked up, not imported, so opening
+    the section never puts the module in use (deps.package_present)."""
+    if not dipy_installed():
+        return {"ok": False, "dipy": False, "reason": DIPY_MISSING}
 
     if not GLOBAL_TRACT_FILE.exists():
         return {
@@ -119,6 +121,8 @@ async def tract_dissect(
     if not GLOBAL_TRACT_FILE.exists():
         raise HTTPException(status_code=503,
             detail="Global tract file not configured. Set GLOBAL_TRACT_FILE env var.")
+    if not dipy_installed():
+        raise HTTPException(status_code=503, detail=DIPY_MISSING)
 
     filename = os.path.basename(file.filename or "lesion.nii.gz").lower()
     if not (filename.endswith(".nii") or filename.endswith(".nii.gz")):
@@ -158,10 +162,11 @@ async def tract_dissect(
         # uvicorn process (lru_cache + in-process compute). Deferred until the real
         # data files are available to benchmark against. See the perf report.
         def _run_worker():
-            return subprocess.run(
-                [sys.executable, str(WORKER_SCRIPT), str(workdir / "config.json")],
-                capture_output=True, timeout=600,
-            )
+            with using_packages(*WORKER_PACKAGES[WORKER_SCRIPT]):
+                return subprocess.run(
+                    [sys.executable, str(WORKER_SCRIPT), str(workdir / "config.json")],
+                    capture_output=True, timeout=600,
+                )
 
         try:
             completed = await run_in_threadpool(_run_worker)
@@ -206,6 +211,8 @@ async def tract_dissect_between(
     if not GLOBAL_TRACT_FILE.exists():
         raise HTTPException(status_code=503,
             detail="Global tract file not configured. Set GLOBAL_TRACT_FILE env var.")
+    if not dipy_installed():
+        raise HTTPException(status_code=503, detail=DIPY_MISSING)
 
     def _valid_ext(fname: str) -> bool:
         n = os.path.basename(fname or "x").lower()
@@ -249,11 +256,12 @@ async def tract_dissect_between(
         (workdir / "config.json").write_text(json.dumps(config))
 
         def _run_worker():
-            return subprocess.run(
-                [sys.executable, str(DISSECT_BETWEEN_WORKER_SCRIPT),
-                 str(workdir / "config.json")],
-                capture_output=True, timeout=600,
-            )
+            with using_packages(*WORKER_PACKAGES[DISSECT_BETWEEN_WORKER_SCRIPT]):
+                return subprocess.run(
+                    [sys.executable, str(DISSECT_BETWEEN_WORKER_SCRIPT),
+                     str(workdir / "config.json")],
+                    capture_output=True, timeout=600,
+                )
 
         try:
             completed = await run_in_threadpool(_run_worker)
@@ -295,6 +303,8 @@ async def tract_dissect_start(
     if not GLOBAL_TRACT_FILE.exists():
         raise HTTPException(status_code=503,
             detail="Global tract file not configured. Set GLOBAL_TRACT_FILE env var.")
+    if not dipy_installed():
+        raise HTTPException(status_code=503, detail=DIPY_MISSING)
     filename = os.path.basename(file.filename or "lesion.nii.gz").lower()
     if not (filename.endswith(".nii") or filename.endswith(".nii.gz")):
         raise HTTPException(status_code=400, detail="Lesion file must be .nii or .nii.gz")
@@ -331,6 +341,8 @@ async def tract_dissect_between_start(
     if not GLOBAL_TRACT_FILE.exists():
         raise HTTPException(status_code=503,
             detail="Global tract file not configured. Set GLOBAL_TRACT_FILE env var.")
+    if not dipy_installed():
+        raise HTTPException(status_code=503, detail=DIPY_MISSING)
 
     def _valid_ext(fname: str) -> bool:
         n = os.path.basename(fname or "x").lower()

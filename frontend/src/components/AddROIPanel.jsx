@@ -99,20 +99,20 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
       type="number"
       value={val}
       onChange={(e) => setVal(e.target.value)}
-      className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+      className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
       data-testid={testId}
     />
   );
 
   return (
     <div className="space-y-3" data-testid="add-roi-panel">
-      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="flex items-center gap-2 cap text-subtle">
         <Target size={11} /> spherical ROI (MNI mm)
       </div>
 
       {/* ── Coordinates ── */}
       <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">Center X / Y / Z (mm)</div>
+        <div className="cap text-subtle">Center X / Y / Z (mm)</div>
         <div className="grid grid-cols-3 gap-1.5">
           {coordInput(x, setX, "roi-x")}
           {coordInput(y, setY, "roi-y")}
@@ -120,7 +120,7 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
         </div>
         <button
           onClick={useCrosshair}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+          className="btn w-full flex items-center justify-center gap-1.5"
           data-testid="roi-use-crosshair"
         >
           <Crosshair size={11} />Use crosshair
@@ -129,37 +129,37 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
 
       {/* ── Radius ── */}
       <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">Radius (mm)</div>
+        <div className="cap text-subtle">Radius (mm)</div>
         <input
           type="number"
           min="0"
           step="0.5"
           value={radius}
           onChange={(e) => setRadius(e.target.value)}
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
           data-testid="roi-radius"
         />
       </div>
 
       {/* ── Label ── */}
       <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">Label</div>
+        <div className="cap text-subtle">Label</div>
         <input
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
           data-testid="roi-label"
         />
       </div>
 
       {/* ── Colormap ── */}
       <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">Color</div>
+        <div className="cap text-subtle">Color</div>
         <select
           value={colormap}
           onChange={(e) => setColormap(e.target.value)}
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
           data-testid="roi-colormap"
         >
           {ROI_COLORMAPS.map((c) => (
@@ -167,7 +167,7 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
           ))}
         </select>
         <div
-          className="h-2 w-full border border-border"
+          className="h-2 w-full border border-border rounded-lg"
           style={{ background: colormapGradient(colormap) }}
         />
       </div>
@@ -175,14 +175,14 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
       <button
         onClick={createROI}
         disabled={busy}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[12.5px] font-medium btn-primary disabled:opacity-50"
         data-testid="roi-create-button"
       >
         <Target size={12} />
         {busy ? "Creating…" : "Create ROI"}
       </button>
 
-      <div className="font-mono text-[9px] text-subtle leading-relaxed">
+      <div className="text-[11.5px] text-subtle leading-relaxed">
         Sphere is built on the MNI152 grid — it aligns in the viewer only when the
         displayed scan is MNI-registered.
       </div>
@@ -192,7 +192,7 @@ export const AddROIPanel = ({ viewerRef, clearNonce, onRoiFile }) => {
         <a
           href={roiResultUrl(lastRoi.file)}
           download
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground no-underline"
+          className="btn w-full flex items-center justify-center gap-1.5 no-underline"
           data-testid="roi-download-nifti"
         >
           <Download size={11} />Download NIfTI ({lastRoi.voxels.toLocaleString()} vox)

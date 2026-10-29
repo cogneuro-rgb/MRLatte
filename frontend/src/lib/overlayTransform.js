@@ -37,16 +37,75 @@ export function wrapAngle(deg) {
   return r === -180 ? 180 : r;
 }
 
-/** Fill in defaults, clamp move and size, wrap angles. Accepts null/partial input. */
+export const PIVOT_MODES = ["centre", "mass", "crosshair"];
+
+/** Fill in defaults, clamp move and size, wrap angles. Accepts null/partial input.
+ *  Keeps the turn pivot when there is one: `pivot` (world mm, in the layer's
+ *  own untransformed frame), `pivotMode` and `pivotSig` (what the pivot was
+ *  computed from, so the UI can tell when it is out of date). A transform with
+ *  no pivot turns about the volume's grid centre, as every transform did
+ *  before 0.5.0 — saved positions keep meaning what they meant. */
 export function normalizeTransform(t) {
   const L = TRANSFORM_LIMITS;
   const tr = t?.translation || [];
   const ro = t?.rotation || [];
-  return {
+  const out = {
     translation: [0, 1, 2].map((i) => clamp(num(tr[i], 0), -L.translation, L.translation)),
     rotation: [0, 1, 2].map((i) => wrapAngle(num(ro[i], 0))),
     scale: clamp(num(t?.scale, 1) || 1, L.scaleMin, L.scaleMax),
   };
+  if (Array.isArray(t?.pivot) && t.pivot.length >= 3 && t.pivot.slice(0, 3).every((v) => Number.isFinite(Number(v)))) {
+    out.pivot = t.pivot.slice(0, 3).map(Number);
+    out.pivotMode = PIVOT_MODES.includes(t.pivotMode) ? t.pivotMode : "centre";
+    if (t.pivotSig != null) out.pivotSig = String(t.pivotSig);
+  }
+  return out;
+}
+
+/** The 3x3 rotation-times-scale part of a transform. */
+export function linearPart(t) {
+  const m = transformMatrix(t, [0, 0, 0]);
+  return [0, 1, 2].map((i) => [m[i][0], m[i][1], m[i][2]]);
+}
+
+/**
+ * The same pose, turning about a new pivot from now on: moving the pivot of a
+ * turned layer would otherwise swing it, so the translation absorbs the
+ * difference (t' = t + (I - M)(p - p'), M = rotation x scale).
+ * `from` is the pivot the transform currently turns about.
+ */
+export function repivot(t, newPivot, from, extra = {}) {
+  const n = normalizeTransform(t);
+  const M = linearPart(n);
+  const d = [0, 1, 2].map((i) => from[i] - newPivot[i]);
+  const translation = [0, 1, 2].map((i) =>
+    n.translation[i] + d[i] - (M[i][0] * d[0] + M[i][1] * d[1] + M[i][2] * d[2]));
+  return { ...n, ...extra, translation, pivot: [...newPivot] };
+}
+
+/**
+ * The pivot (in the layer's own frame) whose turning centre lands on a point
+ * as DISPLAYED (e.g. the crosshair), once the pose is kept by repivot():
+ * p' = M^-1 (c - t - p) + p.
+ */
+export function pivotForDisplayedPoint(t, displayed, from) {
+  const n = normalizeTransform(t);
+  const M = linearPart(n);
+  const r = [0, 1, 2].map((i) => displayed[i] - n.translation[i] - from[i]);
+  const inv = invert3(M);
+  return [0, 1, 2].map((i) => inv[i][0] * r[0] + inv[i][1] * r[1] + inv[i][2] * r[2] + from[i]);
+}
+
+function invert3(m) {
+  const [[a, b, c], [d, e, f], [g, h, k]] = m;
+  const A = e * k - f * h, B = -(d * k - f * g), C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  if (!det) return [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  return [
+    [A / det, -(b * k - c * h) / det, (b * f - c * e) / det],
+    [B / det, (a * k - c * g) / det, -(a * f - c * d) / det],
+    [C / det, -(a * h - b * g) / det, (a * e - b * d) / det],
+  ];
 }
 
 export function isIdentityTransform(t, eps = 1e-6) {
@@ -107,7 +166,8 @@ export function transformMatrix(t, pivot = [0, 0, 0]) {
  */
 export function transformedAffine(baseAffine, dims, t) {
   if (isIdentityTransform(t)) return baseAffine.map((row) => [...row]);
-  return multiply4(transformMatrix(t, volumeCentreMM(baseAffine, dims)), baseAffine);
+  const pivot = normalizeTransform(t).pivot || volumeCentreMM(baseAffine, dims);
+  return multiply4(transformMatrix(t, pivot), baseAffine);
 }
 
 /** Short human summary for tooltips and reports, e.g. "moved 5 mm, rotated 3°, scaled 110%". */

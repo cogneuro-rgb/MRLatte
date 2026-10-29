@@ -57,20 +57,20 @@ export default function AtlasLabelList({
   };
 
   return (
-    <div className="mt-1 border border-border" data-testid={`atlas-labels-${atlasId}`}>
+    <div className="mt-1 border border-border rounded-lg" data-testid={`atlas-labels-${atlasId}`}>
       <div className="flex items-center gap-1 border-b border-border">
         <input
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={`Filter ${rows.length} regions…`}
-          className="min-w-0 flex-1 bg-transparent px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent px-2 py-1 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none"
           data-testid={`atlas-labels-filter-${atlasId}`}
         />
         <button
           onClick={() => setSelecting((v) => !v)}
           title={selecting ? "Done selecting" : "Select regions to isolate or export"}
-          className={`shrink-0 px-2 py-1 text-[11px] transition-colors ${
+          className={`shrink-0 px-2 py-1 text-[12px] transition-colors ${
             selecting ? "text-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
           data-testid={`atlas-labels-select-${atlasId}`}
@@ -81,11 +81,11 @@ export default function AtlasLabelList({
 
       {selecting && (
         <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
-          <span className="text-[10px] text-muted-foreground">{picked.size} selected</span>
+          <span className="text-[11.5px] text-muted-foreground">{picked.size} selected</span>
           <button
             onClick={applyIsolate}
             disabled={!picked.size}
-            className="px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            className="px-1.5 py-0.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             title="Show only these regions"
             data-testid={`atlas-isolate-${atlasId}`}
           >
@@ -94,7 +94,7 @@ export default function AtlasLabelList({
           <button
             onClick={clearIsolate}
             disabled={!isolatedSet}
-            className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            className="flex items-center gap-1 px-1.5 py-0.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             title="Show every region again"
             data-testid={`atlas-isolate-clear-${atlasId}`}
           >
@@ -103,7 +103,7 @@ export default function AtlasLabelList({
           <button
             onClick={() => onRegionMask?.(atlasId, [...picked])}
             disabled={!picked.size}
-            className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            className="flex items-center gap-1 px-1.5 py-0.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
             title="Add the selected regions as an ROI mask layer"
             data-testid={`atlas-region-mask-${atlasId}`}
           >
@@ -118,7 +118,7 @@ export default function AtlasLabelList({
           return (
             <div
               key={r.value}
-              className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors hover:bg-panel-hover ${
+              className={`flex items-center gap-1 px-2 py-1 text-[12px] transition-colors hover:bg-panel-hover ${
                 dimmed ? "opacity-40" : ""
               }`}
             >
@@ -167,7 +167,7 @@ export default function AtlasLabelList({
           );
         })}
         {!shown.length && (
-          <div className="px-2 py-1 text-[11px] text-muted-foreground">No match</div>
+          <div className="px-2 py-1 text-[12px] text-muted-foreground">No match</div>
         )}
       </div>
     </div>

@@ -12,5 +12,9 @@
 # GET /api/modules -> the `validation-neuropythy` module.
 #
 #   pip install -r backend/requirements-validation.txt
+#
+# The standard installer's module store installs it with one click instead, from
+# the files pinned in data/modules/manifest.json. After changing this file, re-pin:
+#   py -3.11 tools/scripts/pin_python_modules.py
 
 neuropythy>=0.12

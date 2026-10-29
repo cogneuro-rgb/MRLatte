@@ -806,6 +806,21 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // and takes the whole NiivueViewer component down with it.
     installCustomRenderShader(nv);
     installSliceBackgroundShader(nv);
+
+    // Let the GPU finish each layer rebuild before the next one is queued.
+    // updateGLVolume rebuilds every layer's 3D texture (an 11M-voxel upload
+    // plus an orientation pass per slice) — opacity, colour range, colormap,
+    // adding or moving a layer all go through it. Queued faster than the driver
+    // retires them (one per frame while a slider or hold-to-move bar is held),
+    // the work piled up and the app froze for up to ~5.6 s at a time. Waiting
+    // here costs nothing extra (the work has to finish anyway) and measured
+    // flat at ~47 ms per change instead (perf-0.4.2.md).
+    const updateGLVolume = nv.updateGLVolume.bind(nv);
+    nv.updateGLVolume = (...args) => {
+      const result = updateGLVolume(...args);
+      try { nv.gl?.finish(); } catch (_e) {}
+      return result;
+    };
     setSliceBackgroundClip(nv, whiteBackgroundRef.current);
 
     nv.onLocationChange = (data) => {
@@ -1579,12 +1594,14 @@ const NiivueViewer = forwardRef(function NiivueViewer(
     // format and throws (`undefined.toUpperCase()`). Pass the real file name
     // so it can. Only for blob: URLs: the bundled template's display name
     // ("MNI152 Template") has no extension and would break its own load.
-    nv.loadVolumes([{
+    // No URL (NO_BASE in lib/atlasConfig.js — the template was removed): start
+    // empty; a scan loaded later goes through replaceBaseVolume as usual.
+    (baseVolume.url ? nv.loadVolumes([{
       url: baseVolume.url,
       ...(String(baseVolume.url).startsWith("blob:") ? { name: baseVolume.name } : {}),
       colormap: baseVolume.colormap,
       opacity: baseVolume.opacity,
-    }])
+    }]) : Promise.resolve())
       .then(() => {
         nv.setClipPlane([2, 0, 0]);
         // tag the base volume and force its colorbar OFF (niivue defaults
@@ -2120,9 +2137,9 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       {drawingActive && (
         <div className="absolute inset-0 pointer-events-none z-20" data-testid="draw-mode-indicator">
           <div className="absolute inset-0 border-2 border-primary/80" />
-          <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 bg-primary text-primary-foreground font-mono text-[10px] uppercase tracking-[0.2em] shadow">
+          <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 bg-primary text-primary-foreground cap shadow">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
-            {drawToolLabel ? `Draw Mode \u2013 ${drawToolLabel}` : "Draw Mode"}
+            {drawToolLabel ? `Draw mode \u2013 ${drawToolLabel}` : "Draw mode"}
           </div>
         </div>
       )}
@@ -2135,11 +2152,11 @@ const NiivueViewer = forwardRef(function NiivueViewer(
               <div
                 key={key}
                 className={`absolute transition-all duration-150 ${
-                  isHovered ? "border border-cyan-400/70" : "border border-transparent"
+                  isHovered ? "border border-white/60" : "border border-transparent"
                 }`}
                 style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
               >
-                <span className="absolute top-1.5 left-1.5 text-[9px] font-semibold uppercase tracking-widest text-white/50 bg-black/40 px-1.5 py-0.5 rounded-sm select-none">
+                <span className="absolute top-1.5 left-1.5 text-[11.5px] font-medium text-white/50 bg-black/40 px-1.5 py-0.5 rounded-sm select-none">
                   {label}
                 </span>
               </div>
@@ -2177,7 +2194,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
                 className="absolute"
                 style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
               >
-                <span className="absolute bottom-1 right-1.5 text-[9px] font-mono tabular-nums text-white/50 bg-black/40 px-1 py-0.5 rounded-sm select-none">
+                <span className="absolute bottom-1 right-1.5 text-[10.5px] font-mono tabular-nums text-white/50 bg-black/40 px-1 py-0.5 rounded-sm select-none">
                   {text}
                 </span>
               </div>
@@ -2223,7 +2240,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
                   ×
                 </span>
                 <span
-                  className="mt-0.5 text-[9px] font-mono font-semibold uppercase tracking-wide px-1 rounded-sm select-none whitespace-nowrap"
+                  className="mt-0.5 cap px-1 rounded-sm select-none whitespace-nowrap"
                   style={{ color: `rgb(${rgb})`, background: "rgba(0,0,0,0.55)" }}
                 >
                   {m.label}
@@ -2239,7 +2256,7 @@ const NiivueViewer = forwardRef(function NiivueViewer(
           style={{ left: `${measureHover.x}px`, top: `${measureHover.y - 16}px`, transform: "translate(-50%, -100%)" }}
         >
           <span
-            className="block text-[10px] font-mono font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-sm select-none whitespace-nowrap"
+            className="block cap px-1.5 py-0.5 rounded-sm select-none whitespace-nowrap"
             style={{
               color: `rgb(${MEASURE_COLORS_RGB[measureHover.colorIdx].join(",")})`,
               background: "rgba(0,0,0,0.75)",
@@ -2267,12 +2284,12 @@ const NiivueViewer = forwardRef(function NiivueViewer(
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-1 w-32 bg-zinc-900 overflow-hidden">
-              <div className="h-full w-1/3 bg-white animate-pulse" />
+            <div className="h-1 w-32 overflow-hidden rounded-full bg-[#2A2825]">
+              <div className="h-full w-1/3 bg-[#F3EFE8] animate-pulse" />
             </div>
             {/* Fixed mid gray: readable on the canvas backdrop whether it
                 is black (default) or white (the optional white background). */}
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">
+            <div className="cap text-[#8C857B]">
               loading mni152 template…
             </div>
           </div>

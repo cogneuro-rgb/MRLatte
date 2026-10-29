@@ -45,9 +45,10 @@ def inspect_volume(path):
     """Validate an atlas volume and describe it.
 
     details, on success:
-        shape, voxelSizeMM, kind ("parcellation" | "continuous"),
+        shape, voxelSizeMM, kind ("parcellation" | "continuous" | "probabilistic"),
         labelValues (sorted ints, capped), labelCount, warnings [str],
-        lateralized (bool|None), bilateralValues [int], voxelCounts {value: n}
+        lateralized (bool|None), bilateralValues [int], voxelCounts {value: n};
+        a 4-D probability atlas adds frames and valueRange [min, max]
     """
     p = Path(path)
     try:
@@ -73,13 +74,18 @@ def inspect_volume(path):
     if data.ndim == 4 and data.shape[3] == 1:
         data = data[..., 0]
         warnings.append("4-D volume with a single frame; using frame 0.")
-    if data.ndim != 3:
+    # Several frames: a 4-D probability atlas, one map per region (the shipped
+    # tract atlases' shape). The commit builds its label map and per-region
+    # masks (atlas_ops.maxprob_from_4d).
+    frames = int(data.shape[3]) if data.ndim == 4 else None
+    if data.ndim not in (3, 4):
         return False, (
-            "expected a 3-D label volume, got %d dimensions %s. A 4-D "
-            "probabilistic atlas has to be converted to max-probability first."
-            % (data.ndim, tuple(data.shape))), {}
+            "expected a 3-D label volume or a 4-D probability atlas, got %d "
+            "dimensions %s." % (data.ndim, tuple(data.shape))), {}
 
-    if not np.all(np.isfinite(data)):
+    # Integers are always finite; skipping them spares a full-size copy of a
+    # large 4-D atlas.
+    if np.issubdtype(data.dtype, np.floating) and not np.all(np.isfinite(data)):
         return False, "volume contains NaN or Inf values", {}
 
     affine = np.asarray(img.affine, dtype=float)
@@ -101,6 +107,25 @@ def inspect_volume(path):
             "volume reaches %.0f mm from the origin; an MNI-space atlas stays "
             "within about %.0f mm, so this may not be in MNI space."
             % (reach, _MNI_SANITY_MM))
+
+    if frames is not None:
+        vmax = float(data.max())
+        if not vmax > 0:
+            return False, "every frame of the volume is empty", {}
+        return True, "", {
+            "shape": [int(s) for s in data.shape],
+            "voxelSizeMM": [round(v, 4) for v in voxel],
+            "reachMM": round(reach, 1),
+            "kind": "probabilistic",
+            "frames": frames,
+            "valueRange": [float(data.min()), vmax],
+            "labelValues": list(range(1, min(frames, _MAX_LABELS) + 1)),
+            "labelCount": frames,
+            "voxelCounts": {},
+            "lateralized": None,
+            "bilateralValues": [],
+            "warnings": warnings,
+        }
 
     # Discrete or not? A parcellation's values are integers; anything else is a
     # continuous map, which we accept but flag, because region tables and the

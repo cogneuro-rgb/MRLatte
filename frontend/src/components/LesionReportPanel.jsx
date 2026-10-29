@@ -9,8 +9,9 @@ import {
 import { currentDrawingAsFile } from "@/lib/lesions";
 import { isDevBuild, useLesionEngineDevOverride } from "@/lib/lesionMetrics";
 import { useReportDialog } from "@/hooks/useReportDialog";
-import { activeToggleCls, primaryBtnCls } from "@/lib/buttonVariants";
-import { buildReport } from "@/lib/report";
+import { activeToggleCls, ghostBtnCls } from "@/lib/buttonVariants";
+import { buildReport, glanceText } from "@/lib/report";
+import { lesionFigure } from "@/lib/report/figures";
 import { ReportDialog } from "@/components/ReportDialog";
 import { downloadText } from "@/lib/volumeAnalysis";
 import { toast } from "sonner";
@@ -29,22 +30,22 @@ import { toast } from "sonner";
  *   ensureAtlasLoaded    - async (atlasId, {silent}) => NVImage
  *   retinotopyLayers     - [{ id, name, kind: "polar"|"eccen", illustrative, attribution }]
  *                          polar/eccen maps to include in the report. Only those
- *                          ALREADY loaded in the viewer are used (a missing
- *                          white-matter template map is silently skipped — never
- *                          force-loaded, so it can't 404 during report generation).
- *   getPolarDiscDataUrl    - () => string | null  — Benson polar disc data URL
- *   getVfMap2dDataUrl      - () => Promise<string | null>  — Benson 2D VF map data URL
- *   getWmPolarDiscDataUrl  - () => string | null  — WM polar disc data URL
- *   getWmVfMap2dDataUrl    - () => Promise<string | null>  — WM 2D VF map data URL
+ *                          ALREADY loaded are used (a missing white-matter
+ *                          template map is silently skipped — never force-loaded,
+ *                          so it can't 404 during report generation).
+ *   retinoVolume           - (id) => NVImage | null — a retinotopy map, on or off screen
+ *   getVfMap2dDataUrl      - (lesionId) => Promise<string | null>  — Benson 2D VF map for that lesion
+ *   getWmVfMap2dDataUrl    - (lesionId) => Promise<string | null>  — WM 2D VF map for that lesion
  */
 export const LesionReportPanel = ({
+  // `bare`: no heading of its own, for a caller that folds it under one.
+  bare = false,
   viewerRef, lesionLayers = [], standardAtlases = [],
   visibleAtlasIds = [], ensureAtlasRegions, ensureAtlasLoaded,
   retinotopyLayers = [],
   userFileCache,
-  getPolarDiscDataUrl,
+  retinoVolume,
   getVfMap2dDataUrl,
-  getWmPolarDiscDataUrl,
   getWmVfMap2dDataUrl,
 }) => {
   const [selLesion, setSelLesion] = useState("");
@@ -62,6 +63,8 @@ export const LesionReportPanel = ({
   // network rollup / disconnection) without re-resolving it. Content-hash
   // deduped by uploadLesion, so re-uploading it there is cheap.
   const lesionFileRef = useRef(null);
+  // The lesion layer the CURRENT model was built from, for its figure.
+  const lesionIdRef = useRef(null);
   // Item 103: uniform Open/Save report dialog. reportHtml is built once (it
   // needs the async retinotopy-disc data URLs) and reused by the dialog's
   // own Open-in-new-window/Save actions.
@@ -96,12 +99,13 @@ export const LesionReportPanel = ({
         standardAtlases.filter((a) => selAtlases.has(a.id)),
         { viewerRef, ensureAtlasLoaded, ensureRegions: ensureAtlasRegions },
       );
-      // Retinotopy maps already loaded in the viewer (cortical Benson is
+      // Retinotopy maps already loaded (cortical Benson is
       // auto-loaded once a lesion exists; white-matter template only if the
       // user toggled it). Never force-load here — a missing WM map is skipped.
       const retinotopy = [];
       for (const r of retinotopyLayers) {
-        const vol = viewerRef.current?.getVolume?.(r.id);
+        // Off-screen (not in the viewer) unless shown: retinoVolume finds both.
+        const vol = retinoVolume ? retinoVolume(r.id) : viewerRef.current?.getVolume?.(r.id);
         if (vol?.img) retinotopy.push({ ...r, vol });
       }
       const lesionLayer = lesionLayers.find((l) => l.id === lesionId);
@@ -111,6 +115,7 @@ export const LesionReportPanel = ({
       const lesionName = (lesionLayer?.name || lesionId) + (adjusted ? ` (position adjusted by hand: ${adjusted})` : "");
       const lesionFile = await resolveLesionFile(lesionId);
       lesionFileRef.current = lesionFile;
+      lesionIdRef.current = lesionId;
       const m = await buildLesionReportModel({
         lesionName,
         lesionVol,
@@ -139,6 +144,17 @@ export const LesionReportPanel = ({
       toast.error("Report failed", { description: e?.message });
     } finally {
       if (requestIdRef.current === myRequestId) setBusy(false);
+    }
+  };
+
+  // The lesion drawn over the base scan (lib/report/figures.js), from the
+  // volumes as loaded — the report's main figure. Null when unavailable.
+  const makeLesionFigure = () => {
+    try {
+      const viewer = viewerRef.current;
+      return lesionFigure(viewer?.getBaseVolume?.(), viewer?.getVolume?.(lesionIdRef.current));
+    } catch {
+      return null;
     }
   };
 
@@ -172,13 +188,33 @@ export const LesionReportPanel = ({
     const engineLine = engineProvenanceLabel(model.provenance);
     if (engineLine) line(engineLine, 8);
     y += 6;
-    line(renderReportParagraph(model), 10);
+    // The same short lead as the HTML report; the full lists are in the
+    // text export.
+    line(glanceText(model, { retinotopyFindings: model.retinotopyFindings }) || renderReportParagraph(model), 10);
     y += 6;
+    const fig = makeLesionFigure();
+    if (fig) {
+      const { width, height } = doc.getImageProperties(fig.src);
+      const h = (W * height) / width;
+      if (y + h > doc.internal.pageSize.getHeight() - margin) { doc.addPage(); y = margin; }
+      doc.addImage(fig.src, "PNG", margin, y, W, h);
+      y += h + 12;            // text is drawn on its baseline: clear the image first
+      line(fig.caption, 8);
+      y += 6;
+    }
+    // Top five regions per atlas (1% of the lesion or more), like the HTML
+    // report's tables; the full lists are in the HTML and text exports.
     for (const b of model.atlasBreakdowns) {
       line(b.atlasName, 11, true);
-      for (const r of b.rows) {
+      const shown = b.rows.filter((r) => r.percentOfLesion >= 1).slice(0, 5);
+      for (const r of shown) {
         line(`  ${r.regionName} — ${r.percentOfLesion.toFixed(1)}% of lesion, ${r.percentOfRegion.toFixed(1)}% of region (${r.voxelCount} vox)`, 9);
       }
+      const more = b.rows.length - shown.length;
+      const s = more === 1 ? "" : "s";
+      if (more) line(shown.length
+        ? `  + ${more} more region${s} in the HTML and text exports.`
+        : `  ${more} region${s}, each under 1% of the lesion: listed in the HTML and text exports.`, 8);
       y += 4;
     }
     const ret = model.retinotopyFindings || [];
@@ -201,10 +237,9 @@ export const LesionReportPanel = ({
     if (!model) return;
     setReportBusy(true);
     try {
-      const polarDiscDataUrl   = getPolarDiscDataUrl?.()           ?? null;
-      const vfMap2dDataUrl     = (await getVfMap2dDataUrl?.())     ?? null;
-      const wmPolarDiscDataUrl = getWmPolarDiscDataUrl?.()         ?? null;
-      const wmVfMap2dDataUrl   = (await getWmVfMap2dDataUrl?.())   ?? null;
+      // Visual-field maps computed for THIS report's lesion.
+      const vfMap2dDataUrl   = (await getVfMap2dDataUrl?.(lesionIdRef.current))   ?? null;
+      const wmVfMap2dDataUrl = (await getWmVfMap2dDataUrl?.(lesionIdRef.current)) ?? null;
       // lqtpy's embeddable sections (morphometry detail / network rollup /
       // disconnection) for the atlases already used above. Fails soft —
       // resolveReportFragments never throws, so a slow/failed fetch here
@@ -214,8 +249,8 @@ export const LesionReportPanel = ({
         lesionFile: lesionFileRef.current, atlasIds, threshold: model.provenance?.threshold,
       });
       const html = buildReport("lesion", {
-        ...model, polarDiscDataUrl, vfMap2dDataUrl, wmPolarDiscDataUrl, wmVfMap2dDataUrl,
-        reportFragments,
+        ...model, vfMap2dDataUrl, wmVfMap2dDataUrl,
+        reportFragments, lesionFigure: makeLesionFigure(),
       });
       setReportHtml(html);
       openReport();
@@ -225,28 +260,29 @@ export const LesionReportPanel = ({
   };
 
   return (
-    <div className="space-y-3" data-testid="lesion-report-panel">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-          <FileText size={11} /> one-click lesion report
-        </div>
+    <div className="space-y-2" data-testid="lesion-report-panel">
+      {(!bare || isDevBuild()) && (
+      <div className="flex items-center gap-2">
+        {!bare && <span className="cap flex-1 text-subtle">One-click lesion report</span>}
         {isDevBuild() && (
           <button
             onClick={() => setDevEngine(devEngine === "js" ? null : "js")}
             title="Dev only: force the JS engine instead of lqtpy, for side-by-side comparison"
-            className={`flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border transition-colors ${devEngine === "js" ? "bg-amber-500/20 border-amber-500 text-amber-400" : "bg-transparent border-border text-subtle hover:text-foreground"}`}
+            aria-pressed={devEngine === "js"}
+            className={`btn-mini ${devEngine === "js" ? "!border-warn !bg-warn/15 !text-warn" : ""}`}
             data-testid="report-dev-engine-toggle"
           >
-            <FlaskConical size={10} /> JS
+            <FlaskConical size={11} /> JS
           </button>
         )}
       </div>
+      )}
 
       {lesionLayers.length > 1 && (
         <select
           value={selLesion}
           onChange={(e) => setSelLesion(e.target.value)}
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="field w-full"
           data-testid="report-lesion-select"
         >
           <option value="">{lesionLayers[0]?.name || "First lesion"}</option>
@@ -254,14 +290,15 @@ export const LesionReportPanel = ({
         </select>
       )}
 
-      <div className="space-y-1">
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">atlases</div>
-        <div className="grid grid-cols-2 gap-1">
+      <div className="space-y-1.5">
+        <div className="text-[13px] text-muted-foreground">Atlases</div>
+        <div className="flex flex-wrap gap-1.5">
           {standardAtlases.map((a) => (
             <button
               key={a.id}
               onClick={() => toggleAtlas(a.id)}
-              className={`flex items-center justify-center py-1 text-[10px] uppercase tracking-[0.1em] border transition-colors ${activeToggleCls(selAtlases.has(a.id))}`}
+              aria-pressed={selAtlases.has(a.id)}
+              className={`h-[26px] rounded-[5px] border px-2.5 text-[12px] transition-colors ${activeToggleCls(selAtlases.has(a.id))}`}
               data-testid={`report-atlas-${a.id}`}
             >
               {a.short || a.id}
@@ -273,14 +310,14 @@ export const LesionReportPanel = ({
       <button
         onClick={generate}
         disabled={busy || lesionLayers.length === 0}
-        className={primaryBtnCls}
+        className={ghostBtnCls}
         data-testid="report-generate"
       >
-        <FileText size={12} />{busy ? "Generating…" : "Generate Report"}
+        <FileText size={12} />{busy ? "Generating…" : "Generate report"}
       </button>
 
       {genError && (
-        <div className="text-[10px] text-red-400 leading-relaxed border border-red-500/30 bg-red-500/10 px-2 py-1.5" data-testid="report-error">
+        <div className="text-[12px] text-destructive leading-relaxed border border-destructive/30 bg-destructive/10 px-2 py-1.5 rounded-lg" data-testid="report-error">
           {genError}
         </div>
       )}
@@ -288,31 +325,31 @@ export const LesionReportPanel = ({
       {model && (
         <>
           {model.excludedAtlases?.length > 0 && (
-            <div className="text-[10px] text-amber-500 leading-relaxed border border-amber-500/30 bg-amber-500/10 px-2 py-1.5" data-testid="report-excluded-atlases">
+            <div className="text-[12px] text-warn leading-relaxed border border-warn/30 bg-warn/10 px-2 py-1.5 rounded-lg" data-testid="report-excluded-atlases">
               {model.excludedAtlases.map((a) => a.name).join(", ")} — not supported by the lqtpy engine ({model.excludedAtlases[0].reason}).
             </div>
           )}
           {model.provenance && (
-            <div className="font-mono text-[9px] text-subtle px-0.5" data-testid="report-provenance">
+            <div className="px-0.5 font-mono text-[11px] text-subtle" data-testid="report-provenance">
               {engineProvenanceLabel(model.provenance)}
             </div>
           )}
-          <div className="border border-border bg-panel p-3 text-[11px] text-foreground leading-relaxed max-h-48 overflow-y-auto thin-scroll" data-testid="report-preview">
+          <div className="max-h-48 overflow-y-auto thin-scroll rounded-lg border border-border bg-background p-3 text-[12px] leading-relaxed text-foreground" data-testid="report-preview">
             {renderReportParagraph(model)}
           </div>
           <div className="grid grid-cols-3 gap-1.5">
             <button onClick={exportTxt}
-              className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              className="btn gap-1.5 px-2"
               data-testid="report-export-txt">
               <Download size={11} />TXT
             </button>
             <button onClick={exportPdf}
-              className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              className="btn gap-1.5 px-2"
               data-testid="report-export-pdf">
               <FileType size={11} />PDF
             </button>
             <button onClick={handleOpenReport} disabled={reportBusy}
-              className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-50"
+              className="btn gap-1.5 px-2"
               data-testid="report-export-html">
               <FileCode size={11} />{reportBusy ? "…" : "Report"}
             </button>
@@ -322,7 +359,7 @@ export const LesionReportPanel = ({
       <ReportDialog
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title="Lesion Report"
+        title="Lesion report"
         subject={model?.lesionName}
         html={reportHtml}
         filename={`lesion_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}

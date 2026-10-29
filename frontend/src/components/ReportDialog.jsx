@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { ExternalLink, Download } from "lucide-react";
+import { ExternalLink, Download, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { downloadText } from "@/lib/volumeAnalysis";
 
@@ -46,35 +46,38 @@ export function ReportDialog({ open, onOpenChange, title = "Report", subject, ht
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[92vw] h-[85vh] flex flex-col bg-panel border border-border text-foreground p-0 gap-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
-          <DialogTitle className="text-sm font-medium tracking-wide">{title}</DialogTitle>
-          {subject && <DialogDescription className="text-[11px] font-mono truncate">{subject}</DialogDescription>}
-        </DialogHeader>
-        <div className="flex-1 min-h-0 bg-white">
+      <DialogContent className="max-w-5xl w-[92vw] h-[88vh] flex flex-col overflow-hidden bg-panel border border-edge text-foreground p-0 gap-0">
+        {/* One header row: what it is, then its actions (the dialog's own
+            close button sits at the right end, hence the padding). */}
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-border py-2.5 pl-4 pr-14">
+          <FileText size={16} className="flex-shrink-0 text-muted-foreground" />
+          <DialogHeader className="min-w-0 flex-1 space-y-0 text-left">
+            <DialogTitle className="text-[13.5px] leading-[18px]">{title}</DialogTitle>
+            {subject && <DialogDescription className="truncate text-[12px] text-subtle">{subject}</DialogDescription>}
+          </DialogHeader>
+          <button
+            onClick={openInNewWindow}
+            disabled={!html}
+            className="btn gap-1.5"
+            data-testid="report-dialog-open-window"
+          >
+            <ExternalLink size={13} />Open in new window
+          </button>
+          <button
+            onClick={save}
+            disabled={!html}
+            className="btn-primary gap-1.5"
+            data-testid="report-dialog-save"
+          >
+            <Download size={13} />Save HTML
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 bg-[#F2EFE9]">
           {html ? (
             <iframe title={title} srcDoc={html} className="w-full h-full border-0" data-testid="report-dialog-iframe" />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No report to display</div>
           )}
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
-          <button
-            onClick={openInNewWindow}
-            disabled={!html}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:border-muted-foreground disabled:opacity-50"
-            data-testid="report-dialog-open-window"
-          >
-            <ExternalLink size={12} />Open in New Window
-          </button>
-          <button
-            onClick={save}
-            disabled={!html}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
-            data-testid="report-dialog-save"
-          >
-            <Download size={12} />Save HTML
-          </button>
         </div>
       </DialogContent>
     </Dialog>

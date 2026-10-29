@@ -28,7 +28,7 @@ const fmt = (v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1));
 
 export function JogBar({
   value, maxSpeed, unit = "", min = -Infinity, max = Infinity, step = 1, wrap,
-  onLive, onCommit, title, className = "", testId,
+  onLive, onCommit, title, className = "", testId, "aria-label": ariaLabel,
 }) {
   const settle = (v) => (wrap ? wrap(v) : Math.max(min, Math.min(max, v)));
   const barRef = useRef(null);
@@ -75,11 +75,12 @@ export function JogBar({
       ref={barRef}
       role="slider"
       tabIndex={0}
+      aria-label={ariaLabel}
       aria-valuenow={value}
       aria-valuetext={`${fmt(value)} ${unit}`.trim()}
       title={title}
       data-testid={testId}
-      className={`relative h-4 cursor-ew-resize select-none touch-none rounded-sm border border-border bg-background focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${className}`}
+      className={`relative h-5 cursor-ew-resize select-none touch-none rounded-[5px] border border-edge bg-background ${className}`}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.preventDefault();
@@ -105,17 +106,17 @@ export function JogBar({
       }}
     >
       {/* speed shading: darker towards the ends, the middle is still */}
-      <div className="absolute inset-0 rounded-sm opacity-60"
-        style={{ background: "linear-gradient(90deg, hsl(var(--muted-foreground) / .45), transparent 47%, transparent 53%, hsl(var(--muted-foreground) / .45))" }} />
-      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-muted-foreground/70" />
+      <div className="absolute inset-0 rounded-[4px]"
+        style={{ background: "linear-gradient(90deg, hsl(var(--foreground) / 0.07), transparent 32%, transparent 68%, hsl(var(--foreground) / 0.07))" }} />
+      <div className="absolute top-1 bottom-1 left-1/2 w-px bg-subtle" />
       {shownFrac != null && (
         <div
-          className={`absolute top-0 bottom-0 w-0.5 ${heldFrac != null ? "bg-amber-500" : "bg-foreground/60"}`}
+          className={`absolute top-0 bottom-0 w-0.5 ${heldFrac != null ? "bg-foreground" : "bg-foreground/60"}`}
           style={{ left: `${((shownFrac + 1) / 2) * 100}%` }}
         />
       )}
       {shownSpeed != null && (
-        <div className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] text-muted-foreground"
+        <div className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[10.5px] text-muted-foreground"
           data-testid={testId ? `${testId}-speed` : undefined}>
           {shownSpeed === 0 ? "still" : `${shownSpeed > 0 ? "+" : "−"}${fmt(Math.abs(shownSpeed))} ${unit}/s`}
         </div>

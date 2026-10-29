@@ -1,0 +1,16 @@
+# OPTIONAL tract-dissection engine — the `tract-dissection-dipy` module in
+# modules/manifest.json (type: python-package, tier: optional).
+#
+# dipy (+ h5py, trx-python and their helpers, ~35 MB installed) runs virtual
+# tract dissection: dissect_worker.py, dissect_between_worker.py and the
+# LQTpy Analysis dissection stage. Dissection also needs the user-supplied
+# whole-brain tractogram (the `tractography-whole-brain` slot), so the engine is
+# not bundled; it installs with one click from the module store.
+#
+#   pip install -r backend/requirements-dissection.txt
+#
+# The standard installer's module store installs it from the files pinned in
+# data/modules/manifest.json. After changing this file, re-pin:
+#   py -3.11 tools/scripts/pin_python_modules.py
+
+dipy>=1.8.0

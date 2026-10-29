@@ -57,8 +57,9 @@ export const fetchAtlasLabels = (id) => call(`/${encodeURIComponent(id)}/labels`
 export const patchAtlas = (id, fields) =>
   call(`/${encodeURIComponent(id)}`, json("PATCH", fields));
 
-export const removeAtlas = (id) =>
-  call(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+// `cascade`: the left/right copies split from this atlas go with it.
+export const removeAtlas = (id, { cascade = false } = {}) =>
+  call(`/${encodeURIComponent(id)}${cascade ? "?cascade=true" : ""}`, { method: "DELETE" });
 
 export const setAtlasOrder = (order) => call("/order", json("POST", { order }));
 

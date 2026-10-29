@@ -15,9 +15,11 @@
 # compute path imports nilearn, matplotlib or pandas any more — do NOT re-add
 # them here without an actual compute-path import to justify it.
 #
-# NOTE: dipy IS a runtime dependency — dissect_worker.py and
-# dissect_between_worker.py import it (via subprocess) for tract dissection.
-# It must be bundled or "No module named 'dipy'" surfaces in the packaged app.
+# NOTE: dipy (tract dissection's engine, with h5py, trx-python and their CLI
+# helpers — ~35 MB) is NOT bundled: it is the one-click `tract-dissection-dipy`
+# module (requirements-dissection.txt). Dissection also needs the user-supplied
+# tractogram, so nobody without one carries the engine. The endpoints and the
+# summary say which module to install when it is missing (deps.dipy_installed).
 #
 # NOTE: the auth/AWS scaffolding that shipped with the project template
 # (boto3, requests-oauthlib, cryptography, email-validator, pyjwt, bcrypt,
@@ -37,12 +39,11 @@ tzdata>=2024.2
 requests>=2.31.0
 numpy>=1.26.0
 python-multipart>=0.0.9
-SimpleITK>=2.3.0
 nibabel>=5.0.0
 scipy>=1.11.0
-neuropythy>=0.12.0
+# SimpleITK (longitudinal) and neuropythy (validation) are optional stacks:
+# requirements-longitudinal.txt / requirements-validation.txt, full installer only.
 dcm2niix>=1.0.20220505
-dipy>=1.8.0  # runtime: tract dissection workers (dissect_worker.py, dissect_between_worker.py)
 Send2Trash>=1.8.2  # runtime: module uninstall recycles slot payloads instead of deleting them (routers/modules.py:_remove_payload). Pure Python, no transitive deps.
 
 # lqtpy: lesion-metrics engine (backend/lesion_metrics.py, routers/lesion_metrics.py).
@@ -55,4 +56,4 @@ Send2Trash>=1.8.2  # runtime: module uninstall recycles slot payloads instead of
 # pip just downloads over HTTPS (see tools/build/assemble-bundle.ps1 step 2/5).
 # To upgrade: bump lqtpy's version, build the wheel, publish a release, then
 # update this URL and hash together.
-lqtpy @ https://github.com/rohan3412/LQTpy/releases/download/v0.6.1/lqtpy-0.6.1-py3-none-any.whl#sha256=d4edc673f1bbb282f58503095a3e586d842ad6bdfd39e9cc0eed7f166382acc7
+lqtpy @ https://github.com/rohan3412/LQTpy/releases/download/v0.7.0/lqtpy-0.7.0-py3-none-any.whl#sha256=88b8e6ae6c24fa591a2acbdd92145888b382347fb43f16a14b227e7ae8e59af2

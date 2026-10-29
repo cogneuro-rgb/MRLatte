@@ -9,8 +9,10 @@ import { MapPin, Activity } from "lucide-react";
  *   vox    : [i, j, k] voxel indices in base volume
  *   values : Array<{ name: string, value: number }> — per loaded volume
  *   labels : { [layerName]: string } — categorical atlas hits
+ *   aside  : optional node pinned to the right end of the first row (the
+ *            viewer status), outside its horizontal scroll
  */
-export const CrosshairInfo = ({ mm, vox, values = [], labels = {} }) => {
+export const CrosshairInfo = ({ mm, vox, values = [], labels = {}, aside }) => {
   const labelEntries = Object.entries(labels).filter(([, v]) => v);
   const visibleValues = (values || []).filter((v) => typeof v.value === "number");
 
@@ -22,63 +24,70 @@ export const CrosshairInfo = ({ mm, vox, values = [], labels = {} }) => {
     return Number(n).toFixed(a < 1 ? 3 : 2);
   };
 
+  const chip = "rounded-[5px] border border-border bg-card px-[7px] py-px text-[11.5px] text-foreground";
+
   // Fixed-height, non-wrapping rows (horizontal scroll instead of wrap) so the
   // bar's total height never changes as atlas labels/values appear or
   // disappear while the crosshair moves — a variable-height bar here pushes
-  // the canvas below it up/down on every move, reading as "jitter".
+  // the canvas above it up/down on every move, reading as "jitter".
   return (
     <div
-      className="flex flex-col gap-1 px-4 py-2 border border-border bg-panel"
+      role="status"
+      aria-label="Crosshair"
+      className="flex flex-col gap-1 border-t border-border bg-panel px-3.5 py-1.5"
       data-testid="crosshair-info"
     >
-      <div className="flex items-center gap-x-6 h-7 overflow-x-auto overflow-y-hidden flex-nowrap thin-scroll">
-        <div className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
-          <MapPin size={11} className="text-muted-foreground" />
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">mni</span>
-          <span className="font-mono text-[11px] text-foreground tabular-nums" data-testid="crosshair-mm">
-            {mm
-              ? `${mm[0].toFixed(1).padStart(6)}, ${mm[1].toFixed(1).padStart(6)}, ${mm[2].toFixed(1).padStart(6)}`
-              : "—"}
-          </span>
-        </div>
-        {vox && (
-          <div className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">vox</span>
-            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-              {vox.map((v) => Math.round(v)).join(", ")}
+      <div className="flex h-6 items-center gap-4">
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-5 overflow-x-auto overflow-y-hidden thin-scroll">
+          <div className="flex flex-shrink-0 items-center gap-[7px] whitespace-nowrap">
+            <MapPin size={12} className="text-subtle" />
+            <span className="cap text-subtle">MNI</span>
+            <span className="font-mono text-[12px] text-foreground" data-testid="crosshair-mm">
+              {mm
+                ? `${mm[0].toFixed(1).padStart(6)}, ${mm[1].toFixed(1).padStart(6)}, ${mm[2].toFixed(1).padStart(6)}`
+                : "—"}
             </span>
           </div>
-        )}
-        {visibleValues.length > 0 && (
-          <div className="flex items-center gap-3 flex-shrink-0 whitespace-nowrap" data-testid="crosshair-values">
-            <Activity size={11} className="text-muted-foreground flex-shrink-0" />
-            {visibleValues.map((v, i) => (
-              <div key={`${v.name}-${i}`} className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
-                  {v.name}
-                </span>
-                <span
-                  className="font-mono text-[11px] text-foreground px-1.5 py-0.5 border border-border bg-panel-hover tabular-nums"
-                  data-testid={`crosshair-val-${v.name}`}
-                >
-                  {fmt(v.value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+          {vox && (
+            <div className="flex flex-shrink-0 items-center gap-[7px] whitespace-nowrap">
+              <span className="cap text-subtle">Vox</span>
+              <span className="font-mono text-[12px] text-muted-foreground">
+                {vox.map((v) => Math.round(v)).join(", ")}
+              </span>
+            </div>
+          )}
+          {visibleValues.length > 0 && (
+            <div className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap" data-testid="crosshair-values">
+              <Activity size={12} className="flex-shrink-0 text-subtle" />
+              {visibleValues.map((v, i) => (
+                <div key={`${v.name}-${i}`} className="flex flex-shrink-0 items-center gap-1.5">
+                  <span className="cap text-subtle">
+                    {v.name}
+                  </span>
+                  <span
+                    className={`${chip} font-mono`}
+                    data-testid={`crosshair-val-${v.name}`}
+                  >
+                    {fmt(v.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {aside}
       </div>
       <div
-        className="flex items-center gap-x-3 h-7 overflow-x-auto overflow-y-hidden flex-nowrap thin-scroll"
+        className="flex h-6 flex-nowrap items-center gap-x-3.5 overflow-x-auto overflow-y-hidden thin-scroll"
         data-testid="crosshair-labels"
       >
         {labelEntries.map(([k, v]) => (
-          <div key={k} className="flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap">
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground flex-shrink-0">
+          <div key={k} className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap">
+            <span className="cap flex-shrink-0 text-subtle">
               {k}
             </span>
             <span
-              className="font-mono text-[11px] text-foreground px-1.5 py-0.5 border border-border bg-panel-hover truncate max-w-[280px]"
+              className={`${chip} max-w-[280px] truncate`}
               title={v}
             >
               {v}

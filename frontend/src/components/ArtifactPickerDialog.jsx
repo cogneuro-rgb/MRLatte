@@ -116,57 +116,57 @@ export function ArtifactPickerDialog({ open, onOpenChange, jobId }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg w-[92vw] max-h-[85vh] flex flex-col bg-panel border border-border text-foreground p-0 gap-0">
+      <DialogContent className="max-w-lg w-[92vw] max-h-[85vh] flex flex-col bg-panel border border-edge text-foreground p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
-          <DialogTitle className="text-sm font-medium tracking-wide">Download artifacts</DialogTitle>
-          <DialogDescription className="text-[11px] text-muted-foreground">
+          <DialogTitle>Download artifacts</DialogTitle>
+          <DialogDescription className="text-[12px] text-muted-foreground">
             Choose which files to download — one downloads directly, more than one as a zip.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto thin-scroll px-5 py-3 space-y-4" data-testid="artifact-picker-body">
           {state.loading && (
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground" data-testid="artifact-picker-loading">
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground" data-testid="artifact-picker-loading">
               <Loader2 size={12} className="animate-spin" /> Loading artifacts…
             </div>
           )}
           {state.error && (
-            <div className="flex items-start gap-2 border border-amber-500/50 px-3 py-2 text-[11px] text-amber-500" data-testid="artifact-picker-error">
+            <div className="flex items-start gap-2 border border-warn/50 px-3 py-2 text-[12px] text-warn rounded-lg" data-testid="artifact-picker-error">
               <AlertTriangle size={13} className="shrink-0 mt-0.5" />
               <span>Could not load the artifact list ({state.error}). The backend may not have this endpoint deployed yet.</span>
             </div>
           )}
           {!state.loading && !state.error && groups.length === 0 && (
-            <div className="text-[11px] text-muted-foreground" data-testid="artifact-picker-empty">No artifacts available for this job.</div>
+            <div className="text-[12px] text-muted-foreground" data-testid="artifact-picker-empty">No artifacts available for this job.</div>
           )}
           {groups.map(({ group, items }) => {
             const allSelected = items.every((it) => selected.has(it.rel));
             const someSelected = items.some((it) => selected.has(it.rel));
             return (
               <div key={group} className="space-y-1.5" data-testid={`artifact-group-${group}`}>
-                <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-subtle cursor-pointer">
+                <label className="flex items-center gap-2 cap text-subtle cursor-pointer">
                   <input
                     type="checkbox"
                     checked={allSelected}
                     ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
                     onChange={() => toggleGroup(items, allSelected)}
-                    className="accent-fuchsia-500"
+                    className="accent-crema"
                     data-testid={`artifact-group-toggle-${group}`}
                   />
                   {group}
                 </label>
-                <div className="border border-border divide-y divide-border">
+                <div className="border border-border divide-y divide-border rounded-lg">
                   {items.map((it) => (
-                    <label key={it.rel} className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-foreground cursor-pointer">
+                    <label key={it.rel} className="flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-foreground cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selected.has(it.rel)}
                         onChange={() => toggle(it.rel)}
-                        className="accent-fuchsia-500"
+                        className="accent-crema"
                         data-testid={`artifact-item-${it.rel}`}
                       />
                       <span className="flex-1 min-w-0 truncate">{it.label}</span>
-                      <span className="shrink-0 font-mono text-[9px] text-muted-foreground">{formatSize(it.bytes)}</span>
+                      <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">{formatSize(it.bytes)}</span>
                     </label>
                   ))}
                 </div>
@@ -176,13 +176,13 @@ export function ArtifactPickerDialog({ open, onOpenChange, jobId }) {
         </div>
 
         <DialogFooter className="px-5 py-3 border-t border-border sm:justify-between items-center">
-          <div className="font-mono text-[10px] text-muted-foreground" data-testid="artifact-picker-summary">
+          <div className="font-mono text-[11px] text-muted-foreground" data-testid="artifact-picker-summary">
             {count} selected · {formatSize(totalBytes)}
           </div>
           <button
             onClick={handleDownload}
             disabled={count === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-medium btn-primary disabled:opacity-50"
             data-testid="artifact-picker-download"
           >
             <Download size={12} />Download

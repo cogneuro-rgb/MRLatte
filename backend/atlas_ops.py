@@ -116,6 +116,40 @@ def split_lr(volume_path, regions, suffix_left=" (L)", suffix_right=" (R)"):
     return new_img, new_regions
 
 
+def maxprob_from_4d(volume_path, threshold=0.25):
+    """A 4-D probability atlas (one map per region) as (label image, mask image).
+
+    The label image gives each voxel its most likely frame + 1, where that frame
+    reaches `threshold` x the volume's maximum, else 0. The mask image is every
+    frame at the same cut, as uint8: the per-region binary stack the shipped
+    tract atlases carry as `tracts4d` (frame t is label t + 1), which
+    worker_common.tracts4d_overlap reads as `> 0`. The cut is relative so a 0-1
+    probability, a 0-100 percentage and a 0/1 mask all mean the same by it.
+
+    The source volume is never modified.
+    """
+    import numpy as np
+    import nibabel as nib
+
+    img = nib.load(str(volume_path))
+    data = np.asanyarray(img.dataobj)
+    if data.ndim != 4:
+        raise ValueError("expected a 4-D volume, got %d dimensions" % data.ndim)
+    cut = float(threshold) * float(data.max())
+    if not cut > 0:
+        raise ValueError("every frame of the volume is empty")
+    best = data.argmax(axis=3)
+    peak = np.take_along_axis(data, best[..., None], axis=3)[..., 0]
+    dtype = np.int16 if data.shape[3] <= 32767 else np.int32
+    labels = np.where(peak >= cut, best + 1, 0).astype(dtype)
+    affine = np.asarray(img.affine, dtype=float)
+    label_img = nib.Nifti1Image(labels, affine)
+    label_img.set_data_dtype(dtype)
+    mask_img = nib.Nifti1Image((data >= cut).astype(np.uint8), affine)
+    mask_img.set_data_dtype(np.uint8)
+    return label_img, mask_img
+
+
 def region_mask(volume_path, values):
     """Binary mask of the given label values, on the atlas's own grid."""
     import numpy as np

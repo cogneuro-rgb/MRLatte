@@ -3,6 +3,7 @@ import { Waypoints, Loader2, AlertCircle, X, Download, FileCode, Eye, EyeOff, Su
 import { SidebarSection } from "@/components/SidebarSection";
 import FileUploader from "@/components/FileUploader";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
 import { ToggleButton } from "@/components/ui/toggle-button";
 import { extractBaseName } from "@/lib/utils";
 import { serialUpload } from "@/lib/uploadUtils";
@@ -52,22 +53,22 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
   // this flag is true — see tractPrograms.js).
   const lightingDisabled = geometry === "lines";
   return (
-    <div className="space-y-2.5 border border-border bg-panel px-3 py-2.5 mb-2" data-testid="tract-rendering-controls">
-      <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">Rendering</div>
+    <div className="space-y-2.5 border border-border bg-panel px-3 py-2.5 mb-2 rounded-lg" data-testid="tract-rendering-controls">
+      <div className="cap text-subtle">Rendering</div>
 
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">geometry</span>
-        <div className="flex border border-border">
+        <span className="text-[13px] text-muted-foreground">Geometry</span>
+        <div className="flex border border-border rounded-lg">
           {GEOMETRY_MODES.map((m) => (
             <button
               key={m.id}
               onClick={() => onChange({ geometry: m.id })}
               disabled={m.disabled}
-              className={`px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] transition-colors ${
+              className={`px-1.5 py-0.5 text-[11.5px] font-medium transition-colors ${
                 m.disabled
                   ? "bg-transparent text-muted-foreground/40 cursor-not-allowed"
                   : geometry === m.id
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-panel-active text-foreground"
                     : "bg-transparent text-muted-foreground hover:text-foreground"
               }`}
               data-testid={`tract-geometry-${m.id}`}
@@ -80,8 +81,9 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
 
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">thickness</span>
-          <span className="font-mono text-[10px] text-muted-foreground">{thicknessUI}</span>
+          <span className="text-[13px] text-muted-foreground">Thickness</span>
+          <EditableNumber value={thicknessUI} min={0} max={100} integer onCommit={(v) => onChange({ thicknessUI: v })} label="Thickness"
+            className="font-mono text-[11px] text-muted-foreground">{thicknessUI}</EditableNumber>
         </div>
         {/* thicknessUI drives tractRenderStateRef's
             thicknessMM (via sliderToThicknessMM, NiivueViewer.jsx's
@@ -94,11 +96,12 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
             explicitly NOT requested for this control by the spec. */}
         <Slider value={[thicknessUI]} max={100} step={1}
           onValueChange={(v) => onChange({ thicknessUI: v[0] })}
+          aria-label="Thickness"
           data-testid="tract-thickness-slider" />
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">lighting</span>
+        <span className="text-[13px] text-muted-foreground">Lighting</span>
         <ToggleButton
           pressed={lighting}
           onPressedChange={(v) => onChange({ lighting: v })}
@@ -118,10 +121,10 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
           a Reset button that restores the default. */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">crop to slab (2D slices)</span>
+          <span className="text-[13px] text-muted-foreground">Crop to slab (2D slices)</span>
           <button
             onClick={() => onChange({ slabMM: DEFAULT_TRACT_RENDER.slabMM })}
-            className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+            className="cap text-subtle hover:text-foreground transition-colors"
             title={`Reset slab thickness to the default (${DEFAULT_TRACT_RENDER.slabMM}mm)`}
             data-testid="tract-slab-reset"
           >reset</button>
@@ -129,18 +132,20 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
         <div className="flex items-center gap-2">
           <Slider value={[slabMM]} min={0.5} max={50} step={0.5}
             onValueChange={(v) => onChange({ slabMM: v[0] })}
-            className="flex-1" data-testid="tract-slab-slider"
+            className="flex-1" aria-label="Crop to slab (2D slices)" data-testid="tract-slab-slider"
             title="Slab thickness applied to the 2D slice views only. The 3D render is never cropped." />
-          <span className="font-mono text-[10px] text-foreground tabular-nums w-12 text-right">
+          <EditableNumber value={slabMM} min={0.5} max={50} onCommit={(v) => onChange({ slabMM: v })} label="Crop to slab, mm"
+            className="font-mono text-[11px] text-foreground tabular-nums w-12 text-right">
             {slabMM.toFixed(1)}mm
-          </span>
+          </EditableNumber>
         </div>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">display fraction</span>
-          <span className="font-mono text-[10px] text-muted-foreground">{displayPct}%</span>
+          <span className="text-[13px] text-muted-foreground">Display fraction</span>
+          <EditableNumber value={displayPct} min={1} max={100} integer onCommit={(v) => onChange({ displayPct: v })} label="Display fraction, %"
+            className="font-mono text-[11px] text-muted-foreground">{displayPct}%</EditableNumber>
         </div>
         {/* Wired to fiberDecimationStride via pctToStride.
             onChange (useTracts.js's handleTractRenderChange) updates the
@@ -150,12 +155,13 @@ function TractRenderingControls({ tractRender, onChange, tractLayers }) {
             (the one exception: display-fraction changes MAY rebuild). */}
         <Slider value={[displayPct]} min={1} max={100} step={1}
           onValueChange={(v) => onChange({ displayPct: v[0] })}
+          aria-label="Display fraction"
           data-testid="tract-display-fraction-slider" />
         {/* "decimation is never invisible": shown here whether the
             current stride came from this slider or from meshApi's load-time
             autoStrideFor safety net. */}
         {totalStreamlines > 0 && (
-          <div className="font-mono text-[9px] text-muted-foreground mt-1" data-testid="tract-display-fraction-readout">
+          <div className="font-mono text-[10.5px] text-muted-foreground mt-1" data-testid="tract-display-fraction-readout">
             showing {shownStreamlines.toLocaleString()} / {totalStreamlines.toLocaleString()} streamlines
           </div>
         )}
@@ -177,16 +183,16 @@ function TractColorControl({ tract, onModeChange, onSolidColorChange }) {
   return (
     <div className="space-y-1.5 mb-2">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">color</span>
+        <span className="text-[13px] text-muted-foreground">Colour</span>
         <div className="flex items-center gap-1">
-          <div className="flex border border-border">
+          <div className="flex border border-border rounded-lg">
             {COLOR_MODES.map((m) => (
               <button
                 key={m.id}
                 onClick={() => onModeChange(m.id)}
-                className={`px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] transition-colors ${
+                className={`px-1.5 py-0.5 text-[11.5px] font-medium transition-colors ${
                   mode === m.id
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-panel-active text-foreground"
                     : "bg-transparent text-muted-foreground hover:text-foreground"
                 }`}
                 data-testid={`tract-color-mode-${m.id}-${tract.id}`}
@@ -205,13 +211,13 @@ function TractColorControl({ tract, onModeChange, onSolidColorChange }) {
                 data-testid={`tract-color-swatch-${tract.id}`}
               />
               {open && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-40 border border-border bg-panel p-2 space-y-1.5 shadow-lg"
+                <div className="popover absolute right-0 top-full z-50 mt-1 w-40 p-2 space-y-1.5"
                   data-testid={`tract-color-popover-${tract.id}`}>
                   <input
                     type="color"
                     value={tract.solidColor || "#c8c8c8"}
                     onChange={(e) => onSolidColorChange(e.target.value)}
-                    className="w-full h-7 cursor-pointer bg-transparent border border-border"
+                    className="h-7 w-full cursor-pointer rounded-md border border-edge bg-transparent"
                     data-testid={`tract-color-wheel-${tract.id}`}
                   />
                   <input
@@ -221,7 +227,7 @@ function TractColorControl({ tract, onModeChange, onSolidColorChange }) {
                       const v = e.target.value;
                       if (/^#[0-9a-fA-F]{6}$/.test(v)) onSolidColorChange(v);
                     }}
-                    className="w-full bg-background border border-border text-foreground font-mono text-[10px] px-1.5 py-1 focus:outline-none focus:border-muted-foreground"
+                    className="w-full bg-background border border-edge text-foreground font-mono text-[11px] px-1.5 py-1 focus:outline-none"
                     data-testid={`tract-color-hex-${tract.id}`}
                   />
                 </div>
@@ -292,19 +298,19 @@ export function TractographySection({
   return (
     <SidebarSection title="Tractography" icon={Waypoints} testId="section-tracts" open={open} onOpenChange={onOpenChange}
       badge={tractLayers.filter((l) => l.visible).length}>
-      <FileUploader label="Load Tract File(s)" description=".trk / .tck / .trx / .vtk / .gii / .mz3 — multi-select supported"
+      <FileUploader label="Load tract files" description=".trk .tck .trx .vtk .gii .mz3 · several at once"
         accept=".trk,.tck,.trx,.vtk,.gii,.mz3,.obj,.stl,.ply"
         testId="upload-tract-button" multiple
         onFiles={serialUpload((f) => handleTractUpload(f))}
         onFile={handleTractUpload}
         disabled={!!tractLoading} />
       {tractLoading && (
-        <div className="border border-border bg-panel px-3 py-2.5 mt-2">
+        <div className="border border-border bg-panel px-3 py-2.5 mt-2 rounded-lg">
           <div className="flex items-center gap-2">
             <Loader2 size={11} className="animate-spin text-muted-foreground flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="truncate text-[12px] text-foreground">{tractLoading.name}</div>
-              <div className="font-mono text-[10px] text-muted-foreground animate-pulse mt-0.5">{tractLoading.phase}</div>
+              <div className="truncate text-[13px] text-foreground">{tractLoading.name}</div>
+              <div className="font-mono text-[11px] text-muted-foreground animate-pulse mt-0.5">{tractLoading.phase}</div>
             </div>
           </div>
           <div className="mt-2 h-px w-full bg-border overflow-hidden">
@@ -313,13 +319,13 @@ export function TractographySection({
         </div>
       )}
       {tractLoadError && (
-        <div className="border border-destructive/40 bg-panel px-3 py-2.5 mt-2">
+        <div className="border border-destructive/40 bg-panel px-3 py-2.5 mt-2 rounded-lg">
           <div className="flex items-start gap-2">
             <AlertCircle size={11} className="text-destructive mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-[12px] text-destructive">Failed to load</div>
-              <div className="font-mono text-[10px] text-muted-foreground mt-0.5 break-all">{tractLoadError.name}</div>
-              <div className="font-mono text-[10px] text-muted-foreground mt-1 break-words">{tractLoadError.message}</div>
+              <div className="text-[13px] text-destructive">Failed to load</div>
+              <div className="font-mono text-[11px] text-muted-foreground mt-0.5 break-all">{tractLoadError.name}</div>
+              <div className="font-mono text-[11px] text-muted-foreground mt-1 break-words">{tractLoadError.message}</div>
             </div>
             <button onClick={() => setTractLoadError(null)} className="text-subtle hover:text-muted-foreground flex-shrink-0">
               <X size={11} />
@@ -333,7 +339,7 @@ export function TractographySection({
             <TractRenderingControls tractRender={tractRender} onChange={handleTractRenderChange} tractLayers={tractLayers} />
           )}
           {tractLayers.map((t) => (
-            <div key={t.id} className="group border border-border bg-panel hover:bg-panel-hover transition-colors px-3 py-2.5" data-testid={`tract-${t.id}`}>
+            <div key={t.id} className="group border border-border bg-panel hover:bg-panel-hover transition-colors px-3 py-2.5 rounded-lg" data-testid={`tract-${t.id}`}>
               {/* Identity row: swatch | name/description | actions (remove, expand) —
                   same shape/order as the LayerControlAdvanced cards (item 119). */}
               <div className="flex items-start gap-2">
@@ -344,14 +350,14 @@ export function TractographySection({
                 }} />
                 <div className="flex-1 min-w-0">
                   <div
-                    className="truncate text-[12px] text-foreground cursor-pointer"
+                    className="truncate text-[13px] text-foreground cursor-pointer"
                     title={t.fullPath || t.name}
                     onClick={() => toggleTractExpanded(t.id)}
                   >
                     {t.name}
                   </div>
                   <div
-                    className="font-mono text-[10px] text-muted-foreground truncate mt-0.5 cursor-pointer"
+                    className="font-mono text-[11px] text-muted-foreground truncate mt-0.5 cursor-pointer"
                     onClick={() => toggleTractExpanded(t.id)}
                   >
                     {t.description}
@@ -364,7 +370,7 @@ export function TractographySection({
                       rows={1}
                       title={t.fullPath ? `File: ${t.fullPath}` : undefined}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 w-full resize-y bg-background border border-border text-foreground font-mono text-[10px] px-1.5 py-1 leading-snug placeholder:text-subtle focus:outline-none focus:border-muted-foreground"
+                      className="mt-1 w-full resize-y bg-background border border-edge text-foreground font-mono text-[11px] px-1.5 py-1 leading-snug placeholder:text-subtle focus:outline-none"
                       data-testid={`notes-${t.id}`}
                     />
                   )}
@@ -401,12 +407,14 @@ export function TractographySection({
                   />
                 )}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-subtle w-12 flex-shrink-0">opacity</span>
+                  <span className="text-[13px] text-muted-foreground w-12 flex-shrink-0">Opacity</span>
                   <Slider value={[t.opacity * 100]} max={100} step={1}
                     onValueChange={(v) => handleTractOpacity(t.id, v[0] / 100)}
                     className="cursor-pointer flex-1"
+                    aria-label={`Opacity, ${t.name}`}
                     data-testid={`opacity-${t.id}`} />
-                  <span className="font-mono text-[10px] text-muted-foreground tabular-nums w-8 text-right">{Math.round(t.opacity * 100)}%</span>
+                  <EditableNumber value={t.opacity * 100} min={0} max={100} integer onCommit={(v) => handleTractOpacity(t.id, v / 100)} label={`Opacity, ${t.name}, %`}
+                    className="font-mono text-[11px] text-muted-foreground tabular-nums w-8 text-right">{Math.round(t.opacity * 100)}%</EditableNumber>
                 </div>
                 {handleTractClip && (() => {
                   const clipOn = t.clip !== false; // default true, matches mesh.__tractClip's default
@@ -435,8 +443,8 @@ export function TractographySection({
                   {t.result && (
                     <div className="mt-2 space-y-1.5 border-t border-border pt-2">
                       <div className="space-y-0.5">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Selected streamlines</span>
+                        <div className="flex justify-between text-[13px]">
+                          <span className="text-[13px] text-muted-foreground">Selected streamlines</span>
                           <span className="text-foreground">
                             {t.result.n_selected_streamlines.toLocaleString()} / {t.result.n_input_streamlines.toLocaleString()}{" "}
                             <span className="text-muted-foreground">
@@ -444,31 +452,31 @@ export function TractographySection({
                             </span>
                           </span>
                         </div>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Affected-tract volume</span>
+                        <div className="flex justify-between text-[13px]">
+                          <span className="text-[13px] text-muted-foreground">Affected-tract volume</span>
                           <span className="text-foreground">{t.result.tract_volume_cm3.toFixed(3)} cm³</span>
                         </div>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Affected voxels</span>
+                        <div className="flex justify-between text-[13px]">
+                          <span className="text-[13px] text-muted-foreground">Affected voxels</span>
                           <span className="text-foreground">{t.result.affected_voxels.toLocaleString()}</span>
                         </div>
                       </div>
                       {t.result.files && (
                         <div className="grid grid-cols-2 gap-1.5">
                           <a href={tractResultUrl(t.result.files.nifti)} download
-                            className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:border-muted-foreground no-underline"
+                            className="btn flex items-center justify-center gap-1.5 no-underline"
                             data-testid={`tract-download-nifti-${t.id}`}>
                             <Download size={11} />NIfTI
                           </a>
                           <a href={tractResultUrl(t.result.files.trk)} download
-                            className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:border-muted-foreground no-underline"
+                            className="btn flex items-center justify-center gap-1.5 no-underline"
                             data-testid={`tract-download-trk-${t.id}`}>
                             <Download size={11} />.trk
                           </a>
                         </div>
                       )}
                       <button onClick={() => setReportTractId(t.id)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:border-muted-foreground"
+                        className="btn w-full flex items-center justify-center gap-1.5"
                         data-testid={`tract-report-${t.id}`}>
                         <FileCode size={11} />Report
                       </button>
@@ -483,7 +491,7 @@ export function TractographySection({
       <ReportDialog
         open={!!reportTractId}
         onOpenChange={(v) => { if (!v) setReportTractId(null); }}
-        title="Tract Disconnection Report"
+        title="Tract disconnection report"
         subject={reportModel?.lesionName}
         html={reportModel ? buildReport("tract", reportModel) : null}
         filename={`tract_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}

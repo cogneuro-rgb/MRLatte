@@ -3,6 +3,7 @@ import { FlaskConical } from "lucide-react";
 import { SidebarSection } from "@/components/SidebarSection";
 import FileUploader from "@/components/FileUploader";
 import { UserLayerList } from "@/components/UserLayerList";
+import { Disclosure } from "@/components/ui/disclosure";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { serialUpload } from "@/lib/uploadUtils";
 
@@ -50,7 +51,7 @@ export function ActivationMapsSection({
   onNotesChange,
 }) {
   return (
-    <SidebarSection title="Activation Maps" icon={FlaskConical} testId="section-activation"
+    <SidebarSection title="Activation maps" icon={FlaskConical} testId="section-activation"
       open={open} onOpenChange={onOpenChange} keepMounted
       badge={activationLayers.filter((l) => l.visible).length}>
       {/* Item 20: auto-open the just-uploaded map's controls even when it is
@@ -58,7 +59,7 @@ export function ActivationMapsSection({
           or `autoExpandId`; a direct upload set neither (only LNM's Save did),
           so a second activation map came in collapsed. Push the new id up as
           the autoExpandId — for a multi-file batch the last one wins. */}
-      <FileUploader label="Load Activation Map(s)" description=".nii / .nii.gz — t-stat or z-score maps; multi-select supported"
+      <FileUploader label="Load activation maps" description="t or z maps · .nii .nii.gz · several at once"
         testId="upload-activation-button" multiple
         onFiles={serialUpload(async (f) => {
           const id = await addUserFile(f, "activation");
@@ -78,15 +79,20 @@ export function ActivationMapsSection({
         layerNotes={layerNotes} onNotesChange={onNotesChange}
         {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserTransform, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
       />
+      {/* Folded under its name (sidebar declutter), like a lesion's overlap
+          and report. */}
       {activationLayers.length > 0 && (
-        <ClusterPanel
-          viewerRef={viewerRef}
-          activationLayers={activationLayers.filter((l) => l.visible)}
-          atlasOptions={standardAtlases}
-          onSelectAtlas={(id) => handleLayerLabelAtlasChange(activationLayers[0]?.id, id)}
-          atlasRegions={atlasRegions}
-          ensureAtlasLoaded={ensureAtlasLoaded}
-        />
+        <Disclosure title="Cluster analysis" className="border-t border-border" testId="cluster-fold">
+          <ClusterPanel
+            bare
+            viewerRef={viewerRef}
+            activationLayers={activationLayers.filter((l) => l.visible)}
+            atlasOptions={standardAtlases}
+            onSelectAtlas={(id) => handleLayerLabelAtlasChange(activationLayers[0]?.id, id)}
+            atlasRegions={atlasRegions}
+            ensureAtlasLoaded={ensureAtlasLoaded}
+          />
+        </Disclosure>
       )}
     </SidebarSection>
   );

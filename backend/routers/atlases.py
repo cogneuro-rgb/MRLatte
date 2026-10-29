@@ -37,6 +37,7 @@ import atlas_ops
 import atlas_registry
 import atlas_validate
 import deps
+from routers.modules import installed_module_for_atlas, uninstall_module
 
 router = APIRouter()
 
@@ -125,12 +126,13 @@ def _fetch(url: str, dest: Path, expected_bytes=None) -> int:
     return size
 
 
-def _install_from_files(atlas_id, volume_src, regions, descriptor_fields):
+def _install_from_files(atlas_id, volume_src, regions, descriptor_fields, tracts4d=None):
     """Write one atlas folder from a staged volume + regions. Returns descriptor.
 
     The single place an atlas becomes installed, shared by the catalog
     installer, the import wizard and derive-lr -- so validation, centroid
-    computation and the write order cannot drift between them.
+    computation and the write order cannot drift between them. `tracts4d` is a
+    per-region binary stack to keep beside the volume (a 4-D import).
     """
     if not atlas_registry.is_valid_id(atlas_id):
         raise atlas_registry.AtlasError(
@@ -180,6 +182,9 @@ def _install_from_files(atlas_id, volume_src, regions, descriptor_fields):
         descriptor.update({k: v for k, v in (descriptor_fields or {}).items()
                            if v is not None})
         descriptor["id"] = atlas_id
+        if tracts4d is not None:
+            descriptor["tracts4d"] = "%s.tracts4d.nii.gz" % atlas_id
+            shutil.copyfile(str(tracts4d), str(folder / descriptor["tracts4d"]))
         atlas_registry.write_descriptor(folder, descriptor)
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)
@@ -260,7 +265,34 @@ async def set_order(body: OrderRequest):
 
 
 @router.delete("/atlases/{atlas_id}")
-async def delete_atlas(atlas_id: str):
+async def delete_atlas(atlas_id: str, cascade: bool = False):
+    # cascade: the left/right copies split from this atlas go with it (a copy
+    # can't outlive its source); without it, an atlas with copies is refused.
+    also = []
+    if cascade:
+        try:
+            for child in atlas_registry.dependents(atlas_registry.require(atlas_id)["id"]):
+                res = await delete_atlas(child, cascade=True)
+                also += [res["id"], *res["alsoRemoved"]]
+        except atlas_registry.AtlasError as exc:
+            raise _bad(exc)
+    return {**await _remove_one_atlas(atlas_id), "alsoRemoved": also}
+
+
+async def _remove_one_atlas(atlas_id: str) -> dict:
+    # An atlas the app installed as a data module (shipped or downloaded) goes
+    # as that module: its ledger entry goes too, so it stays removed and the
+    # Atlas Manager can reinstall it. Catalog, imported and a checkout's own
+    # atlases are folders the registry removes.
+    try:
+        d = atlas_registry.check_removable(atlas_id)
+    except atlas_registry.AtlasError as exc:
+        raise _bad(exc)
+    module_id = installed_module_for_atlas(d["id"])
+    if module_id:
+        res = await uninstall_module(module_id)
+        return {"ok": res["ok"], "id": d["id"], "module": module_id,
+                "removed": res["disposition"], "bytesFreed": res["bytesFreed"]}
     try:
         return {"ok": True, **atlas_registry.remove(atlas_id)}
     except atlas_registry.AtlasError as exc:
@@ -539,6 +571,9 @@ async def stage_import(
                 "lateralized": details.get("lateralized"),
                 "bilateralValues": details.get("bilateralValues") or [],
                 "canSplitLR": bool(details.get("bilateralValues")),
+                # A 4-D probability atlas: its frame count and value range.
+                "frames": details.get("frames"),
+                "valueRange": details.get("valueRange"),
                 "warnings": warnings,
             },
             "regions": regions,
@@ -561,6 +596,8 @@ class CommitImport(BaseModel):
     splitLR: bool = False
     regions: Optional[List[dict]] = None
     attribution: Optional[str] = None
+    # A 4-D probability atlas: the cut, as a fraction of the volume's maximum.
+    threshold: Optional[float] = None
 
 
 @router.post("/atlases/import/{stage_id}/commit")
@@ -578,9 +615,18 @@ async def commit_import(stage_id: str, body: CommitImport):
     ]
 
     def _work():
-        vol, regs = vol_path, regions
-        if body.splitLR:
-            import nibabel as nib
+        import nibabel as nib
+        vol, regs, masks = vol_path, regions, None
+        shape = nib.load(str(vol_path)).shape
+        if len(shape) == 4 and shape[3] > 1:
+            # A 4-D probability atlas becomes what the shipped tract atlases
+            # are: a label map plus the per-region masks (atlas_ops).
+            labels_img, masks_img = atlas_ops.maxprob_from_4d(
+                vol_path, 0.25 if body.threshold is None else body.threshold)
+            vol, masks = stage / "labels.nii.gz", stage / "tracts4d.nii.gz"
+            nib.save(labels_img, str(vol))
+            nib.save(masks_img, str(masks))
+        elif body.splitLR:
             img, regs = atlas_ops.split_lr(vol_path, regions)
             vol = stage / "split.nii.gz"
             nib.save(img, str(vol))
@@ -594,7 +640,7 @@ async def commit_import(stage_id: str, body: CommitImport):
             "origin": {"kind": "import", "at": time.time()},
             "license": ({"spdx": "NOASSERTION", "attribution": body.attribution}
                         if body.attribution else {}),
-        })
+        }, tracts4d=masks)
 
     try:
         d = await run_in_threadpool(_work)

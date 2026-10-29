@@ -17,6 +17,9 @@ import subprocess
 import time
 import zipfile
 import logging
+import threading
+from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
@@ -85,6 +88,55 @@ def _default_module_root() -> Path:
 
 
 MODULE_ROOT = Path(os.environ.get('MRLATTE_MODULE_ROOT', str(_default_module_root())))
+
+
+def add_installed_python_modules(root=None):
+    """Put every installed `python-package` module folder (MODULE_ROOT/python/<name>,
+    e.g. the one-click SimpleITK module) on sys.path, so its packages import
+    like bundled ones. Called at server startup and right after an install —
+    never at import time. Worker subprocesses inherit these entries through
+    worker_common.extra_sys_path_for_worker, which diffs the live sys.path.
+    Returns the folders added."""
+    import importlib
+    base = Path(root if root is not None else MODULE_ROOT) / "python"
+    added = []
+    try:
+        folders = sorted(p for p in base.iterdir() if p.is_dir() and not p.name.endswith(".installing"))
+    except OSError:
+        return added
+    for p in folders:
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+            added.append(str(p))
+    if added:
+        importlib.invalidate_caches()
+    return added
+
+
+DIPY_MISSING = ("Tract dissection needs its engine, dipy — the optional tract-dissection "
+                "module. Install it from the module store.")
+
+
+SIMPLEITK_MISSING = ("Longitudinal comparison needs SimpleITK — the optional longitudinal "
+                     "module. Install it from the module store.")
+
+
+def package_present(name: str) -> bool:
+    """Whether `name` can be imported, found without importing it. A package
+    imported into this process keeps its module's files locked (Windows) until
+    MRLatte restarts, so asking "is it installed?" must never count as using it
+    — the optional modules run in worker processes instead."""
+    import importlib.util
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def dipy_installed() -> bool:
+    """dipy (tract dissection's engine) is a one-click python-package module,
+    `tract-dissection-dipy`, not part of the bundle."""
+    return package_present("dipy")
 
 
 def _registered_slot_path(slot_rel):
@@ -375,6 +427,7 @@ DESKTOP_ARTIFACTS_DIR = Path(os.environ.get(
 VALIDATION_DIR = Path(os.environ.get(
     'VALIDATION_DIR', str(REPO_ROOT / 'tools' / 'scripts' / 'validation_plots')
 ))
+VALIDATION_WORKER_SCRIPT = ROOT_DIR / "validation_worker.py"
 VALIDATION_REPORT = Path(os.environ.get(
     'VALIDATION_REPORT', str(REPO_ROOT / 'tools' / 'scripts' / 'benson_validation_report.txt')
 ))
@@ -549,59 +602,12 @@ def _dicom_series_metadata(nii_path: Path) -> dict:
 # === Longitudinal comparison (SimpleITK affine register + difference map) ===
 # Registers a follow-up scan to a baseline, resamples it, and returns the
 # voxel-wise difference (follow-up − baseline) as a signed NIfTI plus
-# change metrics in response headers. Heavy/optional: requires SimpleITK.
+# change metrics in response headers. Heavy/optional: requires SimpleITK, so
+# it runs in longitudinal_worker.py — see that file for why not in-process.
 
 from starlette.concurrency import run_in_threadpool
 
-
-def _run_longitudinal(baseline_path: Path, followup_path: Path, out_path: Path):
-    import SimpleITK as sitk
-    import numpy as np
-
-    fixed = sitk.ReadImage(str(baseline_path), sitk.sitkFloat32)
-    moving = sitk.ReadImage(str(followup_path), sitk.sitkFloat32)
-
-    same_grid = (
-        fixed.GetSize() == moving.GetSize()
-        and fixed.GetSpacing() == moving.GetSpacing()
-    )
-    if same_grid:
-        resampled = moving
-        metric = 0.0
-    else:
-        reg = sitk.ImageRegistrationMethod()
-        reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-        reg.SetMetricSamplingStrategy(reg.RANDOM)
-        reg.SetMetricSamplingPercentage(0.1)
-        reg.SetInterpolator(sitk.sitkLinear)
-        reg.SetOptimizerAsRegularStepGradientDescent(2.0, 1e-4, 200)
-        reg.SetOptimizerScalesFromPhysicalShift()
-        init = sitk.CenteredTransformInitializer(
-            fixed, moving, sitk.AffineTransform(3),
-            sitk.CenteredTransformInitializerFilter.GEOMETRY,
-        )
-        reg.SetInitialTransform(init, inPlace=False)
-        transform = reg.Execute(fixed, moving)
-        metric = float(reg.GetMetricValue())
-        resampled = sitk.Resample(
-            moving, fixed, transform, sitk.sitkLinear, 0.0, sitk.sitkFloat32
-        )
-
-    a = sitk.GetArrayFromImage(fixed)
-    b = sitk.GetArrayFromImage(resampled)
-    diff = b - a
-    diff_img = sitk.GetImageFromArray(diff)
-    diff_img.CopyInformation(fixed)
-    sitk.WriteImage(diff_img, str(out_path))
-
-    rng = float(np.percentile(np.abs(a), 99)) or 1.0
-    changed = float(np.count_nonzero(np.abs(diff) > 0.1 * rng))
-    nonzero_base = float(np.count_nonzero(a > 0.05 * rng)) or 1.0
-    return {
-        "registration_metric": metric,
-        "same_grid": same_grid,
-        "changed_voxel_pct": round(100.0 * changed / nonzero_base, 2),
-    }
+LONGITUDINAL_WORKER_SCRIPT = ROOT_DIR / "longitudinal_worker.py"
 
 
 
@@ -767,6 +773,38 @@ def _is_summary_cancelled(job_id: str) -> bool:
     return job_id in _SUMMARY_CANCEL_FLAGS
 
 
+# ---- Optional-module packages in use by a running worker -----------------
+# The optional modules' packages are only ever imported by worker processes,
+# never by this one (package_present), so a module is in use exactly while a
+# worker that needs it runs. The module store refuses to remove it then — the
+# worker's files would vanish under it — and removes it at once afterwards.
+WORKER_PACKAGES = {
+    WORKER_SCRIPT: ("dipy",),
+    DISSECT_BETWEEN_WORKER_SCRIPT: ("dipy",),
+    LNM_WORKER_SCRIPT: ("nilearn", "matplotlib"),        # its figures, when installed
+    LONGITUDINAL_WORKER_SCRIPT: ("SimpleITK",),
+    VALIDATION_WORKER_SCRIPT: ("neuropythy", "nilearn"),
+}
+_PACKAGES_BUSY = Counter()
+_PACKAGES_BUSY_LOCK = threading.Lock()
+
+
+@contextmanager
+def using_packages(*names):
+    with _PACKAGES_BUSY_LOCK:
+        _PACKAGES_BUSY.update(names)
+    try:
+        yield
+    finally:
+        with _PACKAGES_BUSY_LOCK:
+            _PACKAGES_BUSY.subtract(names)
+
+
+def packages_in_use() -> set:
+    with _PACKAGES_BUSY_LOCK:
+        return {name for name, n in _PACKAGES_BUSY.items() if n > 0}
+
+
 def _run_worker_json(script: Path, config: dict, workdir: Path, timeout: int, job_id: str = None):
     """Run a worker subprocess (isolated) and return its parsed JSON, or None.
 
@@ -783,25 +821,26 @@ def _run_worker_json(script: Path, config: dict, workdir: Path, timeout: int, jo
     config = dict(config)
     config["sys_path"] = extra_sys_path_for_worker()
     (workdir / "config.json").write_text(json.dumps(config))
-    proc = subprocess.Popen(
-        [sys.executable, str(script), str(workdir / "config.json")],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    if job_id:
-        if _is_summary_cancelled(job_id):
+    with using_packages(*WORKER_PACKAGES.get(script, ())):
+        proc = subprocess.Popen(
+            [sys.executable, str(script), str(workdir / "config.json")],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        if job_id:
+            if _is_summary_cancelled(job_id):
+                proc.kill()
+                proc.communicate()
+                raise SummaryCancelled()
+            _SUMMARY_PROCS[job_id] = proc
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
             proc.kill()
             proc.communicate()
-            raise SummaryCancelled()
-        _SUMMARY_PROCS[job_id] = proc
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        raise
-    finally:
-        if job_id:
-            _SUMMARY_PROCS.pop(job_id, None)
+            raise
+        finally:
+            if job_id:
+                _SUMMARY_PROCS.pop(job_id, None)
     if proc.returncode != 0:
         if job_id and _is_summary_cancelled(job_id):
             raise SummaryCancelled()
@@ -998,6 +1037,8 @@ async def _run_summary_job(job_id: str, lesion_path: Path, payload: dict):
         if stages.get("dissect", True):
             if not GLOBAL_TRACT_FILE.exists():
                 status("dissect", "Skipping dissection (tract file not configured).", 0.45)
+            elif not dipy_installed():
+                status("dissect", "Skipping dissection (the tract-dissection module is not installed).", 0.45)
             else:
                 status("dissect", "Running tract dissection…", 0.06)
                 result_id = str(uuid.uuid4())
@@ -1067,8 +1108,8 @@ async def _run_summary_job(job_id: str, lesion_path: Path, payload: dict):
 
         check_cancelled()
 
-        # ── Render (retinotopy + brainsprite + glass PNGs + artifact manifest) ──
-        status("render", "Rendering report & packaging…", 0.85)
+        # ── Package (retinotopy check + maps + CSV + artifact manifest) ────────
+        status("render", "Packaging the results…", 0.85)
         render_cfg = {
             "job_id": job_id,
             "lesion_path": str(lesion_path),
@@ -1077,7 +1118,6 @@ async def _run_summary_job(job_id: str, lesion_path: Path, payload: dict):
             "output_dir": str(job_dir),
             "stages": stages,
             "overlap_model": overlap_model,
-            "disc_pngs": payload.get("discPngs"),
             "dissect": dissect_ref,
             "lnm": lnm_ref,
         }
@@ -1107,7 +1147,6 @@ async def _run_summary_job(job_id: str, lesion_path: Path, payload: dict):
                 # model) — see _summary_overlap_stage. None on the normal
                 # lqtpy success path.
                 "overlap_reason": overlap_reason,
-                "assets": info.get("assets"),
             })
     except (SummaryCancelled, asyncio.CancelledError):
         logger.info("summary job %s cancelled", job_id)

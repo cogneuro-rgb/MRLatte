@@ -1,7 +1,9 @@
 import { toast } from "sonner";
 import { histogram as computeHistogram, regionCentroidMM } from "@/lib/volumeAnalysis";
 import { thresholdedVolume } from "@/lib/measure";
-import { transformedAffine, isIdentityTransform } from "@/lib/overlayTransform";
+import { cmapper } from "@niivue/niivue";
+import { transformedAffine, isIdentityTransform, volumeCentreMM } from "@/lib/overlayTransform";
+import { visiblePivot, visibilityTest, pivotSignature } from "@/lib/layerPivot";
 import {
   applyThresholdColormap,
   isContinuousOverlay,
@@ -44,6 +46,44 @@ function applyManualTransform(nv, vol, idx, transform) {
   return affine;
 }
 
+// Puts the base's chosen colormap on it — reversed when "invert" is on. The
+// reversed copy keeps the ORIGINAL transparency ramp (niivue's colormapInvert
+// would flip it too: see setBaseColormapInvert). Setting a colormap makes
+// niivue recompute the display range, so the user's window is kept.
+function applyBaseColormap(nv, vol) {
+  const name = vol.__baseColormapName || (String(vol.colormap).startsWith("__baseinv_") ? "gray" : vol.colormap) || "gray";
+  vol.__baseColormapName = name;
+  vol.colormapInvert = false;
+  let key = name;
+  if (vol.__baseInvert) {
+    const lut = cmapper.colormap(name, false);
+    if (lut && lut.length >= 1024) {
+      const R = [], G = [], B = [], A = [], I = [];
+      for (let i = 0; i < 256; i++) {
+        const src = (255 - i) * 4;
+        R.push(lut[src]); G.push(lut[src + 1]); B.push(lut[src + 2]);
+        A.push(lut[i * 4 + 3]);           // transparency stays where it was
+        I.push(i);
+      }
+      key = `__baseinv_${name}`;
+      nv.addColormap(key, { R, G, B, A, I });
+    }
+  }
+  const keep = { cal_min: vol.cal_min, cal_max: vol.cal_max, global_min: vol.global_min, global_max: vol.global_max };
+  vol.colormap = key;
+  Object.assign(vol, keep);
+}
+
+// What a layer currently shows, as inputs to the turn-pivot maths
+// (lib/layerPivot.js). Continuous overlays keep their visibility window on
+// __userThreshold; the base (and anything else) shows what is above its
+// display window's floor.
+function pivotInputs(vol) {
+  const ut = vol.__userThreshold;
+  if (ut) return { lo: ut.lo, hi: ut.hi, invert: !!vol.__invertThreshold, maskZero: !!vol.__maskZero };
+  return { lo: vol.cal_min, hi: Infinity, invert: false, maskZero: true };
+}
+
 export function createVolumeApi(ctx, {
   correctDegenerateAffineIfNeeded,
   resetOverlayTexture,
@@ -56,6 +96,7 @@ export function createVolumeApi(ctx, {
     nvRef, volumeMap, meshMap, hiddenLabelLayers, baseFileRef,
     measurementMeshRef, measurementPointsRef, lastDraws, drawHistory,
   } = ctx;
+  const pivotVolume = (id) => findVolume(id).vol;
 
   return {
     replaceBaseVolume: async (file) => {
@@ -407,6 +448,14 @@ export function createVolumeApi(ctx, {
       const vol = volumeMap.current.get(id) || nv.volumes.find((v) => v?.name === id);
       if (vol) {
         try { nv.removeVolume(vol); } catch (_e) {}
+        // Same as removeVolume below: niivue leaves the merged overlay texture
+        // as it was when the LAST overlay goes, so the 3D render kept showing a
+        // deleted lesion mask (even after a new base). Blank it and rebuild.
+        try {
+          resetOverlayTexture();
+          nv.updateGLVolume();
+          nv.drawScene();
+        } catch (_e) { /* best-effort */ }
       }
       volumeMap.current.delete(id);
     },
@@ -659,14 +708,31 @@ export function createVolumeApi(ctx, {
       return applyManualTransform(nvRef.current, vol, idx, transform);
     },
 
-    // Same, for the base volume (always nv.volumes[0], whatever id it was
-    // loaded under). Overlays and atlases keep their world position, so this is
-    // how a scan that sits off the template gets nudged under them. The drawing
-    // lives on the base's voxel grid and therefore moves with it; its export
-    // picks the adjusted affine up in drawingApi.getDrawingBytes.
-    setBaseTransform: (transform) => {
-      const nv = nvRef.current;
-      return applyManualTransform(nv, nv?.volumes?.[0], 0, transform);
+    // Turn pivot of a layer ("centre" / "mass" of its visible voxels), in the
+    // layer's own frame before any hand adjustment — the frame transforms are
+    // applied in (applyManualTransform). Null when nothing is visible.
+    getLayerPivot: (id, mode) => {
+      const vol = pivotVolume(id);
+      if (!vol?.img || !vol.hdr) return null;
+      const d = vol.hdr.dims;
+      const affine = vol.__baseAffine || vol.getAffine();
+      const r = visiblePivot(vol.img, [d[1], d[2], d[3]], affine, visibilityTest(pivotInputs(vol)),
+        mode, { slope: vol.hdr.scl_slope, inter: vol.hdr.scl_inter });
+      return r ? r.pivot : null;
+    },
+    // What a pivot computed now would be computed from; compare with the
+    // transform's stored pivotSig to see whether it is out of date.
+    getLayerPivotSignature: (id, mode, crosshair) => {
+      const vol = pivotVolume(id);
+      if (!vol) return null;
+      return pivotSignature(mode, { ...pivotInputs(vol), crosshair });
+    },
+    // The pivot of a transform that has none (saved before 0.5.0): the grid centre.
+    getLayerGridCentre: (id) => {
+      const vol = pivotVolume(id);
+      if (!vol?.hdr) return null;
+      const d = vol.hdr.dims;
+      return volumeCentreMM(vol.__baseAffine || vol.getAffine(), [d[1], d[2], d[3]]);
     },
 
     // Returns stats for the threshold UI. For continuous overlays the user's
@@ -805,7 +871,24 @@ export function createVolumeApi(ctx, {
     setBaseColormap: (colormap) => {
       const nv = nvRef.current;
       if (!nv || !nv.volumes[0]) return;
-      nv.volumes[0].colormap = colormap;
+      nv.volumes[0].__baseColormapName = colormap;
+      applyBaseColormap(nv, nv.volumes[0]);
+      nv.updateGLVolume();
+      nv.drawScene();
+    },
+
+    // Reverse the base volume's colormap (gray: white background, black
+    // tissue). Not niivue's own `colormapInvert`: that also inverts the
+    // colormap's transparency, which turns the empty space round the head
+    // half-opaque and fogs the 3D render. applyBaseColormap reverses the
+    // colours only.
+    setBaseColormapInvert: (on) => {
+      const nv = nvRef.current;
+      const vol = nv?.volumes?.[0];
+      if (!vol) return;
+      if (!!vol.__baseInvert === !!on) return;
+      vol.__baseInvert = !!on;
+      applyBaseColormap(nv, vol);
       nv.updateGLVolume();
       nv.drawScene();
     },
@@ -817,6 +900,25 @@ export function createVolumeApi(ctx, {
       nv.opts.isColorbar = !!on;
       nv.updateGLVolume();
       nv.drawScene();
+    },
+
+    // The File the current custom base came from (null on the template), so a
+    // workspace can embed it. rememberBaseFile covers a base loaded straight
+    // from a URL (Explorer double-click), which never passed through replaceBaseVolume.
+    getBaseFile: () => baseFileRef.current || null,
+    rememberBaseFile: (file) => { baseFileRef.current = file || null; },
+
+    // The template module was removed while it is the base: blank its voxels
+    // in place. Its grid stays, so overlays and the drawing keep their place.
+    blankBase: () => {
+      const nv = nvRef.current;
+      const base = nv?.volumes?.[0];
+      if (!base?.img) return false;
+      base.img.fill(0);
+      nv.updateGLVolume();
+      nv.drawScene();
+      baseFileRef.current = null;
+      return true;
     },
 
     resetToBase: async (baseCfg) => {
@@ -836,6 +938,7 @@ export function createVolumeApi(ctx, {
         for (const ov of overlays) nv.addVolume(ov);
         nv.updateGLVolume();
         nv.drawScene();
+        baseFileRef.current = null;     // the template is not a file a workspace embeds
         return true;
       } catch (err) {
         toast.error("Failed to reset to template", { description: err?.message });

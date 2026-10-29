@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Download, HardDrive,
-  Loader2, Package, RefreshCw, ShieldAlert, Trash2, Upload, Wrench, X, XCircle,
+  Layers, Loader2, Package, RefreshCw, ShieldAlert, Trash2, Upload, Wrench, X, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useModules } from "@/hooks/use-modules";
+import { useAtlasManager } from "@/hooks/use-atlases";
 import { useModuleJobs } from "@/hooks/use-module-jobs";
+import { undoToastOptions } from "@/lib/undoToast";
 import {
   acceptsSideload, canPickFiles, cancelModuleJob, downloadSource, formatBytes,
   installModule, isInstallableType, isRedistributable, isSlotModule, jobIdOf,
@@ -35,46 +37,23 @@ import {
  *    the install itself.
  */
 
-const LABEL = "font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground";
-const SUBTLE = "font-mono text-[9px] text-subtle leading-relaxed";
-const BODY = "font-mono text-[10px] text-muted-foreground leading-relaxed";
+const LABEL = "text-[12px] font-medium text-muted-foreground";
+const SUBTLE = "text-[12px] text-muted-foreground leading-snug";
+const BODY = "text-[12px] text-muted-foreground leading-snug";
 const BTN =
-  "flex items-center justify-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase " +
-  "tracking-[0.15em] border border-border bg-transparent text-muted-foreground transition-colors " +
-  "hover:text-foreground hover:border-muted-foreground " +
-  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border";
-
-const STATUS_STYLE = {
-  installed: "border-emerald-500/50 text-emerald-500",
-  broken: "border-amber-500/60 text-amber-500",
-  missing: "border-border text-muted-foreground",
-};
-const STATUS_LABEL = {
-  installed: "installed",
-  broken: "broken",
-  missing: "not installed",
-};
-
-function StatusBadge({ status, verified }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] ${STATUS_STYLE[status]}`}
-      data-testid={`module-status-${status}`}
-    >
-      {status === "installed" && <CheckCircle2 size={9} />}
-      {status === "broken" && <AlertTriangle size={9} />}
-      {STATUS_LABEL[status]}
-      {status === "installed" && !verified && <span className="text-subtle">· unverified</span>}
-    </span>
-  );
-}
+  "btn inline-flex items-center justify-center gap-1.5 px-2.5 " +
+  "text-foreground transition-colors hover:bg-panel-hover " +
+  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+const PRIMARY =
+  "inline-flex items-center justify-center gap-1.5 px-3 py-1 text-[12px] font-medium bg-foreground text-background " +
+  "transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed";
 
 function Meta({ k, v }) {
   if (v === null || v === undefined || v === "") return null;
   return (
     <span className="flex items-baseline gap-1.5">
       <span className={LABEL}>{k}</span>
-      <span className="font-mono text-[10px] text-foreground">{v}</span>
+      <span className="font-mono text-[11px] text-foreground">{v}</span>
     </span>
   );
 }
@@ -90,11 +69,11 @@ function ProgressBar({ job }) {
           {job.stage || "working"}
           {job.message ? ` · ${job.message}` : ""}
         </span>
-        <span className="font-mono text-[9px] text-foreground">{pct === null ? "…" : `${pct}%`}</span>
+        <span className="font-mono text-[10.5px] text-foreground">{pct === null ? "…" : `${pct}%`}</span>
       </div>
-      <div className="h-1.5 w-full border border-border bg-panel-hover overflow-hidden">
+      <div className="h-1.5 w-full border border-border bg-panel-hover overflow-hidden rounded-sm">
         <div
-          className="h-full bg-fuchsia-500 transition-[width] duration-300 ease-out"
+          className="h-full bg-foreground transition-[width] duration-300 ease-out"
           style={{ width: pct === null ? "100%" : `${pct}%`, opacity: pct === null ? 0.35 : 1 }}
         />
       </div>
@@ -147,11 +126,11 @@ function VerifyResult({ result }) {
           ? (f?.note || "sha256 ok")
           : f?.present === false ? "missing" : (f?.error || f?.note || "sha256 mismatch");
         return (
-          <div key={name} className="flex items-center gap-1.5 font-mono text-[9px]">
-            {okFlag ? <CheckCircle2 size={9} className="shrink-0 text-emerald-500" />
-              : <XCircle size={9} className="shrink-0 text-red-400" />}
+          <div key={name} className="flex items-center gap-1.5 font-mono text-[10.5px]">
+            {okFlag ? <CheckCircle2 size={9} className="shrink-0 text-ok" />
+              : <XCircle size={9} className="shrink-0 text-destructive" />}
             <span className="flex-1 min-w-0 truncate text-foreground" title={f?.path || name}>{name}</span>
-            <span className={`shrink-0 ${okFlag ? "text-emerald-500" : "text-red-400"}`}>{detail}</span>
+            <span className={`shrink-0 ${okFlag ? "text-ok" : "text-destructive"}`}>{detail}</span>
           </div>
         );
       })}
@@ -163,19 +142,15 @@ function LicenceBlock({ module: m }) {
   const lic = m.license || {};
   const review = provenanceReview(m);
   return (
-    <div className="border border-border px-2.5 py-2 space-y-1.5" data-testid={`module-licence-${m.id}`}>
-      <div className={LABEL}>licence</div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <Meta k="spdx" v={lic.spdx || "unstated"} />
-        <Meta k="redistributable" v={isRedistributable(m) ? "yes" : "no"} />
+    <div className="space-y-1" data-testid={`module-licence-${m.id}`}>
+      <div className={BODY}>
+        Licence: <span className="text-foreground">{lic.spdx || "not stated"}</span>
+        {isRedistributable(m) ? ", free to redistribute." : ", not redistributable."}
+        {lic.attribution ? ` ${lic.attribution}` : ""}
       </div>
-      {lic.attribution && <div className={BODY}>{lic.attribution}</div>}
       {review && (
-        <div className="border border-amber-500/50 px-2 py-1.5 space-y-1" data-testid={`module-provenance-${m.id}`}>
-          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.25em] text-amber-500">
-            <ShieldAlert size={10} /> provenance review
-          </div>
-          <div className="font-mono text-[9px] text-amber-500/90 leading-relaxed">{review}</div>
+        <div className="flex items-start gap-1.5 text-[12px] text-warn/90 leading-snug" data-testid={`module-provenance-${m.id}`}>
+          <ShieldAlert size={11} className="mt-0.5 shrink-0" /> {review}
         </div>
       )}
     </div>
@@ -186,25 +161,25 @@ function Details({ module: m }) {
   const files = moduleFiles(m);
   const sha = moduleSha256(m);
   return (
-    <div className="space-y-2 border-t border-border px-3 py-2.5">
+    <div className="space-y-2">
       {(m.unlocks || []).length > 0 && (
         <div className="flex flex-wrap items-baseline gap-1.5">
           <span className={LABEL}>unlocks</span>
           {m.unlocks.map((c) => (
-            <span key={c} className="border border-border px-1.5 py-0.5 font-mono text-[9px] text-foreground">{c}</span>
+            <span key={c} className="border border-border px-1.5 py-0.5 font-mono text-[10.5px] text-foreground">{c}</span>
           ))}
         </div>
       )}
       {m.path && (
         <div className="space-y-0.5">
           <div className={LABEL}>resolves to</div>
-          <div className="font-mono text-[9px] text-foreground break-all">{m.path}</div>
+          <div className="font-mono text-[10.5px] text-foreground break-all">{m.path}</div>
         </div>
       )}
       {(Array.isArray(m.missing) && m.missing.length > 0) && (
         <div className="space-y-0.5">
           <div className={LABEL}>missing</div>
-          <div className="font-mono text-[9px] text-amber-500 break-all">{m.missing.join(" · ")}</div>
+          <div className="font-mono text-[10.5px] text-warn break-all">{m.missing.join(" · ")}</div>
         </div>
       )}
 
@@ -213,12 +188,12 @@ function Details({ module: m }) {
       {files.length > 0 ? (
         <div className="space-y-0.5">
           <div className={LABEL}>{files.length} file{files.length === 1 ? "" : "s"}</div>
-          <div className="border border-border divide-y divide-border">
+          <div className="border border-border divide-y divide-border rounded-lg">
             {files.map((f) => (
               <div key={f.path} className="flex items-baseline gap-2 px-2 py-1">
-                <span className="flex-1 min-w-0 truncate font-mono text-[9px] text-foreground">{f.path}</span>
-                <span className="font-mono text-[9px] text-muted-foreground whitespace-nowrap">{formatBytes(f.bytes)}</span>
-                <span className="font-mono text-[9px] text-subtle whitespace-nowrap" title={f.sha256 || "no hash recorded"}>
+                <span className="flex-1 min-w-0 truncate font-mono text-[10.5px] text-foreground">{f.path}</span>
+                <span className="font-mono text-[10.5px] text-muted-foreground whitespace-nowrap">{formatBytes(f.bytes)}</span>
+                <span className="font-mono text-[10.5px] text-subtle whitespace-nowrap" title={f.sha256 || "no hash recorded"}>
                   {f.sha256 ? `${f.sha256.slice(0, 10)}…` : "no hash"}
                 </span>
               </div>
@@ -228,7 +203,7 @@ function Details({ module: m }) {
       ) : sha ? (
         <div className="space-y-0.5">
           <div className={LABEL}>sha256 (single file)</div>
-          <div className="font-mono text-[9px] text-foreground break-all">{sha}</div>
+          <div className="font-mono text-[10.5px] text-foreground break-all">{sha}</div>
         </div>
       ) : (m.type || "data") === "data" ? (
         // /api/modules does not currently echo the manifest's `files` array or
@@ -246,7 +221,7 @@ function Details({ module: m }) {
         <div className="space-y-0.5">
           <div className={LABEL}>sources</div>
           {m.sources.map((s, i) => (
-            <div key={`${s.type}-${i}`} className="font-mono text-[9px] text-subtle break-all">
+            <div key={`${s.type}-${i}`} className="font-mono text-[10.5px] text-subtle break-all">
               {s.type}
               {s.asset ? ` · ${s.asset}` : ""}
               {s.tag ? ` · ${s.tag}` : ""}
@@ -260,19 +235,60 @@ function Details({ module: m }) {
   );
 }
 
-function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, onSlotInstall, onUninstall, onVerify, onCancel, onDismiss }) {
+function firstSentence(text) {
+  if (!text) return "";
+  const m = String(text).match(/^(.+?[.!?])(\s|$)/);
+  return m ? m[1] : String(text);
+}
+
+function StatusDot({ status, verified }) {
+  const cls = status === "installed" ? "bg-ok" : status === "broken" ? "bg-warn" : "bg-transparent border border-muted-foreground";
+  const label = status === "installed" ? (verified ? "Installed" : "Installed (not verified)") : status === "broken" ? "Needs repair" : "Not installed";
+  return (
+    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${cls}`} title={label} data-testid={`module-status-${status}`}>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
+/**
+ * One module: a compact line (status, name, one-line summary, size, the one
+ * action that matters now) that expands to everything else — confirmations,
+ * licence, file choices, Verify / Uninstall, and the technical details.
+ * The Atlas Manager renders its template and atlases with it too: `removeNote`
+ * says what stops working without the module, `children` adds atlas tools.
+ */
+export function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, onSlotInstall, onUninstall, onVerify, onCancel, onDismiss, removeNote, children }) {
   const rowRef = useRef(null);
   const fileRef = useRef(null);
   const [open, setOpen] = useState(!!focused);
+  const [showTech, setShowTech] = useState(false);
   const [confirmLicence, setConfirmLicence] = useState(false);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  // Opened at this module (a section's install prompt): glide to it and light
+  // it briefly, so the eye lands on the right row.
+  const [flash, setFlash] = useState(false);
   useEffect(() => {
-    if (!focused) return;
+    if (!focused) return undefined;
     setOpen(true);
-    rowRef.current?.scrollIntoView({ block: "center" });
+    rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 1800);
+    return () => clearTimeout(t);
   }, [focused]);
+
+  // A finished action's line clears itself after a few seconds (its toast
+  // said it too). Errors and Verify's file table stay until dismissed.
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+  useEffect(() => {
+    if (!job?.done || job.error || job.phase === "verify") return undefined;
+    const t = setTimeout(() => dismissRef.current(m), 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.done, job?.error, job?.phase]);
 
   // Backend flags win where present (it knows whether a release base is
   // configured, and whether the module resolves inside the module root); the
@@ -307,188 +323,199 @@ function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, 
   const slotInstallable = bool(m.slotInstallable, isSlot) && canPickFiles();
 
   const pickFile = () => fileRef.current?.click();
+  const expandFor = (fn) => () => { setOpen(true); fn?.(); };
+
+  // The one action shown on the collapsed line. Installed rows need none: the
+  // group heading already says so.
+  let primary = null;
+  if (m.pendingRemoval && !busy) {
+    primary = <span className="text-[12px] text-warn">Removed at next start</span>;
+  } else if (busy || status === "installed" || confirmLicence) {
+    primary = null;
+  } else if (!supported) {
+    primary = <span className="text-[12px] text-muted-foreground">Manual install</span>;
+  } else if (status === "broken" && downloadable) {
+    primary = (
+      <button type="button" onClick={() => onInstall(m, { repair: true })} className={`${PRIMARY} bg-warn text-black`} data-testid={`module-store-repair-${m.id}`}>
+        <Wrench size={11} /> Repair
+      </button>
+    );
+  } else if (status === "missing" && downloadable) {
+    primary = (
+      <button type="button" onClick={expandFor(() => setConfirmLicence(true))} className={PRIMARY} data-testid={`module-store-install-${m.id}`}>
+        <Download size={11} /> Install
+      </button>
+    );
+  } else if (status !== "installed" && (slotInstallable || sideloadable)) {
+    primary = (
+      <button type="button" onClick={expandFor()} className={BTN} data-testid={`module-store-add-${m.id}`}>
+        <Upload size={11} /> Add file…
+      </button>
+    );
+  }
 
   return (
-    <div
-      ref={rowRef}
-      className={`border ${focused ? "border-muted-foreground" : "border-border"}`}
-      data-testid={`module-row-${m.id}`}
-    >
-      <div className="px-3 py-2.5 space-y-2">
-        <div className="flex items-start gap-2">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
-            title={open ? "Hide details" : "Show details"}
-            data-testid={`module-details-${m.id}`}
-          >
-            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-[11px] text-foreground leading-snug">{m.name}</div>
-            <div className={`${SUBTLE} mt-0.5`}>{m.id}</div>
+    <div ref={rowRef} className={flash ? "module-flash" : ""} data-testid={`module-row-${m.id}`}>
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        <StatusDot status={status} verified={m.verified} />
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex-1 min-w-0 text-left"
+          title={open ? "Hide details" : "Show details"}
+          data-testid={`module-details-${m.id}`}
+        >
+          <div className="text-[13px] font-medium text-foreground leading-snug truncate">{m.name}</div>
+          {m.description && !open && <div className="text-[12px] text-muted-foreground leading-snug truncate">{firstSentence(m.description)}</div>}
+        </button>
+        {m.bytes > 0 && <span className="mt-0.5 shrink-0 text-[12px] text-muted-foreground tabular-nums">{moduleSize(m)}</span>}
+        <div className="shrink-0">{primary}</div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={open ? "Hide details" : "Show details"}
+        >
+          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </button>
+      </div>
+
+      {busy && (
+        <div className="px-3 pb-2.5 pl-8 space-y-1.5">
+          <ProgressBar job={job} />
+          {cancellable && (
+            <button type="button" onClick={() => onCancel(m)} className={BTN} data-testid={`module-store-cancel-${m.id}`}>
+              <X size={11} /> Cancel
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Terminal job outcome, kept until dismissed. */}
+      {job?.done && (
+        <div className="px-3 pb-2.5 pl-8" data-testid={`module-outcome-${m.id}`}>
+          <div className={`flex items-start gap-2 text-[12px] ${job.error ? "text-destructive" : "text-ok"}`}>
+            {job.error ? <XCircle size={12} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={12} className="mt-0.5 shrink-0" />}
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div>
+                {job.error ? (job.endpointMissing ? "Not available in this version yet" : `${job.phase || "Action"} failed`)
+                  : job.cancelled ? "Cancelled" : `${(job.phase || "job").replace(/^./, (c) => c.toUpperCase())} complete`}
+              </div>
+              {job.error && <div className="text-muted-foreground break-words">{job.error}</div>}
+              {job.result && <VerifyResult result={job.result} />}
+            </div>
+            <button type="button" onClick={() => onDismiss(m)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss">
+              <X size={11} />
+            </button>
           </div>
-          <StatusBadge status={status} verified={m.verified} />
         </div>
+      )}
 
-        {m.description && <div className={BODY}>{m.description}</div>}
+      {open && (
+        <div className="px-3 pb-3 pl-8 space-y-2.5">
+          {m.description && <div className={BODY}>{m.description}</div>}
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <Meta k="size" v={moduleSize(m)} />
-          <Meta k="tier" v={m.tier} />
-          <Meta k="type" v={m.type} />
-          <Meta k="version" v={m.version} />
-        </div>
-
-        {/* --- Actions ------------------------------------------------------ */}
-        {!supported ? (
-          <div className="border border-border px-2.5 py-2 space-y-1" data-testid={`module-unsupported-${m.id}`}>
-            <div className={LABEL}>not installable yet</div>
-            <div className={SUBTLE}>
+          {!supported && (
+            <div className={SUBTLE} data-testid={`module-unsupported-${m.id}`}>
               {m.notInstallableReason
                 || (m.type === "python-package"
-                  ? "Python-package modules install via pip and are out of scope for this phase. Install the requirements file listed under sources by hand."
+                  ? "Installed with pip, not from here: install the requirements file listed under technical details."
                   : `Modules of type "${m.type}" have no installer.`)}
             </div>
-          </div>
-        ) : busy ? (
-          <div className="space-y-2">
-            <ProgressBar job={job} />
-            {cancellable && (
-              <button type="button" onClick={() => onCancel(m)} className={`${BTN} w-full`} data-testid={`module-store-cancel-${m.id}`}>
-                <X size={11} /> Cancel
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Non-redistributable: no download button can ever work here, so
-                say why and point at the upstream the user must obtain it from.
-                Licence text is shown up-front, not behind a click. */}
-            {!redistributable && (
-              <div className="border border-amber-500/40 px-2.5 py-2 space-y-1.5" data-testid={`module-nonredist-${m.id}`}>
-                <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.25em] text-amber-500">
-                  <AlertTriangle size={10} /> sideload only
-                </div>
-                <div className={BODY}>
-                  {m.license?.spdx ? `${m.license.spdx} — ` : ""}
-                  this module is not redistributable, so MRLatte cannot download it for you.
-                  Obtain it yourself under its terms, then sideload the file below.
-                </div>
-                {m.license?.attribution && <div className={SUBTLE}>{m.license.attribution}</div>}
-                {provenanceReview(m) && (
-                  <div className="border border-amber-500/50 px-2 py-1.5 space-y-1">
-                    <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.25em] text-amber-500">
-                      <ShieldAlert size={10} /> provenance review
-                    </div>
-                    <div className="font-mono text-[9px] text-amber-500/90 leading-relaxed">{provenanceReview(m)}</div>
-                  </div>
-                )}
-                {upstream?.url && (
-                  <div className="font-mono text-[9px] text-subtle break-all">obtain from: {upstream.url}</div>
-                )}
-                <label className="flex items-start gap-2 font-mono text-[9px] text-muted-foreground leading-relaxed cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={termsAccepted}
-                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                    className="mt-0.5"
-                    data-testid={`module-terms-${m.id}`}
-                  />
-                  I obtained this data from its source and accept the terms above.
-                </label>
-              </div>
-            )}
+          )}
 
-            {/* Redistributable download: licence text before the transfer. */}
-            {confirmLicence && downloadable && (
-              <div className="border border-border px-2.5 py-2 space-y-2" data-testid={`module-confirm-${m.id}`}>
-                <div className={LABEL}>before downloading</div>
-                <div className={BODY}>
-                  {moduleSize(m)} will be downloaded from{" "}
-                  {dl?.type === "github-release" ? `the ${dl.tag || "release"} assets`
-                    : dl?.url || "the backend's configured release source"}
-                  {" "}and installed under the module root, then SHA-256 verified before use.
+          {/* Non-redistributable: MRLatte can't download it; say where it comes from. */}
+          {supported && !redistributable && (
+            <div className="border-l-2 border-warn pl-2.5 space-y-1.5" data-testid={`module-nonredist-${m.id}`}>
+              <div className="flex items-center gap-1.5 text-[12px] font-medium text-warn">
+                <AlertTriangle size={11} /> {status === "installed" ? "Supplied by you, not by MRLatte" : "Get this one yourself"}
+              </div>
+              <div className={BODY}>
+                {m.license?.spdx ? `${m.license.spdx}: ` : ""}its licence doesn't let MRLatte distribute it. Obtain it under its terms, then add the file here.
+              </div>
+              {m.license?.attribution && <div className={SUBTLE}>{m.license.attribution}</div>}
+              {provenanceReview(m) && (
+                <div className="flex items-start gap-1.5 text-[12px] text-warn/90 leading-snug">
+                  <ShieldAlert size={11} className="mt-0.5 shrink-0" /> {provenanceReview(m)}
                 </div>
-                <LicenceBlock module={m} />
-                {tooBig && (
-                  <div className="font-mono text-[9px] text-red-400 leading-relaxed">
-                    Not enough free space: {moduleSize(m)} needed, {formatBytes(freeBytes)} free.
-                  </div>
+              )}
+              {upstream?.url && <div className={`${SUBTLE} break-all`}>From: {upstream.url}</div>}
+              {(slotInstallable || sideloadable) && <label className="flex items-start gap-2 text-[12px] text-foreground leading-snug cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5"
+                  data-testid={`module-terms-${m.id}`}
+                />
+                I obtained this data from its source and accept its terms.
+              </label>}
+            </div>
+          )}
+
+          {/* Redistributable download: licence before the transfer. */}
+          {confirmLicence && downloadable && (
+            <div className="border border-border px-3 py-2.5 space-y-2 rounded-lg" data-testid={`module-confirm-${m.id}`}>
+              <div className={BODY}>
+                {m.bundledCopy ? `Copies ${moduleSize(m)} back from MRLatte's own copy (no download)` : (
+                  <>
+                    Downloads {moduleSize(m)} from{" "}
+                    {dl?.type === "github-release" ? `the ${dl.tag || "release"} assets`
+                      : dl?.type === "wheel" || m.type === "python-package" ? "PyPI"
+                      : dl?.url || "the configured release source"}
+                  </>
                 )}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={tooBig}
-                    onClick={() => { setConfirmLicence(false); onInstall(m, { repair: status === "broken" }); }}
-                    className={BTN}
-                    data-testid={`module-store-confirm-install-${m.id}`}
-                  >
-                    <Download size={11} /> Accept &amp; install
-                  </button>
-                  <button type="button" onClick={() => setConfirmLicence(false)} className={BTN}>
-                    Cancel
-                  </button>
-                </div>
+                , checks each file against its pinned hash, then installs it.
               </div>
-            )}
-
-            {confirmUninstall && (
-              <div className="border border-red-500/40 px-2.5 py-2 space-y-2" data-testid={`module-confirm-uninstall-${m.id}`}>
-                <div className={BODY}>
-                  {isSlot && m.slotMode === "link"
-                    // Nothing is deleted here, and saying "delete" would be a lie
-                    // about the user's own file sitting outside the module root.
-                    ? `Stop using ${m.slotPath || "this file"}? It stays exactly where it is — only MRLatte's registration is removed. The features it unlocks re-gate immediately.`
-                    : isSlot
-                      ? `Remove the file from ${m.slot?.directory || "the slot"}/ under the module root? It goes to the recycle bin where the system supports it, otherwise it is deleted outright. The features it unlocks re-gate immediately.`
-                      : <>Delete this module&apos;s files and free {moduleSize(m)}? It goes to the recycle bin
-                        where the system supports it, otherwise it is deleted outright. Any feature it unlocks
-                        re-gates immediately. A module resolving through a dev-checkout path is refused by the
-                        backend rather than deleted.</>}
+              <LicenceBlock module={m} />
+              {tooBig && (
+                <div className="text-[12px] text-destructive">
+                  Not enough free space: {moduleSize(m)} needed, {formatBytes(freeBytes)} free.
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setConfirmUninstall(false); onUninstall(m); }}
-                    className={`${BTN} border-red-500/50 text-red-400 hover:text-red-300 hover:border-red-400`}
-                    data-testid={`module-store-confirm-uninstall-${m.id}`}
-                  >
-                    <Trash2 size={11} /> Confirm uninstall
-                  </button>
-                  <button type="button" onClick={() => setConfirmUninstall(false)} className={BTN}>
-                    Keep
-                  </button>
-                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmLicence(false)} className={BTN}>Cancel</button>
+                <button
+                  type="button"
+                  disabled={tooBig}
+                  onClick={() => { setConfirmLicence(false); onInstall(m, { repair: status === "broken" }); }}
+                  className={PRIMARY}
+                  data-testid={`module-store-confirm-install-${m.id}`}
+                >
+                  <Download size={11} /> Accept &amp; install
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
+          {confirmUninstall && (
+            <div className="border border-destructive/40 px-3 py-2.5 space-y-2 rounded-lg" data-testid={`module-confirm-uninstall-${m.id}`}>
+              <div className={BODY}>
+                {isSlot && m.slotMode === "link"
+                  // Nothing is deleted here, and saying "delete" would be a lie
+                  // about the user's own file sitting outside the module root.
+                  ? `Stop using ${m.slotPath || "this file"}? The file stays where it is; MRLatte just stops using it.`
+                  : isSlot
+                    ? `Remove the file from ${m.slot?.directory || "the slot"}/? It goes to the Recycle Bin where possible.`
+                    : `Remove this module and free ${moduleSize(m)}? Its files go to the Recycle Bin where possible.`}
+                {removeNote ? ` ${removeNote}` : ""}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmUninstall(false)} className={BTN}>Keep</button>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmUninstall(false); onUninstall(m); }}
+                  className={`${BTN} border-destructive/50 text-destructive hover:text-destructive`}
+                  data-testid={`module-store-confirm-uninstall-${m.id}`}
+                >
+                  <Trash2 size={11} /> Remove
+                </button>
+              </div>
+            </div>
+          )}
+
+          {supported && !busy && (
             <div className="flex flex-wrap gap-2">
-              {/* A broken module gets Repair instead of Install — same
-                  endpoint, but the label has to say what it will do. */}
-              {status === "missing" && downloadable && !confirmLicence && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmLicence(true)}
-                  className={`${BTN} flex-1`}
-                  data-testid={`module-store-install-${m.id}`}
-                >
-                  <Download size={11} /> Install ({moduleSize(m)})
-                </button>
-              )}
-
-              {status === "broken" && downloadable && !confirmLicence && (
-                <button
-                  type="button"
-                  onClick={() => onInstall(m, { repair: true })}
-                  className={`${BTN} flex-1 border-amber-500/50 text-amber-500 hover:text-amber-400 hover:border-amber-400`}
-                  data-testid={`module-store-repair-${m.id}`}
-                >
-                  <Wrench size={11} /> Repair
-                </button>
-              )}
-
               {/* Slot: choose a file by path. `Copy` duplicates it into the
                   slot directory; `Use in place` registers it where it already
                   is, which for a 673 MB tractogram is the difference between a
@@ -497,27 +524,27 @@ function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, 
                 <>
                   <button
                     type="button"
-                    onClick={() => onSlotInstall(m, "copy")}
-                    disabled={!termsAccepted && !redistributable}
-                    title={!termsAccepted && !redistributable
-                      ? "Accept the licence terms above first."
-                      : `Copy the file into ${m.slot?.directory || "the slot"}/ under the module root.`}
-                    className={`${BTN} flex-1`}
-                    data-testid={`module-store-slot-copy-${m.id}`}
-                  >
-                    <Download size={11} /> {status === "installed" ? "Replace (copy)" : "Choose file (copy)"}
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => onSlotInstall(m, "link")}
                     disabled={!termsAccepted && !redistributable}
                     title={!termsAccepted && !redistributable
-                      ? "Accept the licence terms above first."
-                      : "Leave the file where it is and just point MRLatte at it. Moving or deleting it later will disable this feature."}
-                    className={`${BTN} flex-1`}
+                      ? "Accept the terms above first."
+                      : "Leave the file where it is and point MRLatte at it. Moving or deleting it later turns this feature off."}
+                    className={BTN}
                     data-testid={`module-store-slot-link-${m.id}`}
                   >
-                    <HardDrive size={11} /> {status === "installed" ? "Replace (in place)" : "Use in place"}
+                    <HardDrive size={11} /> {status === "installed" ? "Use another file (in place)" : "Use a file where it is"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSlotInstall(m, "copy")}
+                    disabled={!termsAccepted && !redistributable}
+                    title={!termsAccepted && !redistributable
+                      ? "Accept the terms above first."
+                      : `Copy the file into ${m.slot?.directory || "the slot"}/ under the module folder.`}
+                    className={BTN}
+                    data-testid={`module-store-slot-copy-${m.id}`}
+                  >
+                    <Download size={11} /> {status === "installed" ? "Replace (copy)" : "Copy a file in"}
                   </button>
                 </>
               )}
@@ -528,18 +555,13 @@ function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, 
                   onClick={pickFile}
                   disabled={!redistributable && !termsAccepted}
                   title={!redistributable && !termsAccepted
-                    ? "Accept the licence terms above first."
-                    : status === "installed"
-                      ? "Replace the installed files with a copy you supply."
-                      : multiFile
-                        ? "Upload a .zip containing this module's files."
-                        : "Upload the module file, or a .zip containing it."}
-                  className={`${BTN} flex-1`}
+                    ? "Accept the terms above first."
+                    : multiFile ? "Choose a .zip with this module's files." : "Choose the module file, or a .zip containing it."}
+                  className={BTN}
                   data-testid={`module-store-sideload-${m.id}`}
                 >
                   <Upload size={11} />{" "}
-                  {status === "broken" ? "Repair by sideload"
-                    : status === "installed" ? "Replace" : "Sideload"}
+                  {status === "broken" ? "Repair from a file" : status === "installed" ? "Replace from a file" : "Add from a file"}
                 </button>
               )}
 
@@ -551,137 +573,117 @@ function ModuleRow({ module: m, job, freeBytes, focused, onInstall, onSideload, 
                 </button>
               )}
 
-              {status !== "missing" && !confirmUninstall && (
+              {status !== "missing" && !confirmUninstall && !m.pendingRemoval && (
                 <button
                   type="button"
                   onClick={() => setConfirmUninstall(true)}
                   disabled={!uninstallable}
                   title={uninstallable
-                    ? "Delete this module's files"
-                    : "MRLatte did not install this — it is either part of your checkout or outside the module root — so uninstall refuses to delete it."}
+                    ? "Remove this module"
+                    : "MRLatte didn't install this (it's part of the app, or outside the module folder), so it can't remove it."}
                   className={BTN}
                   data-testid={`module-store-uninstall-${m.id}`}
                 >
-                  <Trash2 size={11} /> Uninstall
+                  <Trash2 size={11} /> Remove
                 </button>
               )}
             </div>
+          )}
 
-            {noReleaseConfigured && status !== "installed" && (
-              <div className={SUBTLE} data-testid={`module-norelease-${m.id}`}>
-                This module may be redistributed, but the running backend has no download
-                source configured yet — sideload it in the meantime.
-              </div>
-            )}
-            {status === "installed" && !uninstallable && (
-              <div className={SUBTLE}>
-                {isSlot
-                  // A hand-dropped file in the slot directory IS removable now.
-                  // The only slot that is not is one behind an env override,
-                  // which points at storage this app does not manage.
-                  ? `Resolves through the ${m.envVar || "per-asset"} environment override, which points at storage MRLatte does not manage — it will not be deleted from here. Unset that variable to manage this slot from the app.`
-                  : "This ships as part of your checkout (no install-ledger entry) or resolves outside the module root — either way it isn't uninstallable from here. If it's the former, hitting Verify re-hashes the files already on disk and registers them, no download needed."}
-              </div>
-            )}
-
-            {/* Shown for the installed state too: that is exactly when a
-                Replace button most needs to say what it does. */}
-            {sideloadable && (
-              <div className={SUBTLE}>
-                {status === "installed"
-                  ? "Already installed. Sideloading again replaces the current files — useful to move to a different build, or to fix a file that is corrupt but still the right size."
-                  : multiFile
-                    ? "Sideload expects a .zip containing this module's files; every member is checked against the module root and SHA-256 verified before anything is promoted."
-                    : "Sideload expects the module file itself (or a .zip containing it); it is SHA-256 verified before being promoted."}
-              </div>
-            )}
-
-            {slotInstallable && (
-              <div className={SUBTLE} data-testid={`module-slot-hint-${m.id}`}>
-                {`Accepts ${slotExtensions(m).join(", ") || "a conforming file"}. It is validated before anything moves, so a wrong file is rejected immediately. `}
-                {m.slotMode === "link" && m.slotPath
-                  ? `Currently used in place from ${m.slotPath} — MRLatte does not own this file and will not delete it.`
-                  : m.slotMode === "copy"
-                    ? "Currently a copy under the module root, so uninstall can remove it."
-                    : `You can also drop a file straight into ${m.slot?.directory || "the slot"}/ — it is picked up without a restart.`}
-              </div>
-            )}
-
-            {isSlot && !canPickFiles() && (
-              <div className={SUBTLE} data-testid={`module-slot-nopicker-${m.id}`}>
-                {`Choosing a file by path needs the desktop app. In the browser, drop a conforming file into ${m.slot?.directory || "the slot"}/ under the module root instead.`}
-              </div>
-            )}
-
-            <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              data-testid={`module-store-file-${m.id}`}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) onSideload(m, f);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Terminal job outcome, kept until dismissed. */}
-        {job?.done && (
-          <div
-            className={`border px-2.5 py-2 space-y-1 ${job.error ? "border-red-500/50" : "border-emerald-500/40"}`}
-            data-testid={`module-outcome-${m.id}`}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className={`font-mono text-[9px] uppercase tracking-[0.25em] ${job.error ? "text-red-400" : "text-emerald-500"}`}>
-                {job.error ? (job.endpointMissing ? "not available yet" : "failed")
-                  : job.cancelled ? "cancelled" : `${job.phase || "job"} complete`}
-              </div>
-              <button type="button" onClick={() => onDismiss(m)} className="text-muted-foreground hover:text-foreground">
-                <X size={11} />
-              </button>
+          {supported && !busy && (
+            <div className={SUBTLE}>
+              {slotInstallable
+                ? `Accepts ${slotExtensions(m).join(", ") || "a matching file"}; it is checked before anything moves. `
+                  + (m.slotMode === "link" && m.slotPath ? `Now using ${m.slotPath} in place (MRLatte won't delete it).`
+                    : m.slotMode === "copy" ? "Now a copy in the module folder." : "")
+                : sideloadable
+                  ? (multiFile ? "A file you add is a .zip of this module's files; each is checked against its hash." : "A file you add is checked against its hash before use.")
+                  : ""}
+              {noReleaseConfigured && status !== "installed" && " No download source is set up yet, so add the file yourself for now."}
+              {isSlot && !canPickFiles() && ` Choosing a file needs the desktop app; in the browser, drop it into ${m.slot?.directory || "the slot"}/ in the module folder.`}
+              {status === "installed" && !uninstallable && !isSlot && !m.pendingRemoval && " Part of the app, so it can't be removed here."}
+              {m.pendingRemoval && " It was in use when you removed it, so it goes the next time MRLatte starts."}
             </div>
-            {job.error && <div className="font-mono text-[9px] text-red-400 leading-relaxed break-words">{job.error}</div>}
-            {job.result && <VerifyResult result={job.result} />}
-          </div>
-        )}
-      </div>
+          )}
 
-      {open && <Details module={m} />}
+          {children}
+
+          <button
+            type="button"
+            onClick={() => setShowTech((v) => !v)}
+            className="flex items-center gap-1 text-[11.5px] text-muted-foreground hover:text-foreground"
+            data-testid={`module-tech-${m.id}`}
+          >
+            {showTech ? <ChevronDown size={11} /> : <ChevronRight size={11} />} Technical details
+          </button>
+          {showTech && (
+            <div className="border-l border-border pl-2.5 space-y-1.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <Meta k="id" v={m.id} />
+                <Meta k="type" v={m.type} />
+                <Meta k="tier" v={m.tier} />
+                <Meta k="version" v={m.version} />
+              </div>
+              <Details module={m} />
+            </div>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            data-testid={`module-store-file-${m.id}`}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) onSideload(m, f);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-export function ModuleStore() {
-  const {
-    loading, ok, reason, modules, installable, moduleRoot, freeBytes,
-    refresh, storeOpen, storeFocus, closeStore,
-  } = useModules();
+/**
+ * A removal waits behind a toast with Undo: nothing is removed until the toast
+ * closes (after 5 s, or when dismissed). Removed files go to the Recycle Bin,
+ * which the app can't restore from, so waiting is what makes Undo safe.
+ */
+export function deferRemoval(name, run, undo) {
+  let settled = false;
+  const go = () => { if (!settled) { settled = true; run(); } };
+  toast(`Removing ${name}`, {
+    ...undoToastOptions(),
+    description: "Undo to keep it.",
+    action: { label: "Undo", onClick: () => { settled = true; undo?.(); } },
+    onAutoClose: go,
+    onDismiss: go,
+  });
+}
+
+/**
+ * The per-module actions (install, sideload, slot install, verify, uninstall,
+ * cancel) and their job state. Shared by the Module Store and the Atlas
+ * Manager; `onChanged` runs after anything that may have changed what is
+ * installed.
+ */
+export function useModuleActions({ onChanged } = {}) {
+  const { refresh } = useModules();
+  const changed = useCallback(() => { refresh(); onChanged?.(); }, [refresh, onChanged]);
 
   const { jobs, setJob, clearJob } = useModuleJobs({
     onSettled: (mid, job) => {
       if (job.error) toast.error("Module job failed", { description: job.error });
       else if (job.cancelled) toast("Module job cancelled");
       else toast.success("Module updated");
-      refresh();
+      changed();
     },
   });
 
   // Aborts for in-flight sideload uploads (an upload is a live XHR, not a
   // backend job, so /cancel cannot stop it).
   const uploadsRef = useRef({});
-
-  useEffect(() => {
-    if (!storeOpen) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") closeStore(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [storeOpen, closeStore]);
-
-  // Re-read /api/modules whenever the store is opened: it is the only source of
-  // truth for installed state and may have changed since startup.
-  useEffect(() => { if (storeOpen) refresh(); }, [storeOpen, refresh]);
 
   const finish = useCallback((mid, res, phase) => {
     // Shared tail for every action: a job id means poll, a plain 2xx means the
@@ -711,13 +713,13 @@ export function ModuleStore() {
       const err = bad.length ? `${phase} reported problems: ${bad.join(", ")}` : `${phase} failed`;
       setJob(mid, { phase, done: true, error: err, stage: "error", progress: 1, result: data });
       toast.error(`${phase} failed`, { description: err });
-      refresh();
+      changed();
       return;
     }
     setJob(mid, { phase, done: true, error: null, stage: "done", progress: 1, result: data });
     toast.success(`${phase} complete`, { description: mid });
-    refresh();
-  }, [setJob, refresh]);
+    changed();
+  }, [setJob, changed]);
 
   const onInstall = useCallback(async (m, { repair } = {}) => {
     const phase = repair ? "repair" : "install";
@@ -763,10 +765,13 @@ export function ModuleStore() {
     finish(m.id, await verifyModule(m.id), "verify");
   }, [setJob, finish]);
 
-  const onUninstall = useCallback(async (m) => {
-    setJob(m.id, { phase: "uninstall", done: false, stage: "removing", progress: null, jobId: null, error: null, result: null });
-    finish(m.id, await uninstallModule(m.id), "uninstall");
-  }, [setJob, finish]);
+  const onUninstall = useCallback((m) => {
+    setJob(m.id, { phase: "uninstall", done: false, stage: "removing in 5 s", progress: null, jobId: null, error: null, result: null });
+    deferRemoval(m.name, async () => {
+      setJob(m.id, { stage: "removing" });
+      finish(m.id, await uninstallModule(m.id), "uninstall");
+    }, () => clearJob(m.id));
+  }, [setJob, finish, clearJob]);
 
   const onCancel = useCallback(async (m) => {
     // An upload is a live XHR in this browser, not a backend job — abort it
@@ -782,12 +787,45 @@ export function ModuleStore() {
     // backend keeps the .part so a later install resumes.
   }, [jobs]);
 
-  // Core-tier first (a missing core module breaks the viewer itself), manifest
-  // order within a tier.
-  const ordered = useMemo(
-    () => [...modules].sort((a, b) => (a.tier === "core" ? 0 : 1) - (b.tier === "core" ? 0 : 1)),
-    [modules],
-  );
+  return { jobs, setJob, clearJob, finish, onInstall, onSideload, onSlotInstall, onVerify, onUninstall, onCancel };
+}
+
+export function ModuleStore() {
+  const {
+    loading, ok, reason, modules: allModules, installable, moduleRoot, freeBytes,
+    refresh, storeOpen, storeFocus, closeStore,
+  } = useModules();
+  const { openManager } = useAtlasManager();
+  const {
+    jobs, clearJob, onInstall, onSideload, onSlotInstall, onVerify, onUninstall, onCancel,
+  } = useModuleActions();
+  // The template and the atlases are installed and removed in the Atlas
+  // Manager, one at a time; the store lists them as one row that opens it.
+  const modules = useMemo(() => allModules.filter((m) => !m.group), [allModules]);
+  const atlasModules = useMemo(() => allModules.filter((m) => m.group), [allModules]);
+
+  useEffect(() => {
+    if (!storeOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") closeStore(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [storeOpen, closeStore]);
+
+  // Re-read /api/modules whenever the store is opened: it is the only source of
+  // truth for installed state and may have changed since startup.
+  useEffect(() => { if (storeOpen) refresh(); }, [storeOpen, refresh]);
+
+  // Grouped by what the user needs to do: broken first, then what is
+  // installed, then what can be added. Core tier first within a group.
+  const groups = useMemo(() => {
+    const byTier = (a, b) => (a.tier === "core" ? 0 : 1) - (b.tier === "core" ? 0 : 1);
+    const pick = (st) => modules.filter((m) => moduleStatus(m) === st).sort(byTier);
+    return [
+      { key: "broken", title: "Needs attention", items: pick("broken") },
+      { key: "installed", title: "Installed", items: pick("installed") },
+      { key: "missing", title: "Available", items: pick("missing") },
+    ].filter((g) => g.items.length);
+  }, [modules]);
 
   const counts = useMemo(() => {
     const c = { installed: 0, broken: 0, missing: 0 };
@@ -801,106 +839,129 @@ export function ModuleStore() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 py-10 overflow-y-auto"
+      className="modal-scrim fixed inset-0 z-[100] flex items-start justify-center bg-black/60 py-10 overflow-y-auto"
       onClick={closeStore}
       data-testid="module-store"
     >
       <div
-        className="w-[760px] max-w-[94vw] border border-border bg-panel shadow-xl"
+        className="modal-panel w-[640px] max-w-[94vw] overflow-hidden rounded-xl border border-edge bg-panel shadow-elev-2"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-          <Package size={14} className="text-muted-foreground" />
+          <Package size={15} className="text-muted-foreground" />
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-foreground leading-none">Module store</div>
-            <div className={`${SUBTLE} mt-1 break-all`}>
-              {moduleRoot ? `module root · ${moduleRoot}` : "optional and core assets"}
-            </div>
+            <div className="text-[14px] font-medium text-foreground leading-none">Modules</div>
+            {!loading && ok === true && (
+              <div className="mt-1 text-[12px] text-muted-foreground">
+                {counts.installed} of {modules.length} installed
+                {counts.broken > 0 && <span className="text-warn"> · {counts.broken} need{counts.broken === 1 ? "s" : ""} repair</span>}
+                {freeBytes !== null && freeBytes !== undefined && <> · {formatBytes(freeBytes)} free</>}
+              </div>
+            )}
           </div>
-          {freeBytes !== null && freeBytes !== undefined && (
-            <div className="flex items-center gap-1.5 font-mono text-[9px] text-muted-foreground">
-              <HardDrive size={11} /> {formatBytes(freeBytes)} free
-            </div>
-          )}
           <button
             type="button"
             onClick={refresh}
-            className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-            title="Re-read /api/modules"
+            className="flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Check again"
             data-testid="module-store-refresh"
           >
-            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
           </button>
           <button
             type="button"
             onClick={closeStore}
-            className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            className="flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
             data-testid="module-store-close"
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         </div>
 
-        <div className="max-h-[72vh] overflow-y-auto thin-scroll px-4 py-3 space-y-2.5">
+        {/* `relative`: keeps the rows' sr-only status words inside this scroll
+            box, not hung off the fixed scrim (see AtlasManager). */}
+        <div className="relative max-h-[72vh] overflow-y-auto thin-scroll">
           {loading && (
-            <div className={BODY} data-testid="module-store-loading">Reading /api/modules…</div>
+            <div className={`${BODY} px-4 py-3`} data-testid="module-store-loading">Checking modules…</div>
           )}
 
           {/* Fail open. With no answer from /api/modules we cannot know what is
               installed — listing everything as "not installed" would make a
               perfectly good install look broken. */}
           {unreachable && (
-            <div className="border border-amber-500/50 px-3 py-2.5 space-y-1.5" data-testid="module-store-unreachable">
-              <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.25em] text-amber-500">
-                <AlertTriangle size={10} /> backend unreachable
+            <div className="m-4 border-l-2 border-warn pl-3 space-y-1" data-testid="module-store-unreachable">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-warn">
+                <AlertTriangle size={12} /> Can't reach the analysis engine
               </div>
-              <div className={BODY}>
-                Module state is unknown — nothing below is being reported as missing.
-                Start the MRLatte backend and refresh.
-              </div>
+              <div className={BODY}>Which modules are installed is unknown right now, so nothing is shown as missing. Check again in a moment.</div>
               {reason && <div className={SUBTLE}>{reason}</div>}
             </div>
           )}
 
           {!loading && ok === true && (
             <>
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pb-1">
-                <Meta k="modules" v={modules.length} />
-                <Meta k="installed" v={counts.installed} />
-                {counts.broken > 0 && <Meta k="broken" v={counts.broken} />}
-                <Meta k="not installed" v={counts.missing} />
-              </div>
-
               {!installable && (
-                <div className="border border-border px-3 py-2 space-y-1" data-testid="module-store-installer-off">
-                  <div className={LABEL}>installer not reported</div>
-                  <div className={SUBTLE}>
-                    The running backend reports <span className="text-foreground">installable: false</span>.
-                    Install, sideload, repair and uninstall are still offered here; if the endpoints are
-                    absent they answer 404 and each action says so instead of failing silently.
-                  </div>
+                <div className={`${SUBTLE} px-4 pt-3`} data-testid="module-store-installer-off">
+                  This version doesn't report an installer; actions it can't do will say so.
                 </div>
               )}
 
-              {ordered.map((m) => (
-                <ModuleRow
-                  key={m.id}
-                  module={m}
-                  job={jobs[m.id]}
-                  freeBytes={freeBytes}
-                  focused={storeFocus === m.id}
-                  onInstall={onInstall}
-                  onSideload={onSideload}
-                  onSlotInstall={onSlotInstall}
-                  onVerify={onVerify}
-                  onUninstall={onUninstall}
-                  onCancel={onCancel}
-                  onDismiss={(mod) => clearJob(mod.id)}
-                />
+              {atlasModules.length > 0 && (
+                <div className="flex items-center gap-3 border-b border-border px-4 py-2.5" data-testid="module-store-atlases">
+                  <Layers size={14} className="shrink-0 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium text-foreground leading-snug">Atlases &amp; template</div>
+                    <div className="text-[12px] text-muted-foreground leading-snug">
+                      {atlasModules.filter((m) => moduleStatus(m) === "installed").length} of {atlasModules.length} installed.
+                      Each one installs and is removed on its own, and you can add your own.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { closeStore(); openManager(); }}
+                    className={BTN}
+                    data-testid="module-store-open-atlas-manager"
+                  >
+                    Open Atlas Manager
+                  </button>
+                </div>
+              )}
+
+              {groups.map((g) => (
+                <div key={g.key} data-testid={`module-group-${g.key}`}>
+                  <div className={`${LABEL} px-4 pt-3 pb-1 ${g.key === "broken" ? "text-warn" : ""}`}>
+                    {g.title} <span className="font-normal normal-case tracking-normal">· {g.items.length}</span>
+                  </div>
+                  <div className="divide-y divide-border border-y border-border">
+                    {g.items.map((m) => (
+                      <ModuleRow
+                        key={m.id}
+                        module={m}
+                        job={jobs[m.id]}
+                        freeBytes={freeBytes}
+                        focused={storeFocus === m.id}
+                        onInstall={onInstall}
+                        onSideload={onSideload}
+                        onSlotInstall={onSlotInstall}
+                        onVerify={onVerify}
+                        onUninstall={onUninstall}
+                        onCancel={onCancel}
+                        onDismiss={(mod) => clearJob(mod.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
 
-              {ordered.length === 0 && (
-                <div className={BODY}>The manifest lists no modules.</div>
+              {modules.length === 0 && (
+                <div className={`${BODY} px-4 py-3`}>No modules are listed.</div>
+              )}
+
+              {moduleRoot && (
+                <div className={`${SUBTLE} px-4 py-3 break-all`} data-testid="module-store-root">
+                  Stored in {moduleRoot}
+                </div>
               )}
             </>
           )}

@@ -43,12 +43,20 @@ def test_refuses_a_file_that_is_not_a_nifti(tmp_path):
     assert "readable" in reason.lower()
 
 
-def test_refuses_a_4d_probabilistic_atlas_with_an_actionable_message(tmp_path):
+def test_refuses_an_empty_4d_atlas(tmp_path):
     path = _save(tmp_path, np.zeros((10, 10, 10, 5), np.float32))
     ok, reason, _ = atlas_validate.inspect_volume(path)
     assert not ok
-    # The user needs to know WHAT to do, not just that it failed.
-    assert "max-probability" in reason
+    assert "empty" in reason
+
+
+def test_describes_a_4d_probability_atlas_by_its_frames(tmp_path):
+    data = np.zeros((10, 10, 10, 5), np.float32)
+    data[2:5, 2:5, 2:5, 3] = 0.8
+    ok, _, details = atlas_validate.inspect_volume(_save(tmp_path, data))
+    assert ok
+    assert details["kind"] == "probabilistic" and details["frames"] == 5
+    assert details["labelValues"] == [1, 2, 3, 4, 5] and details["valueRange"][1] == pytest.approx(0.8)
 
 
 def test_refuses_an_empty_volume(tmp_path):

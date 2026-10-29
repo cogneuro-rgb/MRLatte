@@ -429,7 +429,7 @@ export const DaLnMapperPanel = ({
       <SectionLabel icon={Network}>degree adjusted lesion networking</SectionLabel>
 
       {available !== null && available !== true && (
-        <div className="font-mono text-[10px] text-muted-foreground border border-border px-2 py-2" data-testid="lnm-unavailable">
+        <div className="font-mono text-[11px] text-muted-foreground border border-border px-2 py-2 rounded-lg" data-testid="lnm-unavailable">
           {available?.reason?.toLowerCase().includes("fetch")
             ? "Backend server unavailable — start the backend and reload."
             : available?.bundle_present === false
@@ -441,8 +441,8 @@ export const DaLnMapperPanel = ({
       {(available === null || available === true) && (
         <>
           <FileUploader
-            label="Upload lesion mask"
-            description=".nii / .nii.gz · MNI152 space"
+            label="Upload a lesion mask"
+            description=".nii .nii.gz · MNI152 space"
             accept=".nii,.nii.gz"
             onFile={(f) => { setLesionFile(f); setSelLesionId(""); }}
             testId="lnm-lesion-upload"
@@ -450,19 +450,19 @@ export const DaLnMapperPanel = ({
           <button
             type="button"
             onClick={useDrawing}
-            className="w-full py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+            className="w-full py-1.5 text-[12px] font-medium btn"
             data-testid="lnm-use-drawing"
           >
             Use current drawing
           </button>
           {lesionFile && (
-            <div className="font-mono text-[10px] text-muted-foreground truncate">{lesionFile.name}</div>
+            <div className="font-mono text-[11px] text-muted-foreground truncate">{lesionFile.name}</div>
           )}
           {lesionLayers.length > 0 && (
             <select
               value={selLesionId}
               onChange={(e) => { setSelLesionId(e.target.value); setLesionFile(null); }}
-              className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+              className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
               data-testid="lnm-lesion-select"
             >
               {/* The placeholder names the lesion that is ACTUALLY used when
@@ -480,11 +480,11 @@ export const DaLnMapperPanel = ({
 
           {/* Metric */}
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">metric</span>
+            <span className="text-[13px] text-muted-foreground">Metric</span>
             <select
               value={metric}
               onChange={(e) => setMetric(e.target.value)}
-              className="w-28 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+              className="w-28 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
               data-testid="lnm-metric"
             >
               <option value="t">one-sample t</option>
@@ -494,7 +494,7 @@ export const DaLnMapperPanel = ({
 
           {/* Threshold */}
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">
+            <span className="cap text-subtle">
               {metric === "z" ? "|z| threshold" : "|t| threshold"}
             </span>
             {metric === "z" ? (
@@ -502,7 +502,8 @@ export const DaLnMapperPanel = ({
                 type="number" min={0} step={0.05}
                 value={zThreshold}
                 onChange={(e) => setZThreshold(Math.max(0, Number(e.target.value) || 0))}
-                className="w-20 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                className="w-20 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
+                aria-label="|z| threshold"
                 data-testid="lnm-threshold"
               />
             ) : (
@@ -510,7 +511,8 @@ export const DaLnMapperPanel = ({
                 type="number" min={1} step={0.5}
                 value={tThreshold}
                 onChange={(e) => setTThreshold(Math.max(1, Number(e.target.value) || 1))}
-                className="w-20 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                className="w-20 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
+                aria-label="|t| threshold"
                 data-testid="lnm-threshold"
               />
             )}
@@ -518,9 +520,10 @@ export const DaLnMapperPanel = ({
 
           {/* Degree adjust */}
           <label className="flex items-center justify-between gap-2 cursor-pointer">
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">degree adjust</span>
+            <span className="text-[13px] text-muted-foreground">Degree adjust</span>
             <input
               type="checkbox"
+              className="h-5 w-5 shrink-0"
               checked={degreeAdjust}
               onChange={(e) => setDegreeAdjust(e.target.checked)}
               data-testid="lnm-degree-adjust"
@@ -529,9 +532,10 @@ export const DaLnMapperPanel = ({
 
           {/* Specificity */}
           <label className="flex items-center justify-between gap-2 cursor-pointer">
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">specificity test</span>
+            <span className="text-[13px] text-muted-foreground">Specificity test</span>
             <input
               type="checkbox"
+              className="h-5 w-5 shrink-0"
               checked={runSpecificity}
               onChange={(e) => setRunSpecificity(e.target.checked)}
               data-testid="lnm-specificity"
@@ -540,19 +544,21 @@ export const DaLnMapperPanel = ({
           {runSpecificity && (
             <>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">permutations</span>
+                <span className="text-[13px] text-muted-foreground">Permutations</span>
                 <input
                   type="number" min={10} max={500} step={10}
                   value={nperm}
                   onChange={(e) => setNperm(Math.max(10, Number(e.target.value) || 10))}
-                  className="w-20 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                  className="w-20 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
+                  aria-label="Permutations"
                   data-testid="lnm-nperm"
                 />
               </div>
               <label className="flex items-center justify-between gap-2 cursor-pointer">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">BH-FDR correct</span>
+                <span className="text-[13px] text-muted-foreground">BH-FDR correct</span>
                 <input
                   type="checkbox"
+                  className="h-5 w-5 shrink-0"
                   checked={fdr}
                   onChange={(e) => setFdr(e.target.checked)}
                   data-testid="lnm-fdr"
@@ -564,11 +570,11 @@ export const DaLnMapperPanel = ({
           <button
             onClick={run}
             disabled={runDisabled}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[12.5px] font-medium btn-primary disabled:opacity-50"
             data-testid="lnm-run-button"
           >
             <Network size={12} />
-            {busy ? "Computing…" : "Compute Network Map"}
+            {busy ? "Computing…" : "Compute network map"}
           </button>
         </>
       )}
@@ -581,7 +587,7 @@ export const DaLnMapperPanel = ({
               <button
                 onClick={toggleOverlayVisible}
                 title={overlayVisible ? "Hide network overlay" : "Show network overlay"}
-                className="flex items-center gap-1 px-2 py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+                className="flex items-center gap-1 px-2 py-1 text-[11.5px] font-medium btn"
                 data-testid="lnm-toggle-visible"
               >
                 {overlayVisible ? <Eye size={11} /> : <EyeOff size={11} />}
@@ -601,7 +607,7 @@ export const DaLnMapperPanel = ({
             <button
               onClick={deleteResult}
               title="Remove overlay from viewer and clear this result"
-              className="flex items-center gap-1 px-2 py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-red-400 hover:border-red-900"
+              className="btn flex items-center gap-1 px-2 hover:!text-destructive"
               data-testid="lnm-delete"
             >
               <Trash2 size={11} />Delete
@@ -611,7 +617,7 @@ export const DaLnMapperPanel = ({
           {/* Save → Activation Maps section (item 59) */}
           {onSaveActivation && (result?.files?.spec_net || result?.files?.thresh_cont) && (
             activationSaved ? (
-              <div className="font-mono text-[10px] text-emerald-400 border border-border px-2 py-2" data-testid="lnm-saved-notice">
+              <div className="font-mono text-[11px] text-ok border border-border px-2 py-2 rounded-lg" data-testid="lnm-saved-notice">
                 Saved to Activation Maps — full threshold/colormap controls are there now.
               </div>
             ) : (
@@ -621,13 +627,13 @@ export const DaLnMapperPanel = ({
                   value={activationSaveName}
                   onChange={(e) => setActivationSaveName(e.target.value)}
                   placeholder={`name for saved network map… (default: ${deriveDefaultActivationName()})`}
-                  className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+                  className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
                   data-testid="lnm-save-name"
                 />
                 <button
                   onClick={saveActivation}
                   disabled={savingActivation}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn-primary disabled:opacity-50"
                   data-testid="lnm-save"
                 >
                   <Save size={11} />{savingActivation ? "Saving…" : "Save"}
@@ -636,13 +642,13 @@ export const DaLnMapperPanel = ({
             )
           )}
 
-          <div className="border border-border bg-panel p-2 space-y-2" data-testid="lnm-overlay-display">
+          <div className="border border-border bg-panel p-2 space-y-2 rounded-lg" data-testid="lnm-overlay-display">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">coupling sign</span>
+              <span className="text-[13px] text-muted-foreground">Coupling sign</span>
               <select
                 value={signMode}
                 onChange={(e) => setSignMode(e.target.value)}
-                className="w-32 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                className="w-32 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
                 data-testid="lnm-sign-mode"
               >
                 <option value="both">Both</option>
@@ -652,11 +658,11 @@ export const DaLnMapperPanel = ({
             </div>
             {signMode !== "neg" && (
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">positive color</span>
+                <span className="text-[13px] text-muted-foreground">Positive colour</span>
                 <select
                   value={posColor}
                   onChange={(e) => setPosColor(e.target.value)}
-                  className="w-32 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                  className="w-32 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
                   data-testid="lnm-pos-color"
                 >
                   {LNM_COLOR_OPTIONS.map((c) => (
@@ -667,11 +673,11 @@ export const DaLnMapperPanel = ({
             )}
             {signMode !== "pos" && (
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">negative color</span>
+                <span className="text-[13px] text-muted-foreground">Negative colour</span>
                 <select
                   value={negColor}
                   onChange={(e) => setNegColor(e.target.value)}
-                  className="w-32 bg-panel border border-border text-[11px] text-foreground px-2 py-1"
+                  className="w-32 bg-panel border border-border text-[12px] text-foreground px-2 py-1"
                   data-testid="lnm-neg-color"
                 >
                   {LNM_COLOR_OPTIONS.map((c) => (
@@ -682,22 +688,22 @@ export const DaLnMapperPanel = ({
             )}
           </div>
 
-          <div className="border border-border bg-panel p-3 space-y-1" data-testid="lnm-stats">
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Lesion voxels</span>
+          <div className="border border-border bg-panel p-3 space-y-1 rounded-lg" data-testid="lnm-stats">
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Lesion voxels</span>
               <span className="text-foreground">{result.n_lesion_voxels.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Degree r (before→after)</span>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Degree r (before→after)</span>
               <span className="text-foreground">{result.degree_corr_before} → {result.degree_corr_after ?? "n/a"}</span>
             </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Supra-threshold (+/−)</span>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Supra-threshold (+/−)</span>
               <span className="text-foreground">{result.n_pos_thr.toLocaleString()} / {result.n_neg_thr.toLocaleString()}</span>
             </div>
             {result.specificity?.run && (
-              <div className="flex justify-between text-[11px]">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Survives specificity</span>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-[13px] text-muted-foreground">Survives specificity</span>
                 <span className="text-foreground">
                   {result.specificity.n_sig_pos.toLocaleString()} / {result.specificity.n_sig_neg.toLocaleString()}
                 </span>
@@ -706,20 +712,20 @@ export const DaLnMapperPanel = ({
           </div>
 
           {atlasErrors.length > 0 && (
-            <div className="font-mono text-[10px] text-amber-500/80 border border-border px-2 py-2">
+            <div className="font-mono text-[11px] text-warn/80 border border-border px-2 py-2 rounded-lg">
               {atlasErrors.map((e, i) => <div key={i}>{e}</div>)}
             </div>
           )}
 
           {/* Network region tables */}
           {networkKeys.map((key) => (
-            <div key={key} className="border border-border bg-panel p-2 space-y-1" data-testid={`lnm-net-${key}`}>
-              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+            <div key={key} className="border border-border bg-panel p-2 space-y-1 rounded-lg" data-testid={`lnm-net-${key}`}>
+              <div className="cap text-subtle">
                 {LNM_NETWORK_LABELS[key]}
               </div>
               <div className="max-h-40 overflow-y-auto">
                 {(networks[key] || []).map((r, i) => (
-                  <div key={i} className="flex justify-between text-[10px] text-muted-foreground">
+                  <div key={i} className="flex justify-between text-[11.5px] text-muted-foreground">
                     <span className="truncate pr-2">{r.name}</span>
                     <span className="text-muted-foreground tabular-nums whitespace-nowrap">
                       {r.voxels} · {r.pct}% · {result.metric}{r.mean_t}
@@ -734,7 +740,7 @@ export const DaLnMapperPanel = ({
             <div className="grid grid-cols-2 gap-1.5">
               {fileKeys.map((k) => (
                 <a key={k} href={lnmResultUrl(result.files[k])} download
-                  className="flex items-center justify-center gap-1 py-1.5 text-[9px] uppercase tracking-[0.1em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground no-underline"
+                  className="btn flex items-center justify-center gap-1 no-underline"
                   data-testid={`lnm-download-${k}`}>
                   <Download size={10} />{FILE_LABELS[k]}
                 </a>
@@ -744,12 +750,12 @@ export const DaLnMapperPanel = ({
 
           <div className="grid grid-cols-2 gap-1.5">
             <button onClick={handleOpenReport}
-              className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              className="btn flex items-center justify-center gap-1.5"
               data-testid="lnm-open-report">
               <FileCode size={11} />Report
             </button>
             <button onClick={exportCsv}
-              className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              className="btn flex items-center justify-center gap-1.5"
               data-testid="lnm-export-csv">
               <FileSpreadsheet size={11} />CSV
             </button>
@@ -757,7 +763,7 @@ export const DaLnMapperPanel = ({
           <ReportDialog
             open={reportOpen}
             onOpenChange={setReportOpen}
-            title="Lesion Network Mapping Report"
+            title="Lesion network mapping report"
             subject={getFile()?.name}
             html={result ? buildReport("lnm", { result, lesionName: getFile()?.name, images: result.images }) : null}
             filename={`lnm_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}
@@ -769,7 +775,7 @@ export const DaLnMapperPanel = ({
           102), so it shows a real staged progress bar; the specificity phase
           fills from ~0→100%. */}
       <RunningIndicator
-        title="Lesion Network Map"
+        title="Lesion network map"
         active={busy}
         message={job?.message}
         progress={job?.progress}

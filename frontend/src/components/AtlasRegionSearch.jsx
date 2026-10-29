@@ -42,7 +42,7 @@ export default function AtlasRegionSearch({ atlases, atlasRegions, onNavigate })
 
   return (
     <div className="relative min-w-0 flex-1">
-      <div className="flex items-center gap-1 border border-border px-2">
+      <div className="flex items-center gap-1 border border-border px-2 rounded-lg">
         <Search size={12} className="shrink-0 opacity-60" />
         <input
           type="text"
@@ -52,13 +52,13 @@ export default function AtlasRegionSearch({ atlases, atlasRegions, onNavigate })
           // A click on a result must land before the blur closes the list.
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Find a region in any atlas…"
-          className="min-w-0 flex-1 bg-transparent py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-1 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none"
           data-testid="atlas-region-search"
         />
       </div>
 
       {open && query.trim().length >= 2 && (
-        <div className="absolute left-0 right-0 top-full z-30 max-h-64 overflow-y-auto border border-border bg-panel shadow-lg">
+        <div className="popover absolute left-0 right-0 top-full z-30 max-h-64 overflow-y-auto">
           {hits.map((h) => (
             <button
               key={`${h.atlasId}-${h.value}`}
@@ -67,18 +67,18 @@ export default function AtlasRegionSearch({ atlases, atlasRegions, onNavigate })
                 onNavigate?.(h.atlasId, h.value);
                 setOpen(false);
               }}
-              className="flex w-full items-center justify-between gap-2 px-2 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-panel-hover hover:text-foreground"
+              className="flex w-full items-center justify-between gap-2 px-2 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:bg-panel-hover hover:text-foreground"
               data-testid={`atlas-search-hit-${h.atlasId}-${h.value}`}
             >
               <span className="truncate">{h.name}</span>
               <span className="flex shrink-0 items-center gap-1 opacity-60">
-                <span className="text-[10px]">{h.atlasShort}</span>
+                <span className="text-[11.5px]">{h.atlasShort}</span>
                 <Crosshair size={11} />
               </span>
             </button>
           ))}
           {!hits.length && (
-            <div className="px-2 py-1 text-[11px] text-muted-foreground">
+            <div className="px-2 py-1 text-[12px] text-muted-foreground">
               No region matches “{query.trim()}”.
             </div>
           )}

@@ -1,5 +1,5 @@
 {
-  "//": "Full-install electron-builder overlay, merged over frontend/package.json 'build' via `electron-builder -c` (yarn dist:win:full). It adds the two OPTIONAL Python stacks to extraResources so the NSIS installer can offer them as toggleable components. Run `tools/build/assemble-bundle.ps1 -Full` FIRST so MRLatte-build/MRLatte/python-reports and python-validation exist; otherwise electron-builder errors on the missing `from` paths. Paths are relative to frontend/, matching package.json.",
+  "//": "Full-install electron-builder overlay, merged over frontend/package.json 'build' via `electron-builder -c` (yarn dist:win:full). It adds the OPTIONAL Python stacks to extraResources so the NSIS installer can offer them as toggleable components. Run `tools/build/assemble-bundle.ps1 -Full` FIRST so MRLatte-build/MRLatte/python-reports, python-validation, python-longitudinal and python-dissection exist; otherwise electron-builder errors on the missing `from` paths. Paths are relative to frontend/, matching package.json.",
   "extraResources": [
     { "from": "../../MRLatte-build/MRLatte/python", "to": "python" },
     { "from": "../../MRLatte-build/MRLatte/backend", "to": "backend" },
@@ -8,7 +8,9 @@
     { "from": "../../MRLatte-build/MRLatte/modules", "to": "modules" },
     { "from": "../../MRLatte-build/MRLatte/frontend_build", "to": "frontend_build" },
     { "from": "../../MRLatte-build/MRLatte/python-reports", "to": "python-reports" },
-    { "from": "../../MRLatte-build/MRLatte/python-validation", "to": "python-validation" }
+    { "from": "../../MRLatte-build/MRLatte/python-validation", "to": "python-validation" },
+    { "from": "../../MRLatte-build/MRLatte/python-longitudinal", "to": "python-longitudinal" },
+    { "from": "../../MRLatte-build/MRLatte/python-dissection", "to": "python-dissection" }
   ],
   "win": { "artifactName": "MRLatte-Setup-${version}-full-${arch}.${ext}" }
 }

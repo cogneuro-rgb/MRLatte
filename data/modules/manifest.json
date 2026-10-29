@@ -17,6 +17,7 @@
     "`sha256` is null until the phase-4 release pipeline fills it in; the API",
     "reports verified=false for any module without a recorded hash verification."
   ],
+  "releaseBase": "https://github.com/cogneuro-rgb/MRLatte/releases/download",
   "modules": [
     {
       "id": "mni152-template",
@@ -24,6 +25,8 @@
       "description": "Standard-space anatomical template used as the default base volume, plus the 2 mm MNI152 brain mask that bounds every lesion-network-mapping output.",
       "type": "data",
       "tier": "core",
+      "group": "template",
+      "bundled": true,
       "version": "2009c",
       "unlocks": [
         "template"
@@ -65,16 +68,19 @@
       ]
     },
     {
-      "id": "atlases-core",
-      "name": "Core atlases (AAL, Harvard-Oxford, Destrieux, Jülich, Yeo-7, visfAtlas)",
-      "description": "Cortical, subcortical and functional parcellations used for region labelling, the tract-dissection breakdown and lesion network mapping. Each atlas is a self-describing folder and can be removed on its own from the Atlas Manager.",
+      "id": "atlas-aal",
+      "name": "AAL · Whole Brain",
+      "description": "Automated Anatomical Labeling · cortical and subcortical regions",
       "type": "data",
       "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "aal",
       "version": "1.0.0",
       "unlocks": [
-        "atlases"
+        "atlas:aal"
       ],
-      "bytes": 1951962,
+      "bytes": 64790,
       "sha256": null,
       "installTo": "atlases",
       "envVar": "ATLAS_DIR",
@@ -95,7 +101,46 @@
           "bytes": 537,
           "sha256": "569005de0e49d341a9d9fc34622b9ed842a59c6cdd7676e6271c2c391b008468",
           "mutable": true
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "Tzourio-Mazoyer et al. 2002",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-aal.zip"
         },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-harvard-oxford-cort",
+      "name": "Harvard-Oxford · Cortical",
+      "description": "48 cortical regions · max-prob threshold 25%",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "harvard_oxford_cort",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:harvard_oxford_cort"
+      ],
+      "bytes": 275505,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
         {
           "path": "harvard_oxford_cort/atlas.json",
           "bytes": 604,
@@ -112,7 +157,46 @@
           "path": "harvard_oxford_cort/harvard_oxford_cort.nii.gz",
           "bytes": 266743,
           "sha256": "c6a54049468f873d854077c7eb1ae3da2f96c5c8025ef1e0430fac172e989c01"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "Harvard CMA / FSL",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-harvard-oxford-cort.zip"
         },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-harvard-oxford-sub",
+      "name": "Harvard-Oxford · Subcortical",
+      "description": "21 subcortical structures · max-prob threshold 25%",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "harvard_oxford_sub",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:harvard_oxford_sub"
+      ],
+      "bytes": 500502,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
         {
           "path": "harvard_oxford_sub/atlas.json",
           "bytes": 587,
@@ -129,7 +213,46 @@
           "path": "harvard_oxford_sub/harvard_oxford_sub.nii.gz",
           "bytes": 496603,
           "sha256": "7d74b209d8258054afbd0ea127b8d81e2810ba66b30f104e85a6372e5277285e"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "Harvard CMA / FSL",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-harvard-oxford-sub.zip"
         },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-destrieux",
+      "name": "Destrieux · FreeSurfer aparc.a2009s",
+      "description": "Sulco-gyral cortical regions from the FreeSurfer 2009 parcellation",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "destrieux",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:destrieux"
+      ],
+      "bytes": 113346,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
         {
           "path": "destrieux/atlas.json",
           "bytes": 573,
@@ -146,7 +269,46 @@
           "path": "destrieux/destrieux.nii.gz",
           "bytes": 88880,
           "sha256": "0457d1eb61e69a4ad66cbd484c089dc81db21eea43e464920f81aa43c1e4c66c"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "Destrieux et al. 2010",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-destrieux.zip"
         },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-juelich",
+      "name": "Jülich · Cortex + White Matter",
+      "description": "Cyto/myelo-architectonic regions including white-matter tracts",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "juelich",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:juelich"
+      ],
+      "bytes": 321894,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
         {
           "path": "juelich/atlas.json",
           "bytes": 557,
@@ -163,11 +325,50 @@
           "path": "juelich/juelich.nii.gz",
           "bytes": 310811,
           "sha256": "8b398a8dbd5d49231c607f4ff2cf229f10a5557e8290fd129f66e10601c1c7be"
+        }
+      ],
+      "license": {
+        "spdx": "LicenseRef-FSL-Atlases",
+        "attribution": "Eickhoff et al. 2005",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-juelich.zip"
         },
         {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-yeo7",
+      "name": "Yeo-7 · Functional Networks",
+      "description": "Seven cortical resting-state networks (liberal mask)",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "yeo7",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:yeo7"
+      ],
+      "bytes": 491728,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
           "path": "yeo7/atlas.json",
-          "bytes": 545,
-          "sha256": "345e649320fcdab89e435db15cbbbb074f08f2963c149a85e0dc54d0567c947e",
+          "bytes": 588,
+          "sha256": "d86eb35acd601e707f78840c8c7407278015b53c485446cabf05a609ba640c00",
           "mutable": true
         },
         {
@@ -180,7 +381,46 @@
           "path": "yeo7/yeo7.nii.gz",
           "bytes": 490051,
           "sha256": "058709f3e8606b02a33b80e66ab83711491d20f99f32da0525ba2ec8275f1f17"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Yeo, Krienen et al. 2011",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-yeo7.zip"
         },
+        {
+          "type": "upstream",
+          "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-visfatlas",
+      "name": "visfAtlas · Maastricht Functional",
+      "description": "33 ROIs across higher visual cortex (FFA / PPA / EBA / hMT / V1-V3 d·v)",
+      "type": "data",
+      "tier": "core",
+      "group": "parcellation",
+      "bundled": true,
+      "atlasId": "visfatlas",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:visfatlas"
+      ],
+      "bytes": 184240,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
         {
           "path": "visfatlas/atlas.json",
           "bytes": 580,
@@ -200,19 +440,517 @@
         }
       ],
       "license": {
-        "spdx": "LicenseRef-FSL-Atlases",
-        "attribution": "AAL (Tzourio-Mazoyer 2002); Harvard-Oxford (Harvard CMA / FSL); Destrieux (Destrieux 2010); Juelich (Eickhoff 2005). Distributed with FSL / nilearn. Yeo-7 functional networks: Yeo, Krienen et al., J Neurophysiol 106:1125-65 (2011), freely redistributable (7Networks liberal-mask parcellation, MNI152).",
+        "spdx": "CC-BY-4.0",
+        "attribution": "Rosenke et al. 2020",
         "redistributable": true
       },
       "sources": [
         {
           "type": "github-release",
           "tag": "modules-v1",
-          "asset": "atlases-core.zip"
+          "asset": "atlas-visfatlas.zip"
         },
         {
           "type": "upstream",
           "url": "https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Atlases"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-jhu-wm",
+      "name": "JHU · White-Matter Labels",
+      "description": "ICBM-DTI-81 white-matter parcellation",
+      "type": "data",
+      "tier": "optional",
+      "group": "tracts",
+      "bundled": false,
+      "atlasId": "jhu_wm",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:jhu_wm"
+      ],
+      "bytes": 148206,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "jhu_wm/atlas.json",
+          "bytes": 505,
+          "sha256": "1f6077f394169f9f7289de2adc79db34f9233e9c6cd1ade6f84f85c0037878e0",
+          "mutable": true
+        },
+        {
+          "path": "jhu_wm/jhu_wm.labels.json",
+          "bytes": 8101,
+          "sha256": "4e4411c71afa499cab6784a75dc546e190596c194810aaa41215e0644758011e",
+          "mutable": true
+        },
+        {
+          "path": "jhu_wm/jhu_wm.nii.gz",
+          "bytes": 139600,
+          "sha256": "60db0d4b589ca60f42772349c52ec597ab4b362f3f1acbe7997f7e21516b61cd"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Mori et al.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-jhu-wm.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://brain.labsolver.org/hcp_template.html"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-hcp1065",
+      "name": "HCP1065 · Named White-Matter Tracts",
+      "description": "DSI Studio HCP1065 population tractography atlas · 87 named bundles",
+      "type": "data",
+      "tier": "optional",
+      "group": "tracts",
+      "bundled": false,
+      "atlasId": "hcp1065_tracts",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:hcp1065_tracts"
+      ],
+      "bytes": 7416510,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "hcp1065_tracts/atlas.json",
+          "bytes": 663,
+          "sha256": "5c73c6478f8aa7e3210343295c368ba647967a9fa15df5e775f35e61b0b09167",
+          "mutable": true
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.labels.json",
+          "bytes": 14707,
+          "sha256": "3d83afc98011eb68d2758ba53b1039886b3b8e175dc6bbdb91d249ab67cd9781",
+          "mutable": true
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.nii.gz",
+          "bytes": 1253260,
+          "sha256": "86526405397ae7112ef0a08511147fb81104f8e3b0fea185e63fa8e5ce0eedab"
+        },
+        {
+          "path": "hcp1065_tracts/hcp1065_tracts.tracts4d.nii.gz",
+          "bytes": 6147880,
+          "sha256": "3cab84549e51bde8e818f2e7c0ffb7c9d419dbd6d7de6879a6311e8eee7955a1"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Yeh et al. 2022 (DSI Studio)",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-hcp1065.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://brain.labsolver.org/hcp_template.html"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-hcp842",
+      "name": "HCP842 · Named White-Matter Tracts",
+      "description": "DSI Studio HCP842 population tractography atlas · 80 named bundles",
+      "type": "data",
+      "tier": "optional",
+      "group": "tracts",
+      "bundled": false,
+      "atlasId": "hcp842_tracts",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:hcp842_tracts"
+      ],
+      "bytes": 2628053,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "hcp842_tracts/atlas.json",
+          "bytes": 627,
+          "sha256": "af508e42740be0a1452f75a5c06e6aa6be32dfc74ea07e2b4b99058480e424a2",
+          "mutable": true
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.labels.json",
+          "bytes": 13195,
+          "sha256": "ba4ea528855b44759a5b2d319f85ae8a167b2344ffe6a30ceb545d8b98a022f6",
+          "mutable": true
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.nii.gz",
+          "bytes": 785492,
+          "sha256": "1548c6c8f183855be05e8ea20a67bf5bf4189c6de6b8bf7e00f80d87d1338cf4"
+        },
+        {
+          "path": "hcp842_tracts/hcp842_tracts.tracts4d.nii.gz",
+          "bytes": 1828739,
+          "sha256": "c5851393ac1a621f0491f69c7b68a4d6128c46c0822cb201147e76f4fdbdcbba"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Yeh et al. (DSI Studio)",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-hcp842.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://brain.labsolver.org/hcp_template.html"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "atlas-iit",
+      "name": "IIT · Named White-Matter Tracts",
+      "description": "IIT Human Brain Atlas named bundles",
+      "type": "data",
+      "tier": "optional",
+      "group": "tracts",
+      "bundled": false,
+      "atlasId": "iit_tracts",
+      "version": "1.0.0",
+      "unlocks": [
+        "atlas:iit_tracts"
+      ],
+      "bytes": 491128,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "iit_tracts/atlas.json",
+          "bytes": 525,
+          "sha256": "aead571aff301da88e1852b6dd51b1c7d20f88735a5965ab9e08351d571c5a1b",
+          "mutable": true
+        },
+        {
+          "path": "iit_tracts/iit_tracts.labels.json",
+          "bytes": 7181,
+          "sha256": "60f549d8b567f14d6d4d556054c4056a219b856787aad6330f0d60ffcd9f2801",
+          "mutable": true
+        },
+        {
+          "path": "iit_tracts/iit_tracts.nii.gz",
+          "bytes": 483422,
+          "sha256": "6efd5a7609981f832cc6bd6a54d99529879bb63b08f47912aec249b377b32dc8"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Varentsova / Zhang",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "atlas-iit.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://brain.labsolver.org/hcp_template.html"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "retinotopy-benson14",
+      "name": "Retinotopy: Benson 2014 (+ white-matter projection)",
+      "description": "Polar-angle, eccentricity and visual-area maps (Benson 2014), the V1-V5 mask and their white-matter projection. The Retinotopy section and the visual-field deficit analysis need it.",
+      "type": "data",
+      "tier": "optional",
+      "group": "retinotopy",
+      "bundled": false,
+      "version": "1.0.0",
+      "unlocks": [
+        "retinotopy"
+      ],
+      "bytes": 6949589,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "benson14/benson14_polar_angle.nii.gz",
+          "bytes": 1651292,
+          "sha256": "5031db4f7a9a35a00edb7d106272a71de02f27a0af43d0e2fe16b64c6015347f"
+        },
+        {
+          "path": "benson14/benson14_eccentricity.nii.gz",
+          "bytes": 1687820,
+          "sha256": "e84ddeca066a4679ca5ecfba63242d3a6009f2c1d4307ae01fec5ad9ae244b3f"
+        },
+        {
+          "path": "benson14/benson14_visual_areas.nii.gz",
+          "bytes": 216825,
+          "sha256": "86aec591168599710cff9fac2bfaef0c289fac044deadcc7ed1d386a2d999da9"
+        },
+        {
+          "path": "misc/visual_areas_v1v5.nii.gz",
+          "bytes": 198259,
+          "sha256": "ad2555e8864fdcdc509df183fb0bfdf58a3806fe6669b9cd651e589cc03f380e"
+        },
+        {
+          "path": "wm_retinotopy/wm_eccentricity.nii.gz",
+          "bytes": 2133813,
+          "sha256": "d52bfa7adc02b548bbe0c8755307369a3d3a26e0aa29de6fc8da21ba4149594e"
+        },
+        {
+          "path": "wm_retinotopy/wm_polar_angle.nii.gz",
+          "bytes": 1061580,
+          "sha256": "9820afc03e4b58efc3a90e544bd5f76593b1073ed59b346b95ad70e641e80bde"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Benson et al. 2014 (anatomically-defined retinotopy); volumetric projection via neuropythy.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "retinotopy-benson14.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://github.com/noahbenson/neuropythy"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "retinotopy-wang2015",
+      "name": "Retinotopy: Wang 2015 visual areas",
+      "description": "Wang 2015 visual-area atlas: the maximum-probability map and the probability map the Retinotopy section shows as a layer.",
+      "type": "data",
+      "tier": "optional",
+      "group": "retinotopy",
+      "bundled": false,
+      "version": "1.0.0",
+      "unlocks": [
+        "retinotopy-wang"
+      ],
+      "bytes": 4793319,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "wang2015/wang2015_labels.json",
+          "bytes": 403,
+          "sha256": "8f6640c329e31c0dbb63d5576cd7e8a772b069457466153df580863750811a27"
+        },
+        {
+          "path": "wang2015/wang2015_maxprob.nii.gz",
+          "bytes": 218955,
+          "sha256": "5118681dfc928ca431a87967e32efa78c7a9e33bdd09dd727bd022f61b84b0cc"
+        },
+        {
+          "path": "wang2015/wang2015_prob.nii.gz",
+          "bytes": 4573961,
+          "sha256": "9048def5cb1efbc98a92ca14c78dbd3a2a4125e37f60658f06e753b805531eb3"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Wang et al. 2015 (probabilistic visual area atlas); volumetric projection via neuropythy.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "retinotopy-wang2015.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://github.com/noahbenson/neuropythy"
+        },
+        {
+          "type": "sideload"
+        }
+      ]
+    },
+    {
+      "id": "validation-surfaces",
+      "name": "Validation reference surfaces",
+      "description": "Cortical surfaces and the surface-format Benson/Wang maps that the atlas round-trip validation projects and compares. Only validation uses them.",
+      "type": "data",
+      "tier": "optional",
+      "group": "validation",
+      "bundled": false,
+      "version": "1.0.0",
+      "unlocks": [
+        "validation"
+      ],
+      "bytes": 9418935,
+      "sha256": null,
+      "installTo": "atlases",
+      "envVar": "ATLAS_DIR",
+      "files": [
+        {
+          "path": "surfaces/conte69_lh_inflated.gii",
+          "bytes": 726516,
+          "sha256": "519601c7dde7bd46e61e9bffe0e070d81afdf5aeb7fd961772f313e572a6672c"
+        },
+        {
+          "path": "surfaces/conte69_rh_inflated.gii",
+          "bytes": 714901,
+          "sha256": "12a41a92febc10b4f5856fe8a701633c3cddf3036719cf216adbf13b2226df6c"
+        },
+        {
+          "path": "surfaces/fs_LR_lh_inflated.gii",
+          "bytes": 723816,
+          "sha256": "acfc9d20a9927b745a5fc78d9f6b1a42c2aafc6748cc5802796940e22db3ad5d"
+        },
+        {
+          "path": "surfaces/fsaverage_lh_inflated.gii.gz",
+          "bytes": 3182963,
+          "sha256": "604be7ff7ad4bf9753aed87b58f8ccd505c06d09c6bb95dc71c407d0b0c0d6d7"
+        },
+        {
+          "path": "surfaces/fsaverage_rh_inflated.gii.gz",
+          "bytes": 3183972,
+          "sha256": "34594673b4d0934068435848f819c7297f0fd171a7761b4fea10b642d00e2180"
+        },
+        {
+          "path": "benson14/lh.benson14_angle.v4_0.mgz",
+          "bytes": 69387,
+          "sha256": "6c1c401c3e2cd9caf2057138d328e91575174f7adcb9f39741a26040d511eb91"
+        },
+        {
+          "path": "benson14/lh.benson14_eccen.v4_0.mgz",
+          "bytes": 70917,
+          "sha256": "81b8603dfbbd9e4c2fc7ad1d83e05189f32a9a793065560e62a043f87888be9e"
+        },
+        {
+          "path": "benson14/lh.benson14_eccentricity.gii",
+          "bytes": 91899,
+          "sha256": "07c86adbf3eebe77e69f0b6b1d25b8b05eae6cde1fae7467e494fff77cd43952"
+        },
+        {
+          "path": "benson14/lh.benson14_polar_angle.gii",
+          "bytes": 89463,
+          "sha256": "a9e18635590243b7aab6aac2a9615f07383d29cf4fb6040e9bdc3d207244bbfa"
+        },
+        {
+          "path": "benson14/lh.benson14_polar_angle_signed.gii",
+          "bytes": 89463,
+          "sha256": "a9e18635590243b7aab6aac2a9615f07383d29cf4fb6040e9bdc3d207244bbfa"
+        },
+        {
+          "path": "benson14/lh.benson14_varea.v4_0.mgz",
+          "bytes": 10696,
+          "sha256": "f407ca31b96f99490db8ff161ee1910e384da601657840bd65c3020e922475f5"
+        },
+        {
+          "path": "benson14/lh.benson14_visual_areas.gii",
+          "bytes": 8735,
+          "sha256": "856928ff2231e955dda56035b41c974f45f4b3108272572529152836f258945d"
+        },
+        {
+          "path": "benson14/rh.benson14_angle.v4_0.mgz",
+          "bytes": 69773,
+          "sha256": "738535864904e5b34bca50ef552eb634194084bf700bd1fd9d8fe1cb54a00161"
+        },
+        {
+          "path": "benson14/rh.benson14_eccen.v4_0.mgz",
+          "bytes": 71280,
+          "sha256": "2b737c23f9a3e93dce5765411124107f07b9492fd5b0ea5c947cd446db777913"
+        },
+        {
+          "path": "benson14/rh.benson14_eccentricity.gii",
+          "bytes": 92391,
+          "sha256": "cf9beab99c8fc1c6854a81fd7e684ed043157b412ecd5a888aee3cb8ae867279"
+        },
+        {
+          "path": "benson14/rh.benson14_polar_angle.gii",
+          "bytes": 90035,
+          "sha256": "af88c9562508e16efe199cd3bfe04d120540fc1c5d8d29ba537f152b5d500994"
+        },
+        {
+          "path": "benson14/rh.benson14_polar_angle_signed.gii",
+          "bytes": 89927,
+          "sha256": "ad34a9a2a5c06ba714383c3f4993324cfadb728a08076c7797cc3af6ce6706cd"
+        },
+        {
+          "path": "benson14/rh.benson14_varea.v4_0.mgz",
+          "bytes": 10926,
+          "sha256": "afe8c07267cc2e4bc00695f475817f36835f6ad26be26e2bc975393d44492dd0"
+        },
+        {
+          "path": "benson14/rh.benson14_visual_areas.gii",
+          "bytes": 8951,
+          "sha256": "d346f736864ab6cdbbcb20ac59df3760d124fd30158780024c01791f381ffe33"
+        },
+        {
+          "path": "wang2015/lh.wang15_mplbl.v1_0.mgz",
+          "bytes": 11614,
+          "sha256": "20f95e93e7f450198277ad7e8e8206ccc5cb8938bc8892819e2f967db0e7c8bd"
+        },
+        {
+          "path": "wang2015/rh.wang15_mplbl.v1_0.mgz",
+          "bytes": 11310,
+          "sha256": "dfebccf830437bda5edd09b0f73cae9a6890ccbc922f4910ef7f2d061f9cfcb6"
+        }
+      ],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "Benson et al. 2014 (anatomically-defined retinotopy); Wang et al. 2015 (probabilistic visual area atlas); volumetric projections via neuropythy.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "github-release",
+          "tag": "modules-v1",
+          "asset": "validation-surfaces.zip"
+        },
+        {
+          "type": "upstream",
+          "url": "https://github.com/noahbenson/neuropythy"
         },
         {
           "type": "sideload"
@@ -249,6 +987,131 @@
       }
     },
     {
+      "id": "tract-dissection-dipy",
+      "name": "Tract dissection engine (dipy)",
+      "description": "The streamline engine behind virtual tract dissection and LQTpy Analysis's dissection stage. Dissection also needs the whole-brain tractogram. One-click install downloads dipy and what it needs from PyPI (about 15 MB), each file checked against its pinned hash.",
+      "type": "python-package",
+      "tier": "optional",
+      "version": "1.12",
+      "unlocks": [
+        "dissect"
+      ],
+      "bytes": 14534794,
+      "sha256": null,
+      "installTo": "python/dissection",
+      "pythonPackages": [
+        "dipy"
+      ],
+      "license": {
+        "spdx": "BSD-3-Clause",
+        "attribution": "DIPY — Garyfallidis et al., Frontiers in Neuroinformatics 2014.",
+        "redistributable": true
+      },
+      "sources": [
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/aa/0c/475ba982925d3c6a88849a39d1b27afc2d1c134691360ebfe19dee6055f8/dipy-1.12.1-cp311-cp311-win_amd64.whl",
+          "sha256": "97e6226e8ff9074e3dd4a5262a45c36dfbff971ad981a7b908c19054415b1481",
+          "bytes": 8887314
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/f7/20/e6c0ff62ca2ad1a396a34f4380bafccaaf8791ff8fccf3d995a1fc12d417/h5py-3.16.0-cp311-cp311-win_amd64.whl",
+          "sha256": "17d1f1630f92ad74494a9a7392ab25982ce2b469fc62da6074c0ce48366a2999",
+          "bytes": 3191673
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl",
+          "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+          "bytes": 80199
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/66/d0/66f981c7edcfdc76426031ee6b53cf5bfd6acfb9565a4b1d533fef93a43e/trx_python-0.6-py3-none-any.whl",
+          "sha256": "cf7892cb5c4c70d6e2e36bf73d96a7eea2d405b59e1c109cfc2dee8f675e54cb",
+          "bytes": 63683
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/07/ea/2e31b67051e91a133189e9c000c222502ddc6969856416de0d095de4c0b0/typer-0.27.3-py3-none-any.whl",
+          "sha256": "e50022f28b82a86313e54501317a1db64bf8f8d036ff8cfe5ca7e47675454aff",
+          "bytes": 123312
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "bytes": 5302
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl",
+          "sha256": "33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb",
+          "bytes": 310654
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl",
+          "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+          "bytes": 1250147
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl",
+          "sha256": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a",
+          "bytes": 91687
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl",
+          "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+          "bytes": 9979
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl",
+          "sha256": "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686",
+          "bytes": 9755
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+          "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+          "bytes": 25335
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/c7/26/4a2bad8eb430d8d805a4642c4bff25103a37548d74ab346f8b1e024abcc5/deepdiff-9.1.0-py3-none-any.whl",
+          "sha256": "80c0460e1993b04f6f0ca79abf25548b129fd218478c4ebb08f80560f5d10610",
+          "bytes": 184662
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/03/83/67c1bf83f815294d2c3acd7631f25b5cbe6067e1d56495f76829dd60057b/cachebox-5.2.3-cp311-cp311-win_amd64.whl",
+          "sha256": "7e45798d6b969794840bb302857946d710ecb32af78dfcb3ab40f4e68ee7fdaf",
+          "bytes": 288024
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/12/27/fb8d7338b4d551900fa3e580acbe7a0cf655d940e164cb5c00ec31961094/orderly_set-5.5.0-py3-none-any.whl",
+          "sha256": "46f0b801948e98f427b412fcabb831677194c05c3b699b80de260374baa0b1e7",
+          "bytes": 13068
+        },
+        {
+          "type": "pip",
+          "requirements": "requirements-dissection.txt",
+          "packages": [
+            "dipy"
+          ]
+        },
+        {
+          "type": "upstream",
+          "url": "https://pypi.org/project/dipy/"
+        }
+      ]
+    },
+    {
       "id": "lnm-connectome",
       "name": "DA-LNM connectome bundle (user-supplied)",
       "description": "Per-subject component covariances used for degree-adjusted lesion network mapping. Any bundle produced by the DA-LNM preparation stage works, including a GSP1000 rebuild.",
@@ -279,196 +1142,57 @@
       }
     },
     {
-      "id": "retinotopy-benson-wang",
-      "name": "Retinotopy atlases (Benson 2014, Wang 2015)",
-      "description": "Polar-angle, eccentricity and visual-area maps driving the retinotopy section and the visual-field deficit analysis.",
-      "type": "data",
+      "id": "longitudinal-simpleitk",
+      "name": "Longitudinal comparison (SimpleITK)",
+      "description": "Python package behind the longitudinal compare: registers a follow-up scan to its baseline and makes the difference map. One-click install downloads the official SimpleITK wheel from PyPI (about 19 MB, 104 MB installed) and checks it against the pinned hash.",
+      "type": "python-package",
       "tier": "optional",
-      "version": "1.0.0",
+      "version": "2.5.6",
       "unlocks": [
-        "retinotopy"
+        "longitudinal"
       ],
-      "bytes": 3973554,
+      "bytes": 18925827,
       "sha256": null,
-      "installTo": "atlases",
-      "envVar": "ATLAS_DIR",
-      "files": [
-        {
-          "path": "benson14/benson14_polar_angle.nii.gz",
-          "bytes": 1651292,
-          "sha256": "5031db4f7a9a35a00edb7d106272a71de02f27a0af43d0e2fe16b64c6015347f"
-        },
-        {
-          "path": "benson14/benson14_eccentricity.nii.gz",
-          "bytes": 1687820,
-          "sha256": "e84ddeca066a4679ca5ecfba63242d3a6009f2c1d4307ae01fec5ad9ae244b3f"
-        },
-        {
-          "path": "benson14/benson14_visual_areas.nii.gz",
-          "bytes": 216825,
-          "sha256": "86aec591168599710cff9fac2bfaef0c289fac044deadcc7ed1d386a2d999da9"
-        },
-        {
-          "path": "wang2015/wang2015_maxprob.nii.gz",
-          "bytes": 218955,
-          "sha256": "5118681dfc928ca431a87967e32efa78c7a9e33bdd09dd727bd022f61b84b0cc"
-        },
-        {
-          "path": "wang2015/wang2015_labels.json",
-          "bytes": 403,
-          "sha256": "8f6640c329e31c0dbb63d5576cd7e8a772b069457466153df580863750811a27"
-        },
-        {
-          "path": "misc/visual_areas_v1v5.nii.gz",
-          "bytes": 198259,
-          "sha256": "ad2555e8864fdcdc509df183fb0bfdf58a3806fe6669b9cd651e589cc03f380e"
-        }
+      "installTo": "python/longitudinal",
+      "pythonPackages": [
+        "SimpleITK"
       ],
-      "license": {
-        "spdx": "CC-BY-4.0",
-        "attribution": "Benson et al. 2014 (anatomically-defined retinotopy); Wang et al. 2015 (probabilistic visual area atlas); volumetric projections via neuropythy.",
-        "redistributable": true
-      },
       "sources": [
         {
-          "type": "github-release",
-          "tag": "modules-v1",
-          "asset": "retinotopy-benson-wang.zip"
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/16/d0/a746280d0987413e443c26f19fe5c559fb3034160ee0a7307ae2d85e8d59/simpleitk-2.5.6-cp311-abi3-win_amd64.whl",
+          "sha256": "0002b298efb31332f99587cf26ed9f42c2c3ec006a0570f492dfc9ea27303d73",
+          "bytes": 18925827
+        },
+        {
+          "type": "pip",
+          "requirements": "requirements-longitudinal.txt",
+          "packages": [
+            "SimpleITK"
+          ]
         },
         {
           "type": "upstream",
-          "url": "https://github.com/noahbenson/neuropythy"
-        },
-        {
-          "type": "sideload"
-        }
-      ]
-    },
-    {
-      "id": "tract-atlases-hcp",
-      "name": "Tract atlases (HCP1065, HCP842, IIT, JHU)",
-      "description": "Named white-matter bundle atlases used for the tract-dissection region breakdown.",
-      "type": "data",
-      "tier": "optional",
-      "version": "1.0.0",
-      "unlocks": [
-        "tract-atlases"
-      ],
-      "bytes": 10683874,
-      "sha256": null,
-      "installTo": "atlases",
-      "envVar": "ATLAS_DIR",
-      "files": [
-        {
-          "path": "jhu_wm/atlas.json",
-          "bytes": 505,
-          "sha256": "1f6077f394169f9f7289de2adc79db34f9233e9c6cd1ade6f84f85c0037878e0",
-          "mutable": true
-        },
-        {
-          "path": "jhu_wm/jhu_wm.labels.json",
-          "bytes": 8101,
-          "sha256": "4e4411c71afa499cab6784a75dc546e190596c194810aaa41215e0644758011e",
-          "mutable": true
-        },
-        {
-          "path": "jhu_wm/jhu_wm.nii.gz",
-          "bytes": 139600,
-          "sha256": "60db0d4b589ca60f42772349c52ec597ab4b362f3f1acbe7997f7e21516b61cd"
-        },
-        {
-          "path": "hcp1065_tracts/atlas.json",
-          "bytes": 640,
-          "sha256": "b06310c45b51c686185f1fcc1dd8a5c770f9a3fe3b1ec7688a8fec4e8b0a3007",
-          "mutable": true
-        },
-        {
-          "path": "hcp1065_tracts/hcp1065_tracts.labels.json",
-          "bytes": 14707,
-          "sha256": "3d83afc98011eb68d2758ba53b1039886b3b8e175dc6bbdb91d249ab67cd9781",
-          "mutable": true
-        },
-        {
-          "path": "hcp1065_tracts/hcp1065_tracts.nii.gz",
-          "bytes": 1253260,
-          "sha256": "86526405397ae7112ef0a08511147fb81104f8e3b0fea185e63fa8e5ce0eedab"
-        },
-        {
-          "path": "hcp1065_tracts/hcp1065_tracts.tracts4d.nii.gz",
-          "bytes": 6147880,
-          "sha256": "3cab84549e51bde8e818f2e7c0ffb7c9d419dbd6d7de6879a6311e8eee7955a1"
-        },
-        {
-          "path": "hcp842_tracts/atlas.json",
-          "bytes": 627,
-          "sha256": "af508e42740be0a1452f75a5c06e6aa6be32dfc74ea07e2b4b99058480e424a2",
-          "mutable": true
-        },
-        {
-          "path": "hcp842_tracts/hcp842_tracts.labels.json",
-          "bytes": 13195,
-          "sha256": "ba4ea528855b44759a5b2d319f85ae8a167b2344ffe6a30ceb545d8b98a022f6",
-          "mutable": true
-        },
-        {
-          "path": "hcp842_tracts/hcp842_tracts.nii.gz",
-          "bytes": 785492,
-          "sha256": "1548c6c8f183855be05e8ea20a67bf5bf4189c6de6b8bf7e00f80d87d1338cf4"
-        },
-        {
-          "path": "hcp842_tracts/hcp842_tracts.tracts4d.nii.gz",
-          "bytes": 1828739,
-          "sha256": "c5851393ac1a621f0491f69c7b68a4d6128c46c0822cb201147e76f4fdbdcbba"
-        },
-        {
-          "path": "iit_tracts/atlas.json",
-          "bytes": 525,
-          "sha256": "aead571aff301da88e1852b6dd51b1c7d20f88735a5965ab9e08351d571c5a1b",
-          "mutable": true
-        },
-        {
-          "path": "iit_tracts/iit_tracts.labels.json",
-          "bytes": 7181,
-          "sha256": "60f549d8b567f14d6d4d556054c4056a219b856787aad6330f0d60ffcd9f2801",
-          "mutable": true
-        },
-        {
-          "path": "iit_tracts/iit_tracts.nii.gz",
-          "bytes": 483422,
-          "sha256": "6efd5a7609981f832cc6bd6a54d99529879bb63b08f47912aec249b377b32dc8"
+          "url": "https://pypi.org/project/SimpleITK/2.5.6/"
         }
       ],
       "license": {
-        "spdx": "CC-BY-4.0",
-        "attribution": "HCP1065/HCP842 population tract atlases (Yeh et al., DSI Studio); IIT Human Brain Atlas (Varentsova/Zhang); JHU white-matter labels (Mori et al.).",
+        "spdx": "Apache-2.0",
+        "attribution": "SimpleITK — Insight Software Consortium.",
         "redistributable": true
-      },
-      "sources": [
-        {
-          "type": "github-release",
-          "tag": "modules-v1",
-          "asset": "tract-atlases-hcp.zip"
-        },
-        {
-          "type": "upstream",
-          "url": "https://brain.labsolver.org/hcp_template.html"
-        },
-        {
-          "type": "sideload"
-        }
-      ]
+      }
     },
     {
       "id": "validation-neuropythy",
       "name": "Retinotopy validation toolchain (neuropythy)",
-      "description": "Python package backing the Benson/Wang round-trip validation endpoint. Serves exactly one endpoint (/api/validation/round-trip).",
+      "description": "Python package backing the Benson/Wang round-trip validation endpoint. Serves exactly one endpoint (/api/validation/round-trip). One-click install downloads neuropythy and what it needs from PyPI (about 41 MB), each file checked against its pinned hash.",
       "type": "python-package",
       "tier": "optional",
-      "version": "0.12",
+      "version": "0.13.0",
       "unlocks": [
         "validation"
       ],
-      "bytes": 33554432,
+      "bytes": 41249616,
       "sha256": null,
       "installTo": "python/validation",
       "pythonPackages": [
@@ -480,6 +1204,170 @@
         "redistributable": true
       },
       "sources": [
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "bytes": 11050
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/98/87/c6ef52ff30388f357922d08de012abdd3dc61e09311d88967bdae23ab657/pyrsistent-0.20.0-cp311-cp311-win_amd64.whl",
+          "sha256": "59a89bccd615551391f3237e00006a26bcf98a4d18623a19909a2c48b8e986ee",
+          "bytes": 63306
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/1b/dd/a9fe6a0a09512da23951c68bf36466aeecd89def3183dc095edbc807ddc5/pint-0.25.3-py3-none-any.whl",
+          "sha256": "27eb25143bd5de9fcc4d5a4b484f16faf6b4615aa93ece6b3373a8c1a3c1b97d",
+          "bytes": 307488
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/bd/db/ea0203e495be491c85af87b66e37acfd3bf756fd985f87e46fc5e3bf022c/py4j-0.10.9.9-py2.py3-none-any.whl",
+          "sha256": "c7c26e4158defb37b0bb124933163641a2ff6e3a3913f7811b0ddbe07ed61533",
+          "bytes": 203008
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/f7/20/e6c0ff62ca2ad1a396a34f4380bafccaaf8791ff8fccf3d995a1fc12d417/h5py-3.16.0-cp311-cp311-win_amd64.whl",
+          "sha256": "17d1f1630f92ad74494a9a7392ab25982ce2b469fc62da6074c0ce48366a2999",
+          "bytes": 3191673
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/bc/9c/15fb18bd708949dc953fe120be8d3c7a1b1b140c2592a9c81ce7961e9ecf/s3fs-2026.9.0-py3-none-any.whl",
+          "sha256": "eb185fd98e20a1c9375087d9b2a6ef506f0cd01ae0c0c94efc79f88403fb81fe",
+          "bytes": 33126
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/7f/bc/3bb8965204ba51bbf4d021bc89d1357cd2179a17ef71b5fc429e21b511a2/aiobotocore-3.10.0-py3-none-any.whl",
+          "sha256": "de0ccbcb82b6b0009f1b6667f48442e9d0432f9b8bfe6172fa51777cbea89d03",
+          "bytes": 102759
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/0f/15/52b5e65f02b33686ae49f1518548ae4f5a7adaf31d9d3c54fa12a143137b/aiohttp-3.14.5-cp311-cp311-win_amd64.whl",
+          "sha256": "6f275c11d1aa6d4c458e05a68be084efe3c55a113d99e3f46a318098e52948fc",
+          "bytes": 512575
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/10/a1/510b0a7fadc6f43a6ce50152e69dbd86415240835868bb0bd9b5b88b1e06/aioitertools-0.13.0-py3-none-any.whl",
+          "sha256": "0be0292b856f08dfac90e31f4739432f4cb6d7520ab9eb73e143f4f2fa5259be",
+          "bytes": 24182
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/10/94/050e35c9febf6dd2fce4a76be587ae4a323964865700467d9d7b082f7133/botocore-1.43.117-py3-none-any.whl",
+          "sha256": "5920ef9b3002e1361846549078549d9154a6e0004c22853c01ce7b279d05d495",
+          "bytes": 16061765
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl",
+          "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+          "bytes": 221738
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl",
+          "sha256": "a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64",
+          "bytes": 20419
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/1f/02/41d769148f32c9bd535fd0ddd946c4e42f38acaddf7899f3bf49d9e67703/multidict-7.2.1-cp311-cp311-win_amd64.whl",
+          "sha256": "a789e3d27fc5665cc0477f10a35a89383313e4c9cf8b5e6af7ea71f039cdcc0e",
+          "bytes": 94895
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+          "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+          "bytes": 229892
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/e6/d4/ae9ca837038a7a9aadb906eeca76b42df54e299edb29f8ac2cbad1d55b4f/wrapt-2.5.1-cp311-cp311-win_amd64.whl",
+          "sha256": "ce3889e3815f97d46414eb574bffdd9bdb41ff70f503097e2707615a87d4e92c",
+          "bytes": 105878
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/aa/9d/8cdceec66a9b940700cb45931741403f045b162afd79bcb93c41cadd0972/yarl-1.25.1-cp311-cp311-win_amd64.whl",
+          "sha256": "d7306dee25b8a0e737363f347362b875094b4dc4e367311470656ae420fdbf8e",
+          "bytes": 102894
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/71/43/1947f06babed6b3f1d7f38b0c767f52df66bfb2bc10b468c4a7de9eceff2/aiohappyeyeballs-2.7.1-py3-none-any.whl",
+          "sha256": "9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472",
+          "bytes": 15038
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/fb/76/641ae371508676492379f16e2fa48f4e2c11741bd63c48be4b12a6b09cba/aiosignal-1.4.0-py3-none-any.whl",
+          "sha256": "053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e",
+          "bytes": 7490
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
+          "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+          "bytes": 67548
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/27/cd/c883e1a7c447479d6e13985565080e3fea88ab5a107c21684c813dba1875/flexcache-0.3-py3-none-any.whl",
+          "sha256": "d43c9fea82336af6e0115e308d9d33a185390b8346a017564611f1466dcd2e32",
+          "bytes": 13263
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/fe/5e/3be305568fe5f34448807976dc82fc151d76c3e0e03958f34770286278c1/flexparser-0.4-py3-none-any.whl",
+          "sha256": "3738b456192dcb3e15620f324c447721023c0293f6af9955b481e91d00179846",
+          "bytes": 27625
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/0a/f5/603d0d6a02cfd4c8f2a095a54672b3cf967ad688a60fb9faf04fc4887f65/frozenlist-1.8.0-cp311-cp311-win_amd64.whl",
+          "sha256": "ac913f8403b36a2c8610bbfd25b8013488533e71e62b4b4adce9c86c8cea905b",
+          "bytes": 44064
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/6c/8a/1d8cb3842909dc193a73835adedf412e32e18f8ffd59f43983949622fe6f/platformdirs-4.13.5-py3-none-any.whl",
+          "sha256": "53d3ec4280b815c1e0b02edad7f9ee8fda1ba9c0865dd9c2e6e63849ce82fc1e",
+          "bytes": 32779
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/0a/8a/3db6a3543d8101263b4c52978b6276a04ead2caff2c5ab880d934f47bd89/propcache-0.5.4-cp311-cp311-win_amd64.whl",
+          "sha256": "e904d4d01f36bd6e197590be1533c44e06058771e0746dd073a8ebb3ef880858",
+          "bytes": 46268
+        },
+        {
+          "type": "sdist",
+          "url": "https://files.pythonhosted.org/packages/c1/a4/e6b3837e4dcd65a48782af2f29ea6fef2dbb6dbb5fd30d0a9066beabf96e/neuropythy-0.13.0.tar.gz",
+          "sha256": "fafca8ab1c26891e27e4733d63cdc9f57f1bedd0249a47581b0181823de22aaf",
+          "bytes": 19641132,
+          "extract": [
+            "neuropythy-0.13.0/src/neuropythy",
+            "neuropythy-0.13.0/src/neuropythy.egg-info"
+          ]
+        },
+        {
+          "type": "sdist",
+          "url": "https://files.pythonhosted.org/packages/30/b5/1f45ba97416106e1921cfe4723c25dba629ea2f9d57c9060276fa4c45d02/pimms-0.3.25.tar.gz",
+          "sha256": "c8712e71a7b7ac8d4fdb95636a397eee10206dc0d876016acc81ea216bbab2ec",
+          "bytes": 67761,
+          "extract": [
+            "pimms-0.3.25/pimms",
+            "pimms-0.3.25/pimms.egg-info"
+          ]
+        },
         {
           "type": "pip",
           "requirements": "requirements-validation.txt",
@@ -498,15 +1386,15 @@
     },
     {
       "id": "reports-figures",
-      "name": "Report figure renderer (nilearn, matplotlib)",
-      "description": "Plotting stack used by the One-Click Summary renderer to produce glass-brain PNGs, brainsprite views and the packaged report.",
+      "name": "Network-map figures (nilearn, matplotlib)",
+      "description": "Plotting stack for the lesion-network-mapping panel's own figures and the retinotopy validation check. Reports don't need it: MRLatte draws their figures itself. One-click install downloads nilearn, matplotlib, pandas and what they need from PyPI (about 51 MB), each file checked against its pinned hash.",
       "type": "python-package",
       "tier": "optional",
       "version": "1.0.0",
       "unlocks": [
         "reports"
       ],
-      "bytes": 199229440,
+      "bytes": 50730665,
       "sha256": null,
       "installTo": "python/reports",
       "pythonPackages": [
@@ -520,6 +1408,114 @@
         "redistributable": true
       },
       "sources": [
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/9e/4f/6d93620cf4c7f642a8fb85fef8b6e30a24764ef99774026550291dea6fdd/nilearn-0.14.1-py3-none-any.whl",
+          "sha256": "725206484e9fb3f6691f9c2d20204a068759d5072f12055324702ee0cb2bbe8a",
+          "bytes": 11509444
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/66/54/91fe3fdfa29100b4668cbf9721577a10acde6e009694618230e4e7a97527/matplotlib-3.11.2-cp311-cp311-win_amd64.whl",
+          "sha256": "a24d5fd36e4f0e742c3851dcd20810e56a95633a342e4bf6cb591c678e8fe61f",
+          "bytes": 9329982
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/f5/1a/e33f6637445dd4b7323aa7bdaf4cc15c383805b4a2e99f958b7e32296e58/pandas-3.1.0-cp311-cp311-win_amd64.whl",
+          "sha256": "a7704e3d7367cfae71d3f8c95ee81e178c7a90bef8d6eac30df9815010722259",
+          "bytes": 10977787
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/98/4b/9bd370b004b5c9d8045c6c33cf65bae018b27aca550a3f657cdc99acdbd8/contourpy-1.3.3-cp311-cp311-win_amd64.whl",
+          "sha256": "3519428f6be58431c56581f1694ba8e50626f2dd550af225f82fb5f5814d2a42",
+          "bytes": 225234
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/e7/05/c19819d5e3d95294a6f5947fb9b9629efb316b96de511b418c53d245aae6/cycler-0.12.1-py3-none-any.whl",
+          "sha256": "85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30",
+          "bytes": 8321
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/24/73/5c281531cf7899ae37a0937c62feed1f7d0e8a35538eea4d1595b52447e1/fonttools-4.67.0-cp311-cp311-win_amd64.whl",
+          "sha256": "33ae23a531795864fcdbbab91a40c824976e22642c05efca3bd8a0b00630d0e7",
+          "bytes": 1646300
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+          "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+          "bytes": 134899
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/18/53/84099323c2ec4be98d935f63c033ac4151ee83836ca1050ede3b3aadf155/joblib-1.6.0-py3-none-any.whl",
+          "sha256": "3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba",
+          "bytes": 306115
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl",
+          "sha256": "9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a",
+          "bytes": 22228
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/bf/9f/6f9e489c188200e6fb3193935501894811e8c97577c8ffe9033589bf3521/kiwisolver-1.5.1-cp311-cp311-win_amd64.whl",
+          "sha256": "1a7587dc335f2c0f5bd577fd0540bd16c66006bdb60f759a1059f025e6c4f071",
+          "bytes": 70744
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/91/89/f2b509f7bf79352e40117824c1070dbeafd4df67031d3fa98165a3134228/markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+          "sha256": "fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3",
+          "bytes": 14328
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/7d/f6/6e2d96413e4c9dbec12ea584d9e646d602877d4cce3ea669099f959deac6/pillow-13.0.0-cp311-cp311-win_amd64.whl",
+          "sha256": "d7710eb676e9bb68965cb045be0d333b4c0d7f9dfbaa7fbf121385b1588683d3",
+          "bytes": 7278471
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl",
+          "sha256": "ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4",
+          "bytes": 126420
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+          "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+          "bytes": 229892
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/29/8a/8d1e888fe3d0dd4e2a1f3356dad703eed569aaf673e222b6f647005ad30f/scikit_learn-1.9.1-cp311-cp311-win_amd64.whl",
+          "sha256": "220fa18152852a5ce29c49e1eaba9d44ec44631cd2e5cf65f5a40eafa5ab3412",
+          "bytes": 8329877
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/d1/89/5d4c86da1130d9059681e5b6cd7645df5c10279a6a079c5c37dcb2cc6f3f/narwhals-2.27.1-py3-none-any.whl",
+          "sha256": "d057df13f5852b8e157596e82eb5e955fad267425df5e420e0ee9863da483b31",
+          "bytes": 483211
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "bytes": 11050
+        },
+        {
+          "type": "wheel",
+          "url": "https://files.pythonhosted.org/packages/43/3f/f88a53f60a472b46f4023f56d204dd7de33d34c5d2acbfa0d70a674e639e/threadpoolctl-3.7.0-py3-none-any.whl",
+          "sha256": "cd8b60b5641b45c67bbf73c64c843235fc2d8a480c87389f52f5dbee893b86be",
+          "bytes": 26362
+        },
         {
           "type": "pip",
           "requirements": "requirements-reports.txt",

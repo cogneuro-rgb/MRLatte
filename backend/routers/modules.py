@@ -17,6 +17,7 @@ import hashlib
 import importlib.util
 import re
 import stat as _stat
+import tarfile
 import threading
 import time
 from pathlib import PurePosixPath
@@ -340,6 +341,13 @@ def module_snapshot() -> dict:
             "description": entry.get("description") or "",
             "type": mtype,
             "tier": entry.get("tier") or "optional",
+            # Atlas Manager grouping: data modules with a `group` live there,
+            # not in the module store. `atlasId` is the atlas registry folder.
+            "group": entry.get("group"),
+            "atlasId": entry.get("atlasId"),
+            "bundled": bool(entry.get("bundled")),
+            # Install copies the installer's own copy (no download) when true.
+            "bundledCopy": bool(_bundled_copy(entry)),
             "version": record.get("version") or entry.get("version"),
             "bytes": entry.get("bytes") or 0,
             "bytesHuman": human_bytes(entry.get("bytes")),
@@ -365,8 +373,8 @@ def module_snapshot() -> dict:
             "files": entry.get("files") or [],
             "sha256": entry.get("sha256"),
             # --- phase 4: what the store may offer for this module ---------
-            # `python-package` modules have a pip source and are deliberately
-            # not installable yet (no shelling out to pip this phase).
+            # A `python-package` module is installable only when its manifest
+            # pins its files (url + sha256 each); there is still no shelling out to pip.
             "sideloadable": mtype == "data",
             # Slots take a filesystem PATH, not an upload: the payloads run to
             # hundreds of MB and are validated structurally rather than by hash,
@@ -378,7 +386,11 @@ def module_snapshot() -> dict:
             # Named in the UI when an override is why a slot cannot be managed
             # from the app, so the message can say which variable to unset.
             "envVar": entry.get("envVar"),
-            "downloadable": mtype == "data" and bool(_download_url_for(entry, None)),
+            # A data module installs from the installer's own copy when it has
+            # one (no download), else from the release.
+            "downloadable": ((mtype == "data" and bool(_bundled_copy(entry)
+                                                       or _download_url_for(entry, None)))
+                             or (mtype == "python-package" and bool(_python_sources(entry)))),
             "sideloadOnly": mtype == "data" and not any(
                 s.get("type") == "github-release" for s in sources),
             # Slots include hand-dropped files: the slot directory is a place
@@ -386,7 +398,7 @@ def module_snapshot() -> dict:
             # _uninstall_slot's refusals via the shared helper.
             #
             # A `data` module also needs a ledger entry, unlike a slot: the repo
-            # ships tracked payloads (mni152-template, atlases-core) directly
+            # ships tracked payloads (the template and every atlas) directly
             # under the module root with no install record, and _uninstall_guard
             # refuses those with a 409 — this must agree or the button lies.
             "uninstallable": (
@@ -395,10 +407,15 @@ def module_snapshot() -> dict:
                  and mid in ledger)
                 or (mtype == "slot" and installed
                     and _slot_uninstallable(entry, record, slot_path_found))
+                or (mtype == "python-package" and installed and mid in ledger
+                    and not record.get("pendingRemoval"))
             ),
+            # Removed while in use: goes when MRLatte next starts.
+            "pendingRemoval": bool(mtype == "python-package" and record.get("pendingRemoval")),
             "repairable": mtype == "data" and state == "broken",
             "notInstallableReason": (
                 None if mtype in ("data", "slot")
+                or (mtype == "python-package" and _python_sources(entry))
                 else "Python-package modules are not installable from the app yet."
             ),
         })
@@ -719,11 +736,13 @@ def _discard_parts(items: list):
 
 def _member_is_link(info) -> bool:
     """True for a symlink or a Unix-special member. Zip stores the Unix mode in
-    the top 16 bits of external_attr when create_system == 3 (Unix)."""
+    the top 16 bits of external_attr when create_system == 3 (Unix). Some wheel
+    builders record permission bits only, with no file type (pint's METADATA is
+    0o644): that is a plain file."""
     if info.create_system != 3:
         return False
     mode = info.external_attr >> 16
-    if not mode:
+    if not _stat.S_IFMT(mode):
         return False
     return not (_stat.S_ISREG(mode) or _stat.S_ISDIR(mode))
 
@@ -856,6 +875,22 @@ def _install_raw_file(entry: dict, src_path: Path, items: list) -> list:
     return _promote(items)
 
 
+def _install_from_dir(entry: dict, src: Path, items: list) -> list:
+    """Copy a module's declared files from a folder laid out like the module
+    root (the installer's own copy), through the same .part → sha256 → promote
+    path as a download."""
+    try:
+        for it in items:
+            part = _part_of(it["dest"])
+            with open(src / it["rel"], "rb") as f:
+                actual, _n = _sha256_stream(f, part)
+            _verify_part(it, part, actual)
+    except Exception:
+        _discard_parts(items)
+        raise
+    return _promote(items)
+
+
 # === Ledger ===================================================================
 
 def _write_ledger(module_id: str, entry: dict, files: list, verified: bool):
@@ -896,8 +931,114 @@ def _atomic_json(path: Path, payload: dict):
         raise
 
 
+# === Bundled data modules (the installed app) =================================
+# The installer ships some data modules (the template and the core atlases) in
+# resources\modules, read-only; Electron passes that folder as
+# MRLATTE_BUNDLED_MODULES. At startup each is copied into the module root once,
+# hash-checked, and recorded in the ledger, so it is app-installed: removable,
+# and reinstalled from this copy without a download. A module seeded once is
+# never seeded again (manifest.seeded.json — its own file, because the ledger is
+# rewritten whole by both this router and modules.mjs), so a removal sticks.
+# Electron used to re-copy every missing file on every start, which brought
+# removed atlases back. Unset (a checkout), nothing is seeded or adopted and the
+# repo's own files stay unremovable (_uninstall_guard).
+
+def bundled_modules_dir():
+    """MRLATTE_BUNDLED_MODULES as a folder, or None (unset, or not a folder)."""
+    raw = os.environ.get("MRLATTE_BUNDLED_MODULES")
+    if not raw:
+        return None
+    path = Path(raw)
+    return path if path.is_dir() else None
+
+
+def _bundled_copy(entry: dict):
+    """The installer's copy of a data module — its `installTo` folder under the
+    bundled modules — when every declared file is there; else None."""
+    root = bundled_modules_dir()
+    files = entry.get("files")
+    if root is None or (entry.get("type") or "data") != "data" or not files:
+        return None
+    base = root / (entry.get("installTo") or "")
+    return base if all((base / (f.get("path") or "")).is_file() for f in files) else None
+
+
+def _seeded_path() -> Path:
+    return _module_root() / "manifest.seeded.json"
+
+
+def _load_seeded() -> set:
+    try:
+        return set(json.loads(_seeded_path().read_text(encoding="utf-8")).get("seeded") or [])
+    except Exception:  # noqa: BLE001 — absent before the first packaged start
+        return set()
+
+
+def _matches_pins(entry: dict, items: list) -> bool:
+    """Every declared file is on disk, and every one but a `mutable` file (an
+    atlas.json the app may rewrite) matches its pinned size and sha256."""
+    for f, it in zip(entry.get("files") or [], items):
+        dest = it["dest"]
+        if not dest.is_file():
+            return False
+        if f.get("mutable"):
+            continue
+        if (dest.stat().st_size != int(it.get("bytes") or -1)
+                or _sha256_of(dest).lower() != str(it.get("sha256") or "").lower()):
+            return False
+    return True
+
+
+def seed_bundled_modules() -> dict:
+    """At startup, before anything reads the atlases: seed each bundled data
+    module the first time this module root sees it, and adopt copies an older
+    build seeded with no ledger entry (every pinned file matches), so those are
+    removable too. Returns {"seeded": [ids], "adopted": [ids]}."""
+    done = {"seeded": [], "adopted": []}
+    if bundled_modules_dir() is None:
+        return done
+    seeded, ledger = _load_seeded(), _load_ledger()
+    before = set(seeded)
+    for entry in _load_manifest().get("modules") or []:
+        mid = entry.get("id")
+        if (entry.get("type") or "data") != "data" or not entry.get("files"):
+            continue
+        src = _bundled_copy(entry)
+        if mid not in ledger:
+            try:
+                items = _plan(entry)
+                if _matches_pins(entry, items):
+                    _write_ledger(mid, entry, [it["rel"] for it in items], verified=True)
+                    done["adopted"].append(mid)
+                elif src is not None and mid not in seeded:
+                    _install_from_dir(entry, src, _require_hashes(items))
+                    _write_ledger(mid, entry, [it["rel"] for it in items], verified=True)
+                    done["seeded"].append(mid)
+                else:
+                    continue                    # removed by the user, or not bundled
+            except Exception as e:  # noqa: BLE001 — one bad module must not stop the rest
+                logger.warning("bundled module %s not seeded: %s", mid, e)
+                continue
+        if src is not None:
+            seeded.add(mid)
+    if seeded != before:
+        _atomic_json(_seeded_path(), {"schemaVersion": 1, "seeded": sorted(seeded)})
+    return done
+
+
 def capability(name: str) -> bool:
     return bool(module_snapshot()["capabilities"].get(name))
+
+
+def installed_module_for_atlas(atlas_id: str):
+    """The id of the data module this app installed that holds atlas
+    `atlas_id` (its manifest `atlasId`), or None — catalog and imported atlases,
+    and a checkout's own, have none."""
+    ledger = _load_ledger()
+    for entry in _load_manifest().get("modules") or []:
+        if entry.get("atlasId") == atlas_id and entry.get("id") in ledger:
+            return entry["id"]
+    return None
 
 
 def module_by_id(mid: str, snapshot: dict = None):
@@ -912,8 +1053,12 @@ async def list_modules():
     """Report every manifest module, whether it is installed, and the resulting
     capability flags. Installed state comes from a fast filesystem/importability
     check — never from hashing, and never from probing an asset URL (the SPA
-    fallback in server.py turns a missing static asset into a 200 index.html)."""
-    return module_snapshot()
+    fallback in server.py turns a missing static asset into a 200 index.html).
+
+    Run off the event loop: the snapshot touches the disk (and, for a slot
+    linked to a network share, the network). Called inline it froze every
+    other request — the template and atlas files at startup waited on it."""
+    return await run_in_threadpool(module_snapshot)
 
 
 def _require_data_module(module_id: str) -> dict:
@@ -1418,6 +1563,8 @@ async def uninstall_module(module_id: str):
     # resolve_entry()/installTo assumptions.
     if (_manifest_entry(module_id).get("type") or "data") == "slot":
         return await _uninstall_slot(module_id, _require_slot_module(module_id))
+    if (_manifest_entry(module_id).get("type") or "data") == "python-package":
+        return await _uninstall_python_module(module_id, _manifest_entry(module_id))
     entry = _require_data_module(module_id)
     _uninstall_guard(entry)
     base = _install_base(entry)
@@ -1469,10 +1616,11 @@ async def uninstall_module(module_id: str):
 # HTTP Range resume — no new dependency.
 
 def _release_base() -> str:
-    """Base URL for `github-release` sources. Deliberately has no default: with
-    nothing hosted yet, an unset value must mean 'no downloadable source'
-    rather than a silent call out to a URL that does not exist."""
-    return (os.environ.get("MRLATTE_MODULE_RELEASE_BASE") or "").rstrip("/")
+    """Base URL for `github-release` sources: MRLATTE_MODULE_RELEASE_BASE, else
+    the manifest's `releaseBase` (the project's GitHub releases, where each
+    data module is a `<tag>/<id>.zip` asset)."""
+    return (os.environ.get("MRLATTE_MODULE_RELEASE_BASE")
+            or _load_manifest().get("releaseBase") or "").rstrip("/")
 
 
 def _check_url(url: str) -> str:
@@ -1540,11 +1688,13 @@ def _cancelled(job_id: str) -> bool:
         return job_id in _JOB_CANCELLED
 
 
-def _download(url: str, part: Path, job_id: str, expected_bytes=None):
+def _download(url: str, part: Path, job_id: str, expected_bytes=None, base=0, overall=None):
     """Stream `url` into `part`, resuming from whatever is already there.
 
     Returns the number of bytes on disk. Raises JobCancelled if the user
     cancelled; the partial `.part` is left in place so a retry resumes.
+    `base`/`overall`: for one file of several, the bytes already fetched and
+    the total of all of them, so the job reports one progress over the set.
     """
     import requests   # local: keeps the import off the app's startup path
 
@@ -1564,6 +1714,9 @@ def _download(url: str, part: Path, job_id: str, expected_bytes=None):
             mode = "ab"
         elif r.status_code == 200:
             mode = "wb"
+        elif r.status_code == 404:
+            raise HTTPException(status_code=404, detail=(
+                f"not found: {url} — the download may not be published yet"))
         else:
             r.raise_for_status()
             mode = "wb"
@@ -1572,7 +1725,9 @@ def _download(url: str, part: Path, job_id: str, expected_bytes=None):
         except (TypeError, ValueError):
             total = 0
         total = total or int(expected_bytes or 0) or None
-        _set_job(job_id, stage="downloading", bytes_done=have, bytes_total=total)
+        if overall:
+            total = overall
+        _set_job(job_id, stage="downloading", bytes_done=base + have, bytes_total=total)
 
         done = have
         last = 0.0
@@ -1587,22 +1742,27 @@ def _download(url: str, part: Path, job_id: str, expected_bytes=None):
                 now = time.monotonic()
                 if now - last > 0.25:
                     last = now
-                    _set_job(job_id, stage="downloading", bytes_done=done,
+                    _set_job(job_id, stage="downloading", bytes_done=base + done,
                              bytes_total=total,
-                             progress=(done / total) if total else 0.0)
-        _set_job(job_id, bytes_done=done, bytes_total=total or done, progress=1.0)
+                             progress=((base + done) / total) if total else 0.0)
+        _set_job(job_id, bytes_done=base + done, bytes_total=total or done,
+                 progress=((base + done) / total) if overall else 1.0)
     return done
 
 
-def _run_install_job(job_id: str, module_id: str, entry: dict, url: str):
-    """Body of a download+install job. Runs on a worker thread."""
+def _run_install_job(job_id: str, module_id: str, entry: dict, url: str, src: Path = None):
+    """Body of an install job — a download, or a copy of the installer's own
+    copy (`src`). Runs on a worker thread."""
     items = _require_hashes(_plan_or_400(entry))
     multi = bool(entry.get("files"))
     stage_dir = _staging_root() / f"job-{job_id}"
     archive = stage_dir / "module.zip"
     try:
-        _set_job(job_id, stage="downloading", progress=0.0, error=None)
-        if multi:
+        _set_job(job_id, stage="copying" if src is not None else "downloading",
+                 progress=0.0, error=None)
+        if src is not None:
+            _install_from_dir(entry, src, items)
+        elif multi:
             part = _part_of(archive)
             _download(url, part, job_id, entry.get("bytes"))
             os.replace(str(part), str(archive))
@@ -1636,6 +1796,257 @@ def _run_install_job(job_id: str, module_id: str, entry: dict, url: str):
                 _JOB_BY_MODULE.pop(module_id, None)
 
 
+# === python-package modules (one-click, from pinned PyPI files) ==============
+# A module whose manifest pins its files — `sources: [{"type": "wheel" | "sdist",
+# "url", "sha256", "bytes"}, ...]`, one per package it needs beyond what the app
+# bundles — is installed by downloading each, checking every whole-file sha256
+# against its pin, and unpacking them into MODULE_ROOT/<installTo>: no pip, no
+# build step, nothing executed. A wheel is a zip of importable files and is
+# unpacked whole. An sdist is pinned only for a pure-Python package PyPI has no
+# wheel for (neuropythy, pimms): just its `extract` folders — the package and
+# its metadata, what its wheel would hold — are copied out; the build script
+# and the rest of the archive are ignored.
+# deps.add_installed_python_modules then puts that folder on sys.path.
+# tools/scripts/pin_python_modules.py writes the pins.
+
+def _python_sources(entry: dict) -> list:
+    return [s for s in entry.get("sources") or []
+            if s.get("type") in ("wheel", "sdist") and s.get("url") and s.get("sha256")]
+
+
+def _extract_sdist(archive: Path, folders: list, boundary: Path):
+    """Copy the named folders (e.g. "neuropythy-0.13.0/src/neuropythy") out of a
+    source archive into `boundary`, each under its own last name. Regular files
+    and directories only: a link, a special member or a path that leaves its
+    folder fails the whole install, found before anything is written."""
+    prefixes = [str(PurePosixPath(f)).strip("/") for f in folders or []]
+    if not prefixes:
+        raise BoundaryError("source package names no folders to extract")
+    with tarfile.open(archive, "r:*") as tf:
+        plan, found = [], set()
+        for m in tf.getmembers():
+            name = m.name.replace("\\", "/")
+            prefix = next((p for p in prefixes if name == p or name.startswith(p + "/")), None)
+            if prefix is None:
+                continue
+            if not (m.isfile() or m.isdir()):
+                raise BoundaryError(f"source archive contains a link/special member: {m.name!r}")
+            plan.append((m, _safe_join(boundary, PurePosixPath(prefix).name + name[len(prefix):])))
+            found.add(prefix)
+        if found != set(prefixes):
+            raise BoundaryError(f"not in the source archive: {sorted(set(prefixes) - found)}")
+        for m, dest in plan:
+            if m.isdir():
+                dest.mkdir(parents=True, exist_ok=True)
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with tf.extractfile(m) as src, open(dest, "wb") as out:
+                shutil.copyfileobj(src, out)
+
+
+def _python_install_dir(entry: dict) -> Path:
+    root = _module_root()
+    rel = entry.get("installTo") or ""
+    target = root / rel
+    if not rel or not _within(root, target) or _norm(Path(os.path.realpath(str(target)))) == _norm(Path(os.path.realpath(str(root)))):
+        raise HTTPException(status_code=409, detail=(
+            f"manifest entry '{entry.get('id')}' has an installTo that escapes the module root"))
+    return target
+
+
+_PY_INSTALLING = set()          # python-package module ids with an install job running
+
+
+def _loaded_from(target: Path) -> list:
+    """Top-level packages this process has imported from `target`. Windows keeps
+    their compiled files locked, so the folder can't be replaced or removed."""
+    if not target.exists():
+        return []
+    return sorted({name.split(".")[0] for name, mod in list(sys.modules.items())
+                   if getattr(mod, "__file__", None) and _within(target, Path(mod.__file__))})
+
+
+def _start_wheel_install(module_id: str, entry: dict) -> dict:
+    sources = _python_sources(entry)
+    if not sources:
+        raise HTTPException(status_code=409, detail=(
+            f"'{module_id}' is a python-package module with no pinned files — "
+            "it is not installable from the app"))
+    target = _python_install_dir(entry)
+    if target.exists() and module_id not in _load_ledger():
+        raise HTTPException(status_code=409, detail=(
+            f"{target} already exists but was not installed by this app — "
+            "refusing to replace it"))
+    loaded = _loaded_from(target)
+    if loaded:
+        raise HTTPException(status_code=409, detail=(
+            f"{', '.join(loaded)} is in use in this session. Restart MRLatte, then install it again."))
+    total = sum(int(s.get("bytes") or 0) for s in sources) or entry.get("bytes") or 0
+    with _JOB_LOCK:
+        # Two jobs would race on the same folder.
+        if module_id in _PY_INSTALLING:
+            raise HTTPException(status_code=409, detail=f"'{module_id}' is already being installed")
+        _PY_INSTALLING.add(module_id)
+    try:
+        job_id = str(uuid.uuid4())
+        (_jobs_root() / job_id).mkdir(parents=True, exist_ok=True)
+        _set_job(job_id, job_id=job_id, module=module_id, url=sources[0]["url"], stage="queued",
+                 progress=0.0, bytes_done=0, bytes_total=total,
+                 done=False, error=None, startedAt=time.time())
+        with _JOB_LOCK:
+            _JOB_BY_MODULE[module_id] = job_id
+        threading.Thread(target=_run_wheel_job, args=(job_id, module_id, entry, sources, target),
+                         name=f"module-install-{module_id}", daemon=True).start()
+    except BaseException:
+        with _JOB_LOCK:                         # the job never started: don't leave it marked
+            _PY_INSTALLING.discard(module_id)
+        raise
+    return {"job_id": job_id, "id": module_id, "url": sources[0]["url"]}
+
+
+def _run_wheel_job(job_id: str, module_id: str, entry: dict, sources: list, target: Path):
+    """Body of a python-package install job. Runs on a worker thread."""
+    stage_dir = _staging_root() / f"job-{job_id}"
+    fresh = target.with_name(target.name + ".installing")
+    total = sum(int(s.get("bytes") or 0) for s in sources) or None
+    try:
+        _set_job(job_id, stage="downloading", progress=0.0, error=None)
+        files, done = [], 0
+        for i, src in enumerate(sources):
+            dest = stage_dir / f"{i:03d}.{'whl' if src['type'] == 'wheel' else 'tar.gz'}"
+            part = _part_of(dest)
+            done += _download(src["url"], part, job_id, src.get("bytes"), base=done, overall=total)
+            os.replace(str(part), str(dest))
+            files.append((src, dest))
+        _set_job(job_id, stage="verifying", progress=1.0)
+        for src, path in files:                 # every pin, before anything is unpacked
+            actual = _sha256_of(path)
+            if actual.lower() != str(src["sha256"]).lower():
+                raise HTTPException(status_code=400, detail={
+                    "error": "sha256 mismatch", "file": src["url"].rsplit("/", 1)[-1],
+                    "expected": src["sha256"], "actual": actual})
+        _set_job(job_id, stage="installing")
+        shutil.rmtree(fresh, ignore_errors=True)
+        for src, path in files:
+            if src["type"] == "wheel":
+                with zipfile.ZipFile(path) as zf:
+                    _validate_archive(zf, fresh)    # Zip Slip: every member stays inside
+                    zf.extractall(fresh)
+            else:
+                _extract_sdist(path, src.get("extract"), fresh)
+        if target.exists():                     # a reinstall over our own install
+            shutil.rmtree(target)
+        os.replace(str(fresh), str(target))
+        _write_ledger(module_id, entry, [], verified=True)
+        deps.add_installed_python_modules(_module_root())
+        _set_job(job_id, stage="done", done=True, progress=1.0)
+    except JobCancelled:
+        _set_job(job_id, stage="cancelled", done=True, error="cancelled by user")
+    except HTTPException as e:
+        _set_job(job_id, stage="error", done=True, error=e.detail)
+    except Exception as e:  # noqa: BLE001 — a job must record its failure
+        logger.exception("python module install job %s failed", job_id)
+        _set_job(job_id, stage="error", done=True, error=f"{type(e).__name__}: {e}")
+    finally:
+        shutil.rmtree(stage_dir, ignore_errors=True)
+        shutil.rmtree(fresh, ignore_errors=True)
+        with _JOB_LOCK:
+            _JOB_CANCELLED.discard(job_id)
+            _PY_INSTALLING.discard(module_id)
+            if _JOB_BY_MODULE.get(module_id) == job_id:
+                _JOB_BY_MODULE.pop(module_id, None)
+
+
+async def _uninstall_python_module(module_id: str, entry: dict):
+    """Remove an app-installed python-package module (to the Recycle Bin when
+    possible). Refuses one this app did not install, and one a running job is
+    using; one imported into this process goes at the next start."""
+    target = _python_install_dir(entry)
+    if module_id not in _load_ledger():
+        raise HTTPException(status_code=409, detail=(
+            f"'{module_id}' was not installed by this app (no install-ledger entry) — "
+            "refusing to remove it"))
+    # Only workers import these packages, so "in use" means a job is running
+    # now: its files would vanish under it. Once it finishes, removal is immediate.
+    busy = sorted(set(entry.get("pythonPackages") or []) & deps.packages_in_use())
+    if busy:
+        raise HTTPException(status_code=409, detail=(
+            f"{', '.join(busy)} is in use by a job that is still running. "
+            "Remove it once that finishes."))
+    # In use = imported from this folder. A listed package the app bundles
+    # (the reports module lists nibabel) is loaded from elsewhere and locks nothing.
+    # Windows keeps a loaded module's files locked, so instead of refusing,
+    # mark it: off the import path now (new workers stop seeing it), removed
+    # when MRLatte next starts (finish_pending_removals). Still one click.
+    if _loaded_from(target):
+        ledger = _load_ledger()
+        ledger[module_id] = {**ledger[module_id], "pendingRemoval": True}
+        _atomic_json(_ledger_path(), {"schemaVersion": 1, "modules": ledger})
+        if str(target) in sys.path:
+            sys.path.remove(str(target))
+        snap = module_snapshot()
+        return {"ok": True, "id": module_id, "disposition": "on-restart", "removed": [],
+                "failed": [],
+                "message": "In use this session: it will be removed the next time MRLatte starts.",
+                "module": module_by_id(module_id, snap), "capabilities": snap["capabilities"]}
+
+    def _work():
+        size = sum(f.stat().st_size for f in target.rglob("*") if f.is_file()) if target.exists() else 0
+        disposition = "deleted"
+        if target.exists():
+            try:
+                from send2trash import send2trash as _to_trash
+                _to_trash(str(target))
+                disposition = "trashed"
+            except Exception:  # noqa: BLE001 — no trash available: delete
+                shutil.rmtree(target)
+        if str(target) in sys.path:
+            sys.path.remove(str(target))
+        _drop_ledger(module_id)
+        return size, disposition
+
+    freed, disposition = await run_in_threadpool(_work)
+    snap = module_snapshot()
+    return {"ok": True, "id": module_id, "disposition": disposition, "removed": [str(target)],
+            "failed": [], "bytesFreed": freed, "bytesFreedHuman": human_bytes(freed),
+            "module": module_by_id(module_id, snap), "capabilities": snap["capabilities"]}
+
+
+def finish_pending_removals():
+    """At startup, before module folders go on sys.path: remove the
+    python-package modules marked for removal while they were in use (to the
+    Recycle Bin when possible). Only folders the install ledger says this app
+    installed, inside the module root; anything else is left alone. Returns the
+    ids removed."""
+    done = []
+    for module_id, record in _load_ledger().items():
+        if not record.get("pendingRemoval"):
+            continue
+        try:
+            entry = _manifest_entry(module_id)
+        except HTTPException:
+            continue
+        if entry.get("type") != "python-package":
+            continue
+        try:
+            target = _python_install_dir(entry)
+        except HTTPException:
+            continue
+        try:
+            if target.exists():
+                try:
+                    from send2trash import send2trash as _to_trash
+                    _to_trash(str(target))
+                except Exception:  # noqa: BLE001 — no trash available: delete
+                    shutil.rmtree(target)
+        except OSError as e:
+            logger.warning("pending removal of %s failed: %s", module_id, e)
+            continue
+        _drop_ledger(module_id)
+        done.append(module_id)
+    return done
+
+
 class InstallRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
     sourceUrl: Optional[str] = None
@@ -1645,9 +2056,13 @@ class InstallRequest(BaseModel):
 async def install_module(module_id: str, body: Optional[InstallRequest] = None):
     """Start a download+install job. Returns { job_id } — poll
     /api/modules/jobs/{job_id} for progress."""
+    if (_manifest_entry(module_id).get("type") or "data") == "python-package":
+        return _start_wheel_install(module_id, _manifest_entry(module_id))
     entry = _require_data_module(module_id)
-    url = _download_url_for(entry, body.sourceUrl if body else None)
-    if not url:
+    # The installer's own copy first (no download), unless a source was named.
+    src = None if (body and body.sourceUrl) else _bundled_copy(entry)
+    url = None if src else _download_url_for(entry, body.sourceUrl if body else None)
+    if not url and not src:
         raise HTTPException(status_code=409, detail=(
             f"'{module_id}' has no downloadable source. "
             + ("It is non-redistributable — obtain it yourself and use "
@@ -1664,9 +2079,10 @@ async def install_module(module_id: str, body: Optional[InstallRequest] = None):
     with _JOB_LOCK:
         _JOB_BY_MODULE[module_id] = job_id
     threading.Thread(target=_run_install_job,
-                     args=(job_id, module_id, entry, url),
+                     args=(job_id, module_id, entry, url, src),
                      name=f"module-install-{module_id}", daemon=True).start()
-    return {"job_id": job_id, "id": module_id, "url": url}
+    return {"job_id": job_id, "id": module_id, "url": url,
+            "source": "bundled" if src else "download"}
 
 
 @router.get("/modules/jobs/{job_id}")

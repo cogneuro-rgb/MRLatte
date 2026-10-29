@@ -82,8 +82,8 @@ def test_worker_subprocess_cannot_import_a_path_only_reachable_via_injection():
     directory, but a subprocess that receives that directory via the same
     sys.path.insert loop every worker script runs (see e.g.
     lnm_worker.py) can. This reproduces, at the subprocess boundary, exactly
-    the failure summary_render_worker.py's _brainsprite_html hits today when
-    the optional reports stack lives outside the worker's own sys.path."""
+    the failure lnm_worker.py's nilearn figures would hit when the optional
+    reports stack lives outside the worker's own sys.path."""
     import tempfile
 
     with tempfile.TemporaryDirectory() as extra_dir:

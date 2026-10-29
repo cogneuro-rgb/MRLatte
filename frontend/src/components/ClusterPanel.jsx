@@ -1,10 +1,13 @@
 import React, { useState } from "react";
+import { Switch } from "@/components/ui/switch";
 import { Sigma, Download, Activity, Crosshair } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
 import { findClusters, clustersToCSV, downloadText } from "@/lib/volumeAnalysis";
 import { toast } from "sonner";
 
-export const ClusterPanel = ({ viewerRef, activationLayers, atlasOptions = [], atlasRegions, ensureAtlasLoaded, onSelectAtlas }) => {
+// `bare`: no heading or rule of its own, for a caller that folds it under one.
+export const ClusterPanel = ({ viewerRef, activationLayers, atlasOptions = [], atlasRegions, ensureAtlasLoaded, onSelectAtlas, bare = false }) => {
   const [layerId, setLayerId] = useState("");
   const [labelAtlasId, setLabelAtlasId] = useState(atlasOptions[0]?.id || "");
   const [threshold, setThreshold] = useState(2.3);
@@ -102,126 +105,123 @@ export const ClusterPanel = ({ viewerRef, activationLayers, atlasOptions = [], a
   // For displayed table: lookup label live so user sees them inline
   const labelForCluster = (c) => peakLabelLookup(c.peakVox);
 
-  return (
-    <div className="space-y-3 mt-3 pt-3 border-t border-border" data-testid="cluster-panel">
-      <div className="flex items-center gap-2">
-        <Sigma size={12} className="text-muted-foreground" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-foreground">cluster analysis</span>
-      </div>
+  // One "label · control" row, as on the other panels.
+  const rowLabel = "w-[112px] flex-shrink-0 text-[13px] text-muted-foreground";
 
-      <div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground mb-1">map</div>
+  return (
+    <div className={`space-y-2.5 ${bare ? "" : "mt-3 pt-3 border-t border-border"}`} data-testid="cluster-panel">
+      {!bare && (
+        <div className="flex items-center gap-2">
+          <Sigma size={13} className="text-subtle" />
+          <span className="cap text-subtle">Cluster analysis</span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <span className={rowLabel}>Map</span>
         <select value={layerId} onChange={(e) => setLayerId(e.target.value)}
-          className="w-full bg-background border border-border text-foreground font-mono text-[11px] px-2 py-1 focus:outline-none focus:border-muted-foreground"
+          className="field min-w-0 flex-1 font-mono"
           data-testid="cluster-layer-select">
           <option value="">— select activation map —</option>
           {activationLayers.map((l) => (<option key={l.id} value={l.id}>{l.name}</option>))}
         </select>
       </div>
 
-      <div>
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground mb-1">label atlas (peak)</div>
+      <div className="flex items-center gap-2">
+        <span className={rowLabel}>Label atlas (peak)</span>
         <select value={labelAtlasId} onChange={(e) => {
           setLabelAtlasId(e.target.value);
           onSelectAtlas?.(e.target.value);
         }}
-          className="w-full bg-background border border-border text-foreground font-mono text-[11px] px-2 py-1 focus:outline-none focus:border-muted-foreground"
+          className="field min-w-0 flex-1"
           data-testid="cluster-atlas-select">
           <option value="">— none —</option>
           {atlasOptions.map((a) => (<option key={a.id} value={a.id}>{a.short || a.name}</option>))}
         </select>
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">threshold</span>
-          <span className="font-mono text-[10px] text-foreground tabular-nums">{threshold.toFixed(2)}</span>
-        </div>
+      <div className="flex items-center gap-2">
+        <span className={rowLabel}>Threshold</span>
         <Slider value={[threshold]} min={0} max={10} step={0.05}
-          onValueChange={(v) => setThreshold(v[0])} data-testid="cluster-threshold" />
+          onValueChange={(v) => setThreshold(v[0])} className="flex-1" aria-label="Threshold" data-testid="cluster-threshold" />
+        <EditableNumber value={threshold} min={0} max={10} onCommit={setThreshold} label="Threshold"
+          className="w-10 text-right font-mono text-[11.5px] text-foreground">{threshold.toFixed(2)}</EditableNumber>
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">min size (voxels)</span>
-          <span className="font-mono text-[10px] text-foreground tabular-nums">{minSize}</span>
-        </div>
+      <div className="flex items-center gap-2">
+        <span className={rowLabel}>Min size (voxels)</span>
         <Slider value={[minSize]} min={1} max={500} step={1}
-          onValueChange={(v) => setMinSize(v[0])} data-testid="cluster-minsize" />
+          onValueChange={(v) => setMinSize(v[0])} className="flex-1" aria-label="Minimum cluster size" data-testid="cluster-minsize" />
+        <EditableNumber value={minSize} min={1} max={500} integer onCommit={setMinSize} label="Minimum cluster size"
+          className="w-10 text-right font-mono text-[11.5px] text-foreground">{minSize}</EditableNumber>
       </div>
 
-      <div className="grid grid-cols-3 gap-1">
-        {["pos", "neg", "abs"].map((s) => (
-          <button key={s} onClick={() => setSign(s)}
-            className={`py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border ${
-              sign === s ? "bg-primary text-primary-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-muted-foreground"
-            }`}
-            data-testid={`cluster-sign-${s}`}>{s}</button>
-        ))}
+      <div className="flex items-center gap-2">
+        <span className={rowLabel}>Sign</span>
+        <div className="seg" role="group" aria-label="Sign">
+          {[["pos", "Positive"], ["neg", "Negative"], ["abs", "Absolute (both signs)"]].map(([s, title]) => (
+            <button key={s} onClick={() => setSign(s)} aria-pressed={sign === s} title={title}
+              data-testid={`cluster-sign-${s}`}>{s}</button>
+          ))}
+        </div>
       </div>
 
-      <label className="flex items-center justify-between cursor-pointer">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">show colorbar</span>
-        <button onClick={() => toggleColorbar(!colorbarOn)}
-          className={`relative inline-flex h-4 w-8 transition-colors border ${
-            colorbarOn ? "bg-primary border-primary" : "bg-transparent border-border"
-          }`}
-          data-testid="activation-colorbar-toggle">
-          <span className={`inline-block h-3 w-3 transition-transform ${
-            colorbarOn ? "translate-x-4 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"
-          }`} />
-        </button>
-      </label>
+      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+        <span className="flex-1">Show the colour bar</span>
+        <Switch checked={!!colorbarOn} onCheckedChange={toggleColorbar} label="Show the colour bar"
+          testId="activation-colorbar-toggle" />
+      </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid gap-1.5">
         <button onClick={runAnalysis} disabled={busy}
-          className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
+          className="btn-primary flex gap-1.5"
           data-testid="cluster-run">
-          <Activity size={11} />
-          {busy ? "Running…" : "Run"}
+          <Activity size={12} />
+          {busy ? "Running…" : "Run cluster analysis"}
         </button>
         <button onClick={exportCSV} disabled={!clusters.length}
-          className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-foreground border-border hover:border-muted-foreground disabled:opacity-30"
+          className="btn flex gap-1.5"
           data-testid="cluster-export">
-          <Download size={11} />
+          <Download size={12} />
           Export CSV
         </button>
       </div>
 
       {clusters.length > 0 && (
-        <div className="border border-border bg-background max-h-56 overflow-y-auto thin-scroll" data-testid="cluster-table">
-          <table className="w-full text-[10px] font-mono">
-            <thead className="bg-panel sticky top-0">
-              <tr className="text-muted-foreground uppercase">
-                <th className="text-left px-2 py-1">#</th>
-                <th className="text-right px-2 py-1">vox</th>
-                <th className="text-right px-2 py-1">peak</th>
-                <th className="text-right px-2 py-1">MNI</th>
-                <th className="text-left px-2 py-1">region</th>
-                <th className="px-2 py-1"></th>
+        <div className="max-h-56 overflow-y-auto thin-scroll" data-testid="cluster-table">
+          <table className="w-full text-[12px]">
+            <thead className="sticky top-0 bg-card">
+              <tr className="text-subtle">
+                <th className="cap py-1 pr-1.5 text-left">#</th>
+                <th className="cap px-1.5 py-1 text-right">Vox</th>
+                <th className="cap px-1.5 py-1 text-right">Peak</th>
+                <th className="cap px-1.5 py-1 text-right">MNI</th>
+                <th className="cap px-1.5 py-1 text-left">Region</th>
+                <th className="py-1"></th>
               </tr>
             </thead>
             <tbody>
               {clusters.slice(0, 50).map((c, i) => (
-                <tr key={i} className="border-t border-border text-foreground hover:bg-panel"
+                <tr key={i} className="border-t border-border text-foreground hover:bg-panel-hover"
                   data-testid={`cluster-row-${i}`}>
-                  <td className="px-2 py-1">{i + 1}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{c.size}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{c.peakValue.toFixed(2)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">
+                  <td className="py-[5px] pr-1.5 font-mono text-[11.5px] text-subtle">{i + 1}</td>
+                  <td className="px-1.5 py-[5px] text-right font-mono text-[11.5px]">{c.size}</td>
+                  <td className="px-1.5 py-[5px] text-right font-mono text-[11.5px]">{c.peakValue.toFixed(2)}</td>
+                  <td className="px-1.5 py-[5px] text-right font-mono text-[11.5px] text-muted-foreground">
                     {c.peakMM.map((x) => x.toFixed(0)).join(",")}
                   </td>
-                  <td className="px-2 py-1 text-muted-foreground truncate max-w-[150px]">
+                  <td className="max-w-[150px] truncate px-1.5 py-[5px] text-muted-foreground">
                     {labelForCluster(c) || "—"}
                   </td>
-                  <td className="px-2 py-1 text-center">
+                  <td className="py-[3px] text-center">
                     <button
                       onClick={() => viewerRef.current?.setCrosshairMM?.(c.peakMM[0], c.peakMM[1], c.peakMM[2])}
                       title="Go to peak coordinate"
-                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Go to peak coordinate"
+                      className="icon-btn h-[22px] w-[22px]"
                       data-testid={`cluster-goto-${i}`}
                     >
-                      <Crosshair size={11} />
+                      <Crosshair size={12} />
                     </button>
                   </td>
                 </tr>
@@ -235,4 +235,3 @@ export const ClusterPanel = ({ viewerRef, activationLayers, atlasOptions = [], a
 };
 
 export default ClusterPanel;
-

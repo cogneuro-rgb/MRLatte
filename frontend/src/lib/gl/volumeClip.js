@@ -167,6 +167,13 @@ export function installVolumeClipPass(nv) {
         const key = groupKey(overlays)
         if (this.__volumeClipCacheDirty || this.__volumeClipGroupKey !== key) {
           rebuildCache(overlays)
+          // The rebuild ran niivue's own updateGLVolume, which binds its
+          // scratch texture to unit 9 and returns with another unit active.
+          // Binding without re-selecting unit 9 put the exempt texture on that
+          // other unit and left unit 9 sampling niivue's scratch texture: the
+          // 3D render broke until the next redraw (inbox 28 Oct: an activation
+          // map's clip turned on, then off again).
+          gl.activeTexture(gl.TEXTURE9)
         }
         gl.bindTexture(gl.TEXTURE_3D, this.__clipExemptOverlayTex)
       } else {

@@ -6,7 +6,7 @@
 // report surface (Lesion Report, Tract Dissection, LNM, One-Click Summary)
 // composes the SAME functions instead of each owning its own HTML.
 
-import { statCardsHtml, pillRowHtml, dataTableHtml, imgPanelHtml } from "@/lib/report/render";
+import { statCardsHtml, dataTableHtml, imgPanelHtml, figureHtml, barHtml } from "@/lib/report/render";
 import { LNM_NETWORK_LABELS } from "@/lib/lnm";
 import { engineProvenanceLabel } from "@/lib/lesionReport";
 
@@ -19,53 +19,85 @@ export function escapeHtml(s) {
 // ── Lesion (atlas overlap + retinotopy) ──────────────────────────────────────
 // Model shape: lib/lesionReport.js::buildLesionReportModel().
 
+/** Which side a centroid lies on (MNI x: + is right), for the stats and lead. */
+export function sideOf(centroidMM) {
+  const x = centroidMM?.[0];
+  if (!Number.isFinite(x)) return null;
+  return x > 4 ? "Right" : x < -4 ? "Left" : "Midline";
+}
+
 export function buildLesionStatsSection(model) {
   const v = model.volume;
   const c = v?.centroidMM;
-  const totalAtlasRegions = model.atlasBreakdowns.reduce((n, b) => n + b.rows.length, 0);
+  const side = sideOf(c);
   const cards = [
-    { label: "Lesion Volume", value: v ? v.cm3.toFixed(2) : "—", sub: "cm³", accent: "#2563eb" },
-    { label: "Voxel Count", value: v ? v.voxelCount.toLocaleString() : "—", sub: "voxels", accent: "#7c3aed" },
-    { label: "MNI Centroid", value: c ? `[${c[0].toFixed(0)}, ${c[1].toFixed(0)}, ${c[2].toFixed(0)}]` : "—", sub: "mm (x, y, z)", accent: "#0891b2" },
-    { label: "Atlas Regions", value: totalAtlasRegions, sub: `across ${model.atlasBreakdowns.length} atlas(es)`, accent: "#059669" },
+    { label: "Volume", value: v ? v.cm3.toFixed(2) : "—", sub: "cm³" },
+    { label: "Voxels", value: v ? v.voxelCount.toLocaleString() : "—", sub: "in the lesion" },
+    { label: "Centre", value: c ? c.map((v) => Math.round(v) || 0).join(", ") : "—", sub: "MNI mm (x, y, z)" },
+    { label: "Side", value: side || "—", sub: side && side !== "Midline" ? `${side.toLowerCase()} hemisphere` : "by its centre" },
   ];
-  const pills = [{ label: "Lesion", value: escapeHtml(model.lesionName || "(unnamed)") },
-    ...model.atlasBreakdowns.map((b) => ({ label: "Atlas", value: escapeHtml(b.atlasName) })),
-    { label: "Retinotopy", value: model.retinotopyFindings?.length ? "Yes" : "None loaded" }];
-  // Item (lqtpy migration): quiet provenance pill — which engine + convention
-  // produced the numbers above. Reuses the existing .pill styling; appears in
-  // both the on-screen preview (LesionReportPanel renders the same label
-  // separately) and here, in the exported/saved report HTML.
-  const engineLine = engineProvenanceLabel(model.provenance);
-  if (engineLine) pills.push({ label: "Engine", value: escapeHtml(engineLine.replace(/^Engine:\s*/, "")) });
-  return { title: "Key Statistics", html: `${statCardsHtml(cards)}${pillRowHtml(pills)}` };
+  return { title: "Measurements", html: statCardsHtml(cards) };
+}
+
+/** The lesion report's "Method" entries: what went in and which engine ran. */
+export function lesionMethodItems(model) {
+  return [
+    { label: "Lesion", value: escapeHtml(model.lesionName || "(unnamed)") },
+    { label: "Atlases", value: model.atlasBreakdowns.map((b) => escapeHtml(b.atlasName)).join(", ") || "none selected" },
+    { label: "Retinotopy", value: model.retinotopyFindings?.length
+      ? model.retinotopyFindings.map((f) => escapeHtml(f.name)).join(", ") : "no map loaded" },
+    { label: "Engine", value: escapeHtml((engineProvenanceLabel(model.provenance) || "").replace(/^Engine:\s*/, "")) },
+    // lqtpy counts LesionVoxels on the ATLAS grid (resample-then-count), not
+    // the lesion's own grid like the JS engine — see resolveLesionAtlasMetrics
+    // in lib/lesionReport.js. Said once here, so "Voxels" in the tables never
+    // silently means two different units depending on which engine ran.
+    model.atlasBreakdowns.some((b) => b.voxelGrid === "atlas")
+      && { label: "Voxel counts", value: "on each atlas's own grid (the lesion is resampled to it)" },
+  ];
+}
+
+// Tables show this many rows; the rest fold under "N more" (they still
+// print when unfolded). Regions under SMALL_REGION_PCT of the lesion are
+// always in the fold.
+const TOP_ROWS = 5;
+const SMALL_REGION_PCT = 1;
+
+/** A table of the first `keep` rows, the rest folded under "N more …"
+ * (`noun` singular: "region" → "1 more region", "3 more regions"). */
+export function foldedTableHtml(columns, rows, keep = TOP_ROWS, noun = "row") {
+  const shown = rows.slice(0, keep);
+  const rest = rows.slice(keep);
+  return (shown.length ? dataTableHtml(columns, shown) : "")
+    + (rest.length ? `<details class="more"><summary>${rest.length} more ${noun}${rest.length === 1 ? "" : "s"}</summary>${dataTableHtml(columns, rest)}</details>` : "");
 }
 
 export function buildLesionAtlasSection(model) {
   if (!model.atlasBreakdowns.length) {
-    return { title: "Atlas Overlap", html: `<p style="color:#94a3b8;font-size:13px;">No atlas selected for this report.</p>` };
+    return { title: "Atlas overlap", html: `<p class="quiet-note">No atlas was selected for this report.</p>` };
   }
+  const columns = [
+    { key: "regionName", label: "Region" },
+    { key: "pctOfLesion", label: "% of lesion", numeric: true, render: (r) => barHtml(r.pctOfLesion) },
+    { key: "pctOfRegion", label: "% of region", numeric: true },
+    { key: "voxelCount", label: "Voxels", numeric: true },
+  ];
   const html = model.atlasBreakdowns.map((b) => {
     const rows = b.rows.map((r) => ({
       regionName: escapeHtml(r.regionName),
-      voxelCount: r.voxelCount,
-      pctOfLesion: `${r.percentOfLesion.toFixed(1)}%`,
+      voxelCount: r.voxelCount.toLocaleString(),
+      pctOfLesion: r.percentOfLesion,
       pctOfRegion: `${r.percentOfRegion.toFixed(1)}%`,
     }));
-    // lqtpy counts LesionVoxels on the ATLAS grid (resample-then-count), not
-    // the lesion's own grid like the JS engine — see resolveLesionAtlasMetrics
-    // in lib/lesionReport.js. The column header says which, so "Voxels" never
-    // silently means two different units depending on which engine ran.
-    const voxelsLabel = b.voxelGrid === "atlas" ? "Voxels (atlas grid)" : "Voxels";
-    const table = dataTableHtml([
-      { key: "regionName", label: "Region" },
-      { key: "voxelCount", label: voxelsLabel, numeric: true },
-      { key: "pctOfLesion", label: "% of Lesion", numeric: true },
-      { key: "pctOfRegion", label: "% of Region", numeric: true },
-    ], rows);
-    return `<div class="section-title">${escapeHtml(b.atlasName)}</div>${table}`;
+    const keep = Math.min(TOP_ROWS, rows.filter((r) => r.pctOfLesion >= SMALL_REGION_PCT).length);
+    const none = !keep && rows.length ? `<p class="quiet-note">No region covers ${SMALL_REGION_PCT}% of the lesion or more.</p>` : "";
+    return `<div class="section-title">${escapeHtml(b.atlasName)}</div>${none}${foldedTableHtml(columns, rows, keep, "region")}`;
   }).join("\n");
   return { title: null, html };
+}
+
+/** A figure section from lib/report/figures.js output, or null without one. */
+export function buildFigureSection(title, fig) {
+  return fig?.src ? { title, html: figureHtml(fig) } : null;
 }
 
 export function buildRetinotopySection(findings) {
@@ -89,33 +121,33 @@ export function buildRetinotopySection(findings) {
 
 export function buildTractStatsSection(model) {
   const cards = [
-    { label: "Selected Streamlines", value: model.nSelectedStreamlines.toLocaleString(),
-      sub: `${model.pctSelected}% of ${model.nInputStreamlines.toLocaleString()} total`, accent: "#2563eb" },
-    { label: "Tract Volume", value: model.tractVolumeCm3.toFixed(3), sub: "cm³", accent: "#7c3aed" },
-    { label: "Affected Voxels", value: model.affectedVoxels.toLocaleString(), sub: "voxels", accent: "#0891b2" },
-    { label: "Regions Hit", value: model.atlasBreakdowns.reduce((n, b) => n + b.rows.length, 0),
-      sub: model.atlasBreakdowns.map((b) => b.atlasName).join(", ") || "atlas regions", accent: "#059669" },
+    { label: "Streamlines through the lesion", value: model.nSelectedStreamlines.toLocaleString(),
+      sub: `${model.pctSelected}% of ${model.nInputStreamlines.toLocaleString()}` },
+    { label: "Tract volume", value: model.tractVolumeCm3.toFixed(3), sub: "cm³" },
+    { label: "Affected voxels", value: model.affectedVoxels.toLocaleString(), sub: "voxels" },
+    { label: "Regions reached", value: model.atlasBreakdowns.reduce((n, b) => n + b.rows.length, 0),
+      sub: model.atlasBreakdowns.map((b) => b.atlasName).join(", ") || "atlas regions" },
   ];
-  return { title: "Key Statistics", html: statCardsHtml(cards) };
+  return { title: "Measurements", html: statCardsHtml(cards) };
 }
 
 export function buildTractAtlasSection(model) {
   if (!model.atlasBreakdowns.length) {
-    return { title: "Atlas Disconnection", html: `<p style="color:#94a3b8;font-size:13px;">No atlas overlap found.</p>` };
+    return { title: "Regions reached", html: `<p class="quiet-note">No atlas region is reached.</p>` };
   }
   const html = model.atlasBreakdowns.filter((b) => b.rows.length).map((b) => {
     const rows = b.rows.map((r) => ({
       regionName: escapeHtml(r.regionName),
       hitVoxels: r.hitVoxels.toLocaleString(),
-      pctRegion: `${r.pctRegion.toFixed(1)}%`,
+      pctRegion: r.pctRegion,
       density: (r.streamlineDensity ?? 0).toLocaleString(),
     }));
-    const table = dataTableHtml([
+    const table = foldedTableHtml([
       { key: "regionName", label: "Region" },
-      { key: "hitVoxels", label: "Hit Voxels", numeric: true },
-      { key: "pctRegion", label: "% of Region", numeric: true },
-      { key: "density", label: "Streamline Density", numeric: true },
-    ], rows);
+      { key: "hitVoxels", label: "Voxels reached", numeric: true },
+      { key: "pctRegion", label: "% of region", numeric: true, render: (r) => barHtml(r.pctRegion) },
+      { key: "density", label: "Streamline density", numeric: true },
+    ], rows, TOP_ROWS, "tract");
     return `<div class="section-title">${escapeHtml(b.atlasName)}</div>${table}`;
   }).join("\n");
   return { title: null, html };
@@ -132,12 +164,12 @@ export function buildTractSections(model) {
 export function buildLnmStatsSection(result) {
   const spec = result?.specificity;
   const cards = [
-    { label: "Lesion Voxels", value: (result.n_lesion_voxels ?? 0).toLocaleString(), sub: "voxels", accent: "#2563eb" },
-    { label: "Degree r (before→after)", value: `${result.degree_corr_before} → ${result.degree_corr_after ?? "n/a"}`, sub: "", accent: "#7c3aed" },
-    { label: "Supra-threshold", value: `${(result.n_pos_thr ?? 0).toLocaleString()} / ${(result.n_neg_thr ?? 0).toLocaleString()}`, sub: "+/− voxels", accent: "#0891b2" },
-    ...(spec?.run ? [{ label: "Survives Specificity", value: `${spec.n_sig_pos.toLocaleString()} / ${spec.n_sig_neg.toLocaleString()}`, sub: `${spec.nperm} permutations, α=${spec.alpha}${spec.fdr ? ", FDR" : ""}`, accent: "#059669" }] : []),
+    { label: "Lesion voxels", value: (result.n_lesion_voxels ?? 0).toLocaleString(), sub: "seed" },
+    { label: "Degree r (before → after)", value: `${result.degree_corr_before} → ${result.degree_corr_after ?? "n/a"}`, sub: "degree adjustment" },
+    { label: "Above threshold", value: `${(result.n_pos_thr ?? 0).toLocaleString()} / ${(result.n_neg_thr ?? 0).toLocaleString()}`, sub: "voxels, positive / negative" },
+    ...(spec?.run ? [{ label: "Survive specificity", value: `${spec.n_sig_pos.toLocaleString()} / ${spec.n_sig_neg.toLocaleString()}`, sub: `${spec.nperm} permutations, α=${spec.alpha}${spec.fdr ? ", FDR" : ""}` }] : []),
   ];
-  return { title: "Key Statistics", html: statCardsHtml(cards) };
+  return { title: "Measurements", html: statCardsHtml(cards) };
 }
 
 export function buildLnmNetworkSection(result) {
@@ -149,15 +181,15 @@ export function buildLnmNetworkSection(result) {
       const rows = nets[k].map((r) => ({
         name: escapeHtml(r.name), voxels: r.voxels, pct: `${r.pct}%`, mean: r.mean_t,
       }));
-      const table = dataTableHtml([
+      const table = foldedTableHtml([
         { key: "name", label: "Region" }, { key: "voxels", label: "Voxels", numeric: true },
         { key: "pct", label: "%", numeric: true }, { key: "mean", label: `Mean ${escapeHtml(metric)}`, numeric: true },
-      ], rows);
+      ], rows, TOP_ROWS, "region");
       return `<div class="section-title">${LNM_NETWORK_LABELS[k]}</div>${table}`;
     }).join("\n");
   const errs = [nets.ho_err && `Harvard-Oxford: ${escapeHtml(nets.ho_err)}`, nets.yeo_err && `Yeo-7: ${escapeHtml(nets.yeo_err)}`]
     .filter(Boolean).map((e) => `<p style="color:#b45309;font-size:12px;">${e}</p>`).join("");
-  return { title: null, html: (tables || `<p style="color:#94a3b8;font-size:13px;">No suprathreshold network at this threshold.</p>`) + errs };
+  return { title: null, html: (tables || `<p class="quiet-note">No network above the threshold.</p>`) + errs };
 }
 
 // Backend-rendered visual (nilearn interactive iframe or PNG). `images` =
@@ -216,26 +248,32 @@ export function lqtpyStylesheetCss(reportFragments) {
  * return value (or null/undefined if it was never attempted). */
 export function buildLqtpyFragmentSections(reportFragments) {
   if (!reportFragments) return [];
+  // A section that couldn't be computed is one short line; the reason (often
+  // long and repeated per atlas) is folded under "why".
+  const note = (label, reason) => `<div class="quiet-note">${escapeHtml(label)}: not available.${
+    reason ? ` <details><summary>Why</summary><span class="why">${escapeHtml(reason)}</span></details>` : ""}</div>`;
   if (reportFragments.failed) {
-    return [{
-      title: null,
-      html: `<p class="quiet-note">Additional analysis sections: not available — ${escapeHtml(reportFragments.reason || "unknown error")}.</p>`,
-    }];
+    return [{ title: null, html: note("Detailed measures", reportFragments.reason || "unknown error") }];
   }
-  const sections = [];
+  const parts = [];
+  const names = [];
   for (const kind of LQT_SECTION_ORDER) {
     const html = reportFragments.fragments?.[kind];
     const reason = reportFragments.unavailable?.[kind];
     if (html) {
-      sections.push({ title: null, html });
+      parts.push(html);
+      names.push((LQT_SECTION_LABELS[kind] || kind).toLowerCase());
     } else if (reason) {
-      sections.push({
-        title: null,
-        html: `<p class="quiet-note">${escapeHtml(LQT_SECTION_LABELS[kind] || kind)}: not available — ${escapeHtml(reason)}</p>`,
-      });
+      parts.push(note(LQT_SECTION_LABELS[kind] || kind, reason));
     }
   }
-  return sections;
+  if (!parts.length) return [];
+  // Folded: the main report already gives the size, place and regions; this
+  // is the long-form detail for whoever wants it.
+  return [{
+    title: null,
+    html: `<details class="collapsible"><summary>Show ${names.length ? names.join(", ") : "notes"}</summary><div class="collapsible-inner">${parts.join("\n")}</div></details>`,
+  }];
 }
 
 export function buildImagesSection(title, images) {

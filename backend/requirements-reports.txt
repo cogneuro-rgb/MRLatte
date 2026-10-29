@@ -1,11 +1,12 @@
 # OPTIONAL report-figure stack — the `reports-figures` module in
 # modules/manifest.json (type: python-package, tier: optional).
 #
-# ~199 MB. Install ONLY if you want rendered figures:
-#   * nilearn glass-brain / mosaic PNGs and the interactive MNI viewer
-#     (backend/lnm_backend.py: static_png, mosaic_png, interactive_html),
-#   * the One-Click Summary brainsprite viewers
-#     (backend/summary_render_worker.py: _brainsprite_html).
+# ~199 MB. Install ONLY if you want the lesion-network-mapping panel's own
+# figures — nilearn glass-brain / mosaic PNGs and the interactive MNI viewer
+# (backend/lnm_backend.py: static_png, mosaic_png, interactive_html) — or the
+# retinotopy round-trip validation (tools/scripts/validate_round_trip.py).
+# Reports don't use it: their figures are drawn by the frontend
+# (frontend/src/lib/report/figures.js), so the One-Click Summary runs without it.
 #
 # Nothing on the COMPUTE path needs any of this. Tract dissection, DA-LNM and
 # the retinotopy check run on numpy / nibabel / scipy / dipy / SimpleITK alone —
@@ -14,11 +15,14 @@
 # (frontend/public/atlases/mni152/mni152_brain_mask.nii.gz), which is what let
 # nilearn move out of the base install.
 #
-# Both code paths that use this stack degrade with an actionable message when it
-# is absent (lnm_backend._plotting, summary_render_worker._reports_stack); the
-# UI probes it via GET /api/summary/available -> the `reports-figures` module.
+# The LNM figures degrade with an actionable message when it is absent
+# (lnm_backend._plotting).
 #
 #   pip install -r backend/requirements-reports.txt
+#
+# The standard installer's module store installs it with one click instead, from
+# the files pinned in data/modules/manifest.json. After changing this file, re-pin:
+#   py -3.11 tools/scripts/pin_python_modules.py
 #
 # scikit-learn is deliberately NOT pinned here: it is a hard dependency of
 # nilearn and arrives with it. It was never pinned in requirements-frozen.txt

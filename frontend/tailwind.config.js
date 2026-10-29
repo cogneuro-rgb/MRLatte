@@ -7,6 +7,15 @@ module.exports = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['"Instrument Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+  			mono: ['"JetBrains Mono"', 'ui-monospace', 'Menlo', 'Consolas', 'monospace']
+  		},
+  		boxShadow: {
+  			knob: 'var(--knob-shadow)',
+  			'elev-1': 'var(--elev-1)',
+  			'elev-2': 'var(--elev-2)'
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -54,6 +63,20 @@ module.exports = {
   				foreground: 'hsl(var(--destructive-foreground))'
   			},
   			border: 'hsl(var(--border))',
+  			// Stronger line: field and control outlines, dividers that must hold
+  			// on a hovered surface. `border` stays the hairline between panels.
+  			edge: 'hsl(var(--edge))',
+  			// The one accent. tint/line are complete colours (the dark tint is
+  			// translucent, the light one solid), so no /opacity modifier on them.
+  			crema: {
+  				DEFAULT: 'hsl(var(--crema))',
+  				foreground: 'hsl(var(--crema-foreground))',
+  				tint: 'hsl(var(--crema-tint))',
+  				line: 'hsl(var(--crema-line))'
+  			},
+  			ok: 'hsl(var(--ok))',
+  			warn: 'hsl(var(--warn))',
+  			knob: 'hsl(var(--knob))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
   			chart: {

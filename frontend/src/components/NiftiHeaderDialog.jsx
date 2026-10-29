@@ -26,15 +26,15 @@ export function NiftiHeaderView({ hdr, scrollClassName = "max-h-[60vh]" }) {
       : summarizeNiftiHeader(hdr);
   }, [hdr, showAll]);
   if (sections.length === 0) {
-    return <div className="text-[12px] text-muted-foreground">No header available for this layer.</div>;
+    return <div className="text-[13px] text-muted-foreground">No header available for this layer.</div>;
   }
   return (
     <>
       <div className={`space-y-3 overflow-y-auto thin-scroll pr-1 ${scrollClassName}`}>
         {sections.map((s) => (
           <div key={s.title}>
-            <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle mb-1">{s.title}</div>
-            <table className="w-full text-[11px]">
+            <div className="cap text-subtle mb-1">{s.title}</div>
+            <table className="w-full text-[12px]">
               <tbody>
                 {s.rows.map(([label, value], i) => (
                   <tr key={i} className="align-top">
@@ -49,7 +49,7 @@ export function NiftiHeaderView({ hdr, scrollClassName = "max-h-[60vh]" }) {
       </div>
       <button
         onClick={() => setShowAll((v) => !v)}
-        className="w-full border border-border py-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground"
+        className="w-full border border-border py-1.5 cap text-subtle transition-colors hover:border-muted-foreground hover:text-foreground"
         data-testid="nifti-header-toggle-all"
       >
         {showAll ? "Show summary" : "Show all fields"}
@@ -66,12 +66,12 @@ export function NiftiHeaderView({ hdr, scrollClassName = "max-h-[60vh]" }) {
 export function NiftiHeaderDialog({ target, onClose }) {
   return (
     <Dialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg w-[92vw] bg-panel border border-border text-foreground" data-testid="nifti-header-dialog">
+      <DialogContent className="max-w-lg w-[92vw] bg-panel border border-edge text-foreground" data-testid="nifti-header-dialog">
         <DialogHeader>
-          <DialogTitle className="text-sm font-medium tracking-wide flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <FileText size={14} className="text-muted-foreground" /> NIfTI header
           </DialogTitle>
-          <DialogDescription className="text-[11px] text-muted-foreground font-mono truncate">
+          <DialogDescription className="text-[12px] text-muted-foreground font-mono truncate">
             {target?.name}
           </DialogDescription>
         </DialogHeader>

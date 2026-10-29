@@ -15,11 +15,12 @@ function AppShell() {
         position="bottom-left"
         toastOptions={{
           style: {
-            background: theme === "light" ? "#F4F4F5" : "#111111",
-            border: `1px solid ${theme === "light" ? "#D4D4D8" : "#27272A"}`,
-            color: theme === "light" ? "#0A0A0B" : "#F4F4F5",
-            borderRadius: 0,
-            fontFamily: "IBM Plex Sans, sans-serif",
+            background: "hsl(var(--popover))",
+            border: "1px solid hsl(var(--edge))",
+            color: "hsl(var(--popover-foreground))",
+            borderRadius: 8,
+            boxShadow: "var(--elev-2)",
+            fontFamily: "inherit",
           },
         }}
       />

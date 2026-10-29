@@ -39,24 +39,24 @@ export const RunningIndicator = ({
       // bottom-24 (not bottom-4): the app's toast stack (sonner) also lives
       // bottom-left (item 94) and grows upward from the bottom edge — this
       // box sits above it so they never overlap.
-      className="fixed bottom-24 left-4 z-50 w-72 border border-border bg-panel/95 backdrop-blur px-4 py-3 shadow-xl rounded-md"
+      className="fixed bottom-24 left-4 z-50 w-72 rounded-[10px] border border-edge bg-popover px-4 py-3 shadow-elev-2"
       data-testid="running-indicator"
     >
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.15em] text-foreground">
-          {error ? <XCircle size={13} className="text-red-400" />
-            : done ? <CheckCircle2 size={13} className="text-emerald-400" />
-            : <Loader2 size={13} className="animate-spin text-fuchsia-400" />}
+        <div className="flex items-center gap-2 text-[12.5px] font-medium text-foreground">
+          {error ? <XCircle size={13} className="text-destructive" />
+            : done ? <CheckCircle2 size={13} className="text-ok" />
+            : <Loader2 size={13} className="animate-spin text-muted-foreground" />}
           {title}
         </div>
         {(done || error) && onDismiss && (
-          <button onClick={onDismiss} className="text-muted-foreground hover:text-foreground text-[11px]" data-testid="running-indicator-dismiss">✕</button>
+          <button onClick={onDismiss} className="text-muted-foreground hover:text-foreground text-[12px]" data-testid="running-indicator-dismiss">✕</button>
         )}
         {!done && onCancel && (
           <button
             onClick={onCancel}
             disabled={cancelling}
-            className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground hover:text-destructive disabled:opacity-50"
+            className="text-[12px] font-medium text-muted-foreground hover:text-destructive disabled:opacity-50"
             data-testid="running-indicator-cancel"
           >
             {cancelling ? "Cancelling…" : "Cancel"}
@@ -67,7 +67,7 @@ export const RunningIndicator = ({
         <div className="mb-2" data-testid="running-indicator-progress">
           <div className="h-1.5 w-full bg-panel-hover border border-border rounded-sm overflow-hidden">
             <div
-              className="h-full bg-fuchsia-500 transition-[width] duration-300 ease-out"
+              className="h-full bg-foreground transition-[width] duration-300 ease-out"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -76,10 +76,10 @@ export const RunningIndicator = ({
       {steps && steps.length > 0 && (
         <div className="space-y-1">
           {steps.map((s) => (
-            <div key={s.key} className="flex items-center gap-2 text-[11px]">
-              {s.state === "done" ? <CheckCircle2 size={11} className="text-emerald-400" />
-                : s.state === "active" ? <Loader2 size={11} className="animate-spin text-fuchsia-400" />
-                : s.state === "error" ? <XCircle size={11} className="text-red-400" />
+            <div key={s.key} className="flex items-center gap-2 text-[12px]">
+              {s.state === "done" ? <CheckCircle2 size={11} className="text-ok" />
+                : s.state === "active" ? <Loader2 size={11} className="animate-spin text-muted-foreground" />
+                : s.state === "error" ? <XCircle size={11} className="text-destructive" />
                 : <Circle size={11} className="text-subtle" />}
               <span className={s.state === "pending" ? "text-subtle" : "text-foreground"}>{s.label}</span>
             </div>
@@ -87,7 +87,7 @@ export const RunningIndicator = ({
         </div>
       )}
       {message && !done && (
-        <div className="mt-2 text-[10px] text-muted-foreground truncate">{message}</div>
+        <div className="mt-2 text-[11.5px] text-muted-foreground truncate">{message}</div>
       )}
     </div>
   );

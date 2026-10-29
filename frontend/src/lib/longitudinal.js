@@ -3,15 +3,20 @@
 
 const apiBase = process.env.REACT_APP_BACKEND_URL || "";
 
-export async function longitudinalAvailable() {
+// "ok" | "module-missing" (backend up, SimpleITK not installed — the standard
+// build installs it on demand as the longitudinal-simpleitk module) |
+// "unreachable" (no backend answered).
+export async function longitudinalStatus() {
   try {
     const r = await fetch(`${apiBase}/api/longitudinal/available`);
-    if (!r.ok) return false;
-    return !!(await r.json()).available;
+    if (!r.ok) return "unreachable";
+    return (await r.json()).available ? "ok" : "module-missing";
   } catch {
-    return false;
+    return "unreachable";
   }
 }
+
+export const LONGITUDINAL_MODULE_ID = "longitudinal-simpleitk";
 
 /**
  * Register followup→baseline and fetch the difference map.

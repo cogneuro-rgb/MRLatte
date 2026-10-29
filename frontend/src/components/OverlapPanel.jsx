@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { GitMerge, Download, FlaskConical } from "lucide-react";
+import { Download, FlaskConical } from "lucide-react";
 import { overlapToCSV, downloadText } from "@/lib/volumeAnalysis";
 import { loadAtlasForReading } from "@/lib/atlasLoad";
 import { resolveLesionAtlasMetrics, engineProvenanceLabel } from "@/lib/lesionReport";
@@ -15,7 +15,8 @@ import { toast } from "sonner";
  * resolveLesionAtlasMetrics, falling back visibly to the JS engine
  * (computeAtlasOverlap) when lqtpy is unavailable or a dev toggle forces it.
  */
-export const OverlapPanel = ({ viewerRef, lesionLayers, atlasOptions, ensureAtlasRegions, ensureAtlasLoaded, userFileCache }) => {
+// `bare`: no heading of its own, for a caller that folds it under one.
+export const OverlapPanel = ({ viewerRef, lesionLayers, atlasOptions, ensureAtlasRegions, ensureAtlasLoaded, userFileCache, bare = false }) => {
   const [lesionId, setLesionId] = useState("");
   const [atlasId, setAtlasId] = useState("");
   const [rows, setRows] = useState([]);
@@ -111,7 +112,7 @@ export const OverlapPanel = ({ viewerRef, lesionLayers, atlasOptions, ensureAtla
 
   if (lesionLayers.length === 0) {
     return (
-      <div className="font-mono text-[10px] text-subtle leading-relaxed" data-testid="overlap-empty">
+      <div className="text-[12px] text-subtle leading-relaxed" data-testid="overlap-empty">
         Load a lesion mask first to compute atlas overlap.
       </div>
     );
@@ -120,87 +121,96 @@ export const OverlapPanel = ({ viewerRef, lesionLayers, atlasOptions, ensureAtla
   const voxelsLabel = rows.length && provenance?.engine === "lqtpy" ? "vox (atlas)" : "vox";
 
   return (
-    <div className="space-y-3" data-testid="overlap-panel">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <GitMerge size={12} className="text-muted-foreground" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-foreground">lesion ∩ atlas overlap</span>
-        </div>
+    <div className="space-y-2" data-testid="overlap-panel">
+      {(!bare || isDevBuild()) && (
+      <div className="flex items-center gap-2">
+        {!bare && <span className="cap flex-1 text-subtle">Lesion ∩ atlas overlap</span>}
         {isDevBuild() && (
           <button
             onClick={() => setDevEngine(devEngine === "js" ? null : "js")}
             title="Dev only: force the JS engine instead of lqtpy, for side-by-side comparison"
-            className={`flex items-center gap-1 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] border transition-colors ${devEngine === "js" ? "bg-amber-500/20 border-amber-500 text-amber-400" : "bg-transparent border-border text-subtle hover:text-foreground"}`}
+            aria-pressed={devEngine === "js"}
+            className={`btn-mini ${devEngine === "js" ? "!border-warn !bg-warn/15 !text-warn" : ""}`}
             data-testid="overlap-dev-engine-toggle"
           >
-            <FlaskConical size={10} /> JS
+            <FlaskConical size={11} /> JS
           </button>
         )}
       </div>
+      )}
 
       {/* Item 105: with exactly one lesion in scope (the per-lesion mount in
           LesionMasksSection passes just its own layer) the lesion picker is
-          noise — the atlas picker then takes the full width. */}
-      <div className={lesionLayers.length > 1 ? "grid grid-cols-2 gap-1.5" : ""}>
-        {lesionLayers.length > 1 && (
+          noise — the atlas row then stands alone. */}
+      {lesionLayers.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="w-12 flex-shrink-0 text-[13px] text-muted-foreground">Lesion</span>
           <select value={lesionId} onChange={(e) => setLesionId(e.target.value)}
-            className="bg-background border border-border text-foreground font-mono text-[10px] px-2 py-1"
+            className="field min-w-0 flex-1"
             data-testid="overlap-lesion-select">
             <option value="">— lesion —</option>
             {lesionLayers.map((l) => (<option key={l.id} value={l.id}>{l.name}</option>))}
           </select>
-        )}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <span className="w-12 flex-shrink-0 text-[13px] text-muted-foreground">Atlas</span>
         <select value={atlasId} onChange={(e) => setAtlasId(e.target.value)}
-          className="w-full bg-background border border-border text-foreground font-mono text-[10px] px-2 py-1"
+          className="field min-w-0 flex-1"
           data-testid="overlap-atlas-select">
           <option value="">— atlas —</option>
           {atlasOptions.map((a) => (<option key={a.id} value={a.id}>{a.short || a.name}</option>))}
         </select>
       </div>
-
-      <div className="grid grid-cols-2 gap-1.5">
-        <button onClick={runOverlap} disabled={busy}
-          className="py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50"
-          data-testid="overlap-run">
-          {busy ? "Computing…" : "Compute"}
-        </button>
-        <button onClick={exportCSV} disabled={!rows.length}
-          className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-foreground border-border hover:border-muted-foreground disabled:opacity-30"
-          data-testid="overlap-export">
-          <Download size={11} /> CSV
-        </button>
-      </div>
+      <button onClick={runOverlap} disabled={busy}
+        className="btn w-full"
+        data-testid="overlap-run">
+        {busy ? "Computing…" : "Compute overlap"}
+      </button>
 
       {note && (
-        <div className="text-[10px] text-amber-500 leading-relaxed border border-amber-500/30 bg-amber-500/10 px-2 py-1.5" data-testid="overlap-note">
+        <div className="rounded-lg border border-warn/30 bg-warn/10 px-2.5 py-1.5 text-[12px] leading-relaxed text-warn" data-testid="overlap-note">
           {note}
         </div>
       )}
 
-      {provenance && (
-        <div className="font-mono text-[9px] text-subtle px-0.5" data-testid="overlap-provenance">
-          {engineProvenanceLabel(provenance)}
+      {(rows.length > 0 || provenance) && (
+        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <span className="flex-1">
+            {rows.length > 0 ? `${rows.length} region${rows.length === 1 ? "" : "s"} overlapped` : ""}
+          </span>
+          {provenance && (
+            <span className="truncate font-mono text-[11px] text-subtle" title={engineProvenanceLabel(provenance)} data-testid="overlap-provenance">
+              {engineProvenanceLabel(provenance)}
+            </span>
+          )}
+          <button onClick={exportCSV} disabled={!rows.length}
+            className="btn-mini"
+            title="Download the overlap table as CSV"
+            data-testid="overlap-export">
+            <Download size={11} /> CSV
+          </button>
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="border border-border bg-background max-h-44 overflow-y-auto thin-scroll" data-testid="overlap-table">
-          <table className="w-full text-[10px] font-mono">
-            <thead className="bg-panel sticky top-0">
-              <tr className="text-muted-foreground uppercase">
-                <th className="text-left px-2 py-1">region</th>
-                <th className="text-right px-2 py-1">{voxelsLabel}</th>
-                <th className="text-right px-2 py-1">% les</th>
-                <th className="text-right px-2 py-1">% reg</th>
+        <div className="max-h-44 overflow-y-auto thin-scroll" data-testid="overlap-table">
+          <table className="w-full text-[12px]">
+            <thead className="sticky top-0 bg-card">
+              <tr className="text-subtle">
+                <th className="cap py-1 pr-2 text-left">Region</th>
+                <th className="cap px-1.5 py-1 text-right">{voxelsLabel}</th>
+                <th className="cap px-1.5 py-1 text-right">% les</th>
+                <th className="cap py-1 pl-1.5 text-right">% reg</th>
               </tr>
             </thead>
             <tbody>
               {rows.slice(0, 80).map((r, i) => (
                 <tr key={i} className="border-t border-border text-foreground" data-testid={`overlap-row-${i}`}>
-                  <td className="px-2 py-1 truncate max-w-[140px]" title={r.regionName}>{r.regionName}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.voxelCount}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.percentOfLesion.toFixed(1)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.percentOfRegion.toFixed(1)}</td>
+                  <td className="max-w-[140px] truncate py-[5px] pr-2" title={r.regionName}>{r.regionName}</td>
+                  <td className="px-1.5 py-[5px] text-right font-mono text-[11.5px] text-muted-foreground">{r.voxelCount}</td>
+                  <td className="px-1.5 py-[5px] text-right font-mono text-[11.5px]">{r.percentOfLesion.toFixed(1)}</td>
+                  <td className="py-[5px] pl-1.5 text-right font-mono text-[11.5px]">{r.percentOfRegion.toFixed(1)}</td>
                 </tr>
               ))}
             </tbody>

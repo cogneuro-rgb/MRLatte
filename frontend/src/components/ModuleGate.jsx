@@ -1,6 +1,7 @@
 import React from "react";
 import { Download, Package } from "lucide-react";
 import { useCapability, useModulesFor, useModuleStore } from "@/hooks/use-modules";
+import { useAtlasManager } from "@/hooks/use-atlases";
 import { moduleSize, isRedistributable } from "@/lib/modules";
 
 /**
@@ -15,43 +16,46 @@ import { moduleSize, isRedistributable } from "@/lib/modules";
 export function ModuleInstallPrompt({ capability, label }) {
   const candidates = useModulesFor(capability);
   const { openStore } = useModuleStore();
+  // Atlases and the template (modules with a `group`) live in the Atlas Manager.
+  const { openManager } = useAtlasManager();
+  const open = (m) => (m.group ? openManager(m.id) : openStore(m.id));
   const missing = candidates.filter((m) => !m.installed);
   const shown = missing.length ? missing : candidates;
 
   return (
     <div
-      className="border border-border px-2.5 py-2.5 space-y-2.5"
+      className="border border-border px-2.5 py-2.5 space-y-2.5 rounded-lg"
       data-testid={`module-gate-${capability}`}
     >
-      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="flex items-center gap-2 cap text-subtle">
         <Package size={11} /> module required
       </div>
 
       {label && (
-        <div className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+        <div className="text-[11.5px] text-muted-foreground leading-relaxed">
           {label} needs an optional module that is not installed.
         </div>
       )}
 
       {shown.length === 0 && (
-        <div className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+        <div className="text-[11.5px] text-muted-foreground leading-relaxed">
           No module in the manifest provides this feature.
         </div>
       )}
 
       {shown.map((m) => (
         <div key={m.id} className="space-y-1.5">
-          <div className="font-mono text-[10px] text-foreground leading-snug">{m.name}</div>
+          <div className="font-mono text-[11px] text-foreground leading-snug">{m.name}</div>
           {m.description && (
-            <div className="font-mono text-[9px] text-subtle leading-relaxed">{m.description}</div>
+            <div className="text-[11.5px] text-subtle leading-relaxed">{m.description}</div>
           )}
           <button
             type="button"
-            onClick={() => openStore(m.id)}
+            onClick={() => open(m)}
             title={isRedistributable(m)
               ? "Open the module store to install this module."
               : "Not redistributable — the store explains how to obtain and sideload it."}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em] border border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+            className="btn w-full flex items-center justify-center gap-1.5 cap text-subtle"
             data-testid={`module-install-${m.id}`}
           >
             <Download size={11} />
@@ -60,9 +64,10 @@ export function ModuleInstallPrompt({ capability, label }) {
         </div>
       ))}
 
-      <div className="font-mono text-[9px] text-subtle leading-relaxed">
-        Opens the module store, where a module can be downloaded (when its
-        licence allows) or sideloaded from a file you already have.
+      <div className="text-[11.5px] text-subtle leading-relaxed">
+        Opens the {shown.some((m) => m.group) ? "Atlas Manager" : "module store"}, where
+        a module can be downloaded (when its licence allows) or sideloaded from a
+        file you already have.
       </div>
     </div>
   );

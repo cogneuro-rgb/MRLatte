@@ -1,6 +1,7 @@
 import React from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
 
 const COLORMAPS = [
   "gray",
@@ -37,7 +38,7 @@ export const LayerControl = ({
 }) => {
   return (
     <div
-      className={`group border border-border bg-panel hover:bg-panel-hover transition-colors ${
+      className={`group border border-border bg-panel hover:bg-panel-hover transition-colors rounded-lg ${
         visible ? "border-l-2 border-l-foreground" : ""
       }`}
       data-testid={`layer-${layer.id}`}
@@ -68,7 +69,7 @@ export const LayerControl = ({
             {removable && (
               <button
                 onClick={() => onRemove?.(layer.id)}
-                className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-destructive transition-colors"
+                className="text-[12px] font-medium text-muted-foreground hover:text-destructive transition-colors"
                 data-testid={`remove-${layer.id}`}
               >
                 remove
@@ -76,7 +77,7 @@ export const LayerControl = ({
             )}
           </div>
           {layer.description && (
-            <div className="truncate font-mono text-[10px] text-muted-foreground mt-0.5">
+            <div className="truncate font-mono text-[11px] text-muted-foreground mt-0.5">
               {layer.description}
             </div>
           )}
@@ -88,12 +89,13 @@ export const LayerControl = ({
           {/* Opacity slider */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+              <span className="cap text-subtle">
                 opacity
               </span>
-              <span className="font-mono text-[10px] text-foreground tabular-nums">
+              <EditableNumber value={opacity * 100} min={0} max={100} integer onCommit={(v) => onOpacityChange(layer.id, v / 100)} label="Opacity, %"
+                className="font-mono text-[11px] text-foreground tabular-nums">
                 {Math.round(opacity * 100)}%
-              </span>
+              </EditableNumber>
             </div>
             <Slider
               value={[opacity * 100]}
@@ -101,6 +103,7 @@ export const LayerControl = ({
               step={1}
               onValueChange={(v) => onOpacityChange(layer.id, v[0] / 100)}
               className="cursor-pointer"
+              aria-label="Opacity"
               data-testid={`opacity-${layer.id}`}
             />
           </div>
@@ -109,17 +112,17 @@ export const LayerControl = ({
           {onColormapChange && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+                <span className="cap text-subtle">
                   colormap
                 </span>
-                <span className="font-mono text-[10px] text-foreground">
+                <span className="font-mono text-[11px] text-foreground">
                   {colormap}
                 </span>
               </div>
               <select
                 value={colormap}
                 onChange={(e) => onColormapChange(layer.id, e.target.value)}
-                className="w-full bg-background border border-border text-foreground font-mono text-[11px] px-2 py-1 focus:outline-none focus:border-muted-foreground cursor-pointer"
+                className="w-full bg-background border border-edge text-foreground font-mono text-[12px] px-2 py-1 focus:outline-none cursor-pointer"
                 data-testid={`colormap-${layer.id}`}
               >
                 {COLORMAPS.map((c) => (

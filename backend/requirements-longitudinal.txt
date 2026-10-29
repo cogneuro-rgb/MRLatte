@@ -1,0 +1,2 @@
+SimpleITK==2.5.6  # optional stack: longitudinal compare (deps.py _run_longitudinal). Full installer only;
+                  # the standard build installs it on demand as the longitudinal-simpleitk module.

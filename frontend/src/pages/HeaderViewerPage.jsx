@@ -37,14 +37,14 @@ export default function HeaderViewerPage() {
         <div className="flex items-center gap-2 text-sm font-medium tracking-wide">
           <FileText size={14} className="text-muted-foreground" /> NIfTI header
         </div>
-        <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={state.path}>
+        <div className="mt-1 truncate font-mono text-[12px] text-muted-foreground" title={state.path}>
           {state.path || state.name || ""}
         </div>
       </div>
-      {state.loading && <div className="text-[12px] text-muted-foreground">Reading…</div>}
+      {state.loading && <div className="text-[13px] text-muted-foreground">Reading…</div>}
       {state.error && (
-        <div className="flex items-start gap-2 border border-orange-500/60 px-3 py-2 text-[12px] text-orange-200" data-testid="header-viewer-error">
-          <AlertTriangle size={14} className="mt-px shrink-0 text-orange-400" />
+        <div className="flex items-start gap-2 border border-warn/60 px-3 py-2 text-[13px] text-warn rounded-lg" data-testid="header-viewer-error">
+          <AlertTriangle size={14} className="mt-px shrink-0 text-warn" />
           {state.error}
         </div>
       )}

@@ -25,8 +25,9 @@
 //      read-only ZIP reader, because adding a dep to a CLI whose whole job is
 //      "get the big files" would be silly.
 //
-// MRLATTE_MODULE_RELEASE_BASE has no default by design. With nothing hosted,
-// unset must mean "no downloadable source", not a guess at a URL.
+// The release base is MRLATTE_MODULE_RELEASE_BASE, else the manifest's
+// `releaseBase` (the project's GitHub releases); with neither, a module has no
+// downloadable source — never a guess at a URL.
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -92,7 +93,14 @@ function loadManifest() {
     throw new UserError(`module manifest is not valid JSON (${p}): ${e.message}`);
   }
   const modules = Array.isArray(data.modules) ? data.modules : [];
+  manifestReleaseBase = typeof data.releaseBase === 'string' ? data.releaseBase : '';
   return { schemaVersion: data.schemaVersion || 0, modules, path: p };
+}
+
+let manifestReleaseBase = '';   // set by loadManifest
+
+function releaseBase() {
+  return (process.env.MRLATTE_MODULE_RELEASE_BASE || manifestReleaseBase || '').replace(/\/+$/, '');
 }
 
 function moduleType(entry) { return entry.type || 'data'; }
@@ -361,7 +369,7 @@ function pad(s, n) {
 }
 
 function downloadUrl(entry) {
-  const base = (process.env.MRLATTE_MODULE_RELEASE_BASE || '').replace(/\/+$/, '');
+  const base = releaseBase();
   if (!base) return null;
   for (const src of entry.sources || []) {
     if (src.type === 'github-release' && src.asset) {
@@ -394,7 +402,7 @@ function cmdList(manifest, opts) {
     out(JSON.stringify({
       manifest: manifest.path,
       moduleRoot: moduleRoot(),
-      releaseBase: process.env.MRLATTE_MODULE_RELEASE_BASE || null,
+      releaseBase: releaseBase() || null,
       modules: rows.map(({ entry, st }) => ({
         id: entry.id, type: st.type, tier: entry.tier || 'optional',
         state: st.state, resolvedFrom: st.tier, bytes: entry.bytes || 0,
@@ -409,7 +417,7 @@ function cmdList(manifest, opts) {
   out(bold('MRLatte modules'));
   out(`  manifest      ${manifest.path}`);
   out(`  module root   ${root}${fs.existsSync(root) ? '' : dim('  (not created yet)')}`);
-  out(`  release base  ${process.env.MRLATTE_MODULE_RELEASE_BASE
+  out(`  release base  ${releaseBase()
     || dim('(unset — `add` has nothing to download from)')}`);
 
   for (const [type, title, blurb] of TYPE_SECTIONS) {
@@ -1191,8 +1199,8 @@ Options
 Environment
   MRLATTE_MODULE_ROOT           where modules live      (default ${defaultModuleRoot()})
   MRLATTE_MODULE_MANIFEST       manifest location       (default <repo>/modules/manifest.json)
-  MRLATTE_MODULE_RELEASE_BASE   base URL for github-release assets — no default: with
-                                nothing hosted, unset means "no downloadable source"
+  MRLATTE_MODULE_RELEASE_BASE   base URL for github-release assets (default: the
+                                manifest's releaseBase, the project's GitHub releases)
 
 Slot modules (the tractogram, the DA-LNM bundle) are never downloaded. They are
 user-supplied by licence: \`list\` prints the folder to drop a file into.`;

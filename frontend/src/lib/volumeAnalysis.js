@@ -1,5 +1,6 @@
 // Browser-side volumetric analysis on niivue NVImage objects.
-// vol.img is the typed array (float32 after scl_slope/inter applied for float NIfTI).
+// vol.img is the typed array of stored values; niivue does NOT apply hdr.scl_slope/
+// scl_inter to it (cal_min/cal_max and global_min/max are in the scaled units).
 // vol.dimsRAS is [3, nx, ny, nz] (length 4, reoriented to RAS).
 // vol.matRAS is the voxel->mm affine (column-major mat4).
 
@@ -12,11 +13,27 @@ export function getDims(vol) {
 }
 
 /**
+ * The colour range a layer gets when it is locked to its visibility values
+ * (`meta` is its overlayMeta: invertThreshold, global_min, global_max): the
+ * span of the values that are visible. A window shows [lo, hi]; an inverted
+ * threshold (the stat-map default, e.g. hide −1…1) shows what lies outside it,
+ * out to the data's extremes — locking to [lo, hi] there would saturate every
+ * visible voxel.
+ */
+export function lockedColorRange(meta, lo, hi) {
+  const gmin = meta?.global_min, gmax = meta?.global_max;
+  if (!meta?.invertThreshold || !Number.isFinite(gmin) || !Number.isFinite(gmax)) return [lo, hi];
+  return [lo > gmin ? gmin : hi, hi < gmax ? gmax : lo];
+}
+
+/**
  * Robust intensity range [loVal, hiVal] at the given percentiles (default
  * 2%–98%), for one-click auto-contrast. A percentile window ignores the
  * extreme outliers that make a full min–max window look washed out. Builds a
  * 256-bin histogram over the finite, non-zero voxels in a single pass, then
- * reads back the percentile bin edges. Returns null if there's no usable data.
+ * reads back the percentile bin edges. The bounds are in displayed units
+ * (hdr.scl_slope/scl_inter applied, like cal_min/cal_max). Returns null if
+ * there's no usable data.
  */
 export function robustRange(vol, loPct = 0.02, hiPct = 0.98) {
   const img = vol?.img;
@@ -51,7 +68,14 @@ export function robustRange(vol, loPct = 0.02, hiPct = 0.98) {
   }
   const loVal = mn + loBin / scale;
   const hiVal = mn + hiBin / scale;
-  return hiVal > loVal ? [loVal, hiVal] : [mn, mx];
+  const [lo, hi] = hiVal > loVal ? [loVal, hiVal] : [mn, mx];
+  // Raw → displayed units, as niivue does (slope 0/NaN means 1, inter NaN 0).
+  // Linear, so mapping the two edges is enough; a negative slope swaps them.
+  const s = vol.hdr?.scl_slope, t = vol.hdr?.scl_inter;
+  const slope = Number.isFinite(s) && s !== 0 ? s : 1;
+  const inter = Number.isFinite(t) ? t : 0;
+  const a = lo * slope + inter, b = hi * slope + inter;
+  return a < b ? [a, b] : [b, a];
 }
 
 /**

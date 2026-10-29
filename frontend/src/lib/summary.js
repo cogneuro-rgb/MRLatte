@@ -1,7 +1,7 @@
-// One-Click Summary client. Kicks off a backend pipeline (tract dissection +
-// DA-LNM + retinotopy check + brainsprite/glass rendering) that packages a ZIP
-// report, then exposes status polling and result URLs. Mirrors lnm.js /
-// tractDissection.js conventions.
+// One-Click Summary client. Kicks off a backend pipeline (atlas overlap +
+// tract dissection + DA-LNM + retinotopy check) whose results the panel turns
+// into one report, then exposes status polling and result URLs (the run's
+// maps and data files). Mirrors lnm.js / tractDissection.js conventions.
 
 const apiBase = process.env.REACT_APP_BACKEND_URL || "";
 
@@ -19,7 +19,7 @@ export async function summaryAvailable() {
  * Start a summary job.
  * @param {File} lesionFile  lesion NIfTI (.nii/.nii.gz)
  * @param {object} payload  { name, stages:{overlap,dissect,retino,lnm},
- *   atlas_ids:[id], discPngs:{polar,vfmap} }. Atlas overlap is computed
+ *   atlas_ids:[id] }. Atlas overlap is computed
  *   backend-side (lqtpy, in-process) from `atlas_ids` — see
  *   backend/deps.py's _summary_overlap_stage. `overlapModel` is still
  *   accepted for one release as a fallback for when lqtpy is unavailable

@@ -163,8 +163,22 @@ if ($Full) {
     & py -3.11 -m pip install --target "$validationDir" -r "$validationReq" --no-warn-script-location
     if ($LASTEXITCODE -ne 0) { throw "pip install (validation) failed (exit $LASTEXITCODE)" }
     Write-Ok "python-validation installed"
+
+    $longitudinalReq = Join-Path $RepoRoot "backend\requirements-longitudinal.txt"
+    $longitudinalDir = Join-Path $BundleDir "python-longitudinal"
+    New-Item -ItemType Directory -Force -Path $longitudinalDir | Out-Null
+    & py -3.11 -m pip install --target "$longitudinalDir" -r "$longitudinalReq" --no-warn-script-location
+    if ($LASTEXITCODE -ne 0) { throw "pip install (longitudinal) failed (exit $LASTEXITCODE)" }
+    Write-Ok "python-longitudinal installed"
+
+    $dissectionReq = Join-Path $RepoRoot "backend\requirements-dissection.txt"
+    $dissectionDir = Join-Path $BundleDir "python-dissection"
+    New-Item -ItemType Directory -Force -Path $dissectionDir | Out-Null
+    & py -3.11 -m pip install --target "$dissectionDir" -r "$dissectionReq" --no-warn-script-location
+    if ($LASTEXITCODE -ne 0) { throw "pip install (dissection) failed (exit $LASTEXITCODE)" }
+    Write-Ok "python-dissection installed"
 } else {
-    Write-Ok "optional stacks skipped (pass -Full to include python-reports / python-validation)"
+    Write-Ok "optional stacks skipped (pass -Full to include python-reports / python-validation / python-longitudinal / python-dissection)"
 }
 
 # Prune ballast that never runs in the shipped app: package test suites, byte-code
@@ -186,6 +200,16 @@ try {
 
     $stubs = @(Get-ChildItem -Path $sitePkgs -Recurse -File -Force -Filter "*.pyi" -ErrorAction SilentlyContinue)
     foreach ($f in $stubs) {
+        if (-not (Test-Path -LiteralPath $f.FullName)) { continue }
+        $prunedBytes += $f.Length
+        Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue
+    }
+
+    # Build-only files: C/C++ sources and headers, Cython sources and
+    # declarations, static/import libraries. Used when COMPILING against a
+    # package, never when running one.
+    $buildOnly = @(Get-ChildItem -Path $sitePkgs -Recurse -File -Force -Include *.c, *.cpp, *.h, *.hpp, *.pyx, *.pxd, *.pxi, *.lib, *.a -ErrorAction SilentlyContinue)
+    foreach ($f in $buildOnly) {
         if (-not (Test-Path -LiteralPath $f.FullName)) { continue }
         $prunedBytes += $f.Length
         Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue
@@ -215,7 +239,8 @@ if ($SkipFrontendBuild -and (Test-Path $feBuild)) {
 # carries a 36 MB atlases\ tree. Exclude it: atlases now ship ONCE, under
 # modules\atlases (step 5), and server.py mounts them at /atlases off ATLAS_DIR -
 # the exact URL the frontend already requests - so nothing in the app changes.
-robocopy $feBuild (Join-Path $BundleDir "frontend_build") /E /XD "atlases" `
+# deepLinkParser.test.js is CRA's verbatim copy of a unit test: not shipped.
+robocopy $feBuild (Join-Path $BundleDir "frontend_build") /E /XD "atlases" /XF "*.test.js" `
     /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy of frontend build failed (exit $LASTEXITCODE)" }
 Write-Ok "frontend copied (atlases excluded)"
@@ -230,6 +255,33 @@ New-Item -ItemType Directory -Force -Path $dcmDest | Out-Null
 if ($dcm) {
     Copy-Item -Force $dcm.FullName $dcmDest
     Write-Ok "dcm2niix.exe found and copied"
+    # The pip 'dcm2niix' package was installed only to supply that .exe; the app
+    # runs the copy (electron.js puts resources\dcm2niix on PATH). Remove the
+    # package itself - exactly the files its RECORD lists, inside site-packages.
+    $dcmDist = Get-ChildItem -Path $sitePkgs -Directory -Filter "dcm2niix-*.dist-info" | Select-Object -First 1
+    if ($dcmDist) {
+        # (Names prefixed dcm*: PowerShell variables are case-insensitive, and a
+        # plain $full here would be this script's -Full switch.)
+        $dcmSiteRoot = [System.IO.Path]::GetFullPath($sitePkgs).TrimEnd('\') + '\'
+        $dcmRemoved = 0
+        foreach ($dcmLine in Get-Content (Join-Path $dcmDist.FullName "RECORD")) {
+            $dcmRel = ($dcmLine -split ",")[0]
+            if (-not $dcmRel) { continue }
+            $dcmFile = [System.IO.Path]::GetFullPath((Join-Path $sitePkgs $dcmRel))
+            if (-not $dcmFile.StartsWith($dcmSiteRoot, [StringComparison]::OrdinalIgnoreCase)) { continue }
+            if (Test-Path -LiteralPath $dcmFile -PathType Leaf) {
+                $dcmRemoved += (Get-Item -LiteralPath $dcmFile).Length
+                Remove-Item -LiteralPath $dcmFile -Force
+            }
+        }
+        foreach ($dcmDir in @("bin", "dcm2niix", $dcmDist.Name)) {      # the folders it left empty
+            $dcmPath = Join-Path $sitePkgs $dcmDir
+            if ((Test-Path -LiteralPath $dcmPath) -and -not (Get-ChildItem -LiteralPath $dcmPath -Recurse -File -Force)) {
+                Remove-Item -LiteralPath $dcmPath -Recurse -Force
+            }
+        }
+        Write-Ok ("dcm2niix pip package removed ({0:N1} MB; the app uses the copy above)" -f ($dcmRemoved / 1MB))
+    }
 } else {
     Write-Warn2 "dcm2niix.exe not found in site-packages. DICOM import will be disabled."
     Write-Warn2 "Download it from https://github.com/rordenlab/dcm2niix/releases and place"
@@ -271,19 +323,36 @@ if (-not (Test-Path $manifestSrc)) { throw "Module manifest missing: $manifestSr
 Copy-Item -Force $manifestSrc $modulesDest
 Write-Ok "manifest.json copied"
 
-# Redistributable atlas families (per-family subfolders: mni152\, harvard_oxford\,
-# benson14\, hcp1065\, ...). These are the only data assets that ship.
-$atlasSrc  = Join-Path $RepoRoot "data\modules\atlases"
-$atlasDest = Join-Path $modulesDest "atlases"
-if (Test-Path $atlasSrc) {
-    robocopy $atlasSrc $atlasDest /E /NFL /NDL /NJH /NJS /NP | Out-Null
-    if ($LASTEXITCODE -ge 8) { throw "robocopy of atlases failed (exit $LASTEXITCODE)" }
-    $atlasFiles = @(Get-ChildItem -Path $atlasDest -Recurse -File)
-    $atlasMB    = ($atlasFiles | Measure-Object -Property Length -Sum).Sum / 1MB
-    Write-Ok ("atlases copied ({0} files, {1:N1} MB)" -f $atlasFiles.Count, $atlasMB)
+# The catalog of further atlases the Atlas Manager offers, one click each.
+$catalogSrc = Join-Path $RepoRoot "data\modules\atlas-catalog.json"
+if (Test-Path $catalogSrc) {
+    Copy-Item -Force $catalogSrc $modulesDest
+    Write-Ok "atlas-catalog.json copied"
 } else {
-    Write-Warn2 "data\modules\atlases not found - the app will start with no atlases."
+    Write-Warn2 "data\modules\atlas-catalog.json not found - the Atlas Manager will offer no further atlases."
 }
+
+# The data modules the installer ships: those the manifest marks "bundled" (the
+# template and the core atlases); every other one downloads from the module
+# release. -Full ships them all. Only declared files are staged - the backend
+# seeds each module from here once, hash-checked (MRLATTE_BUNDLED_MODULES).
+$modManifest = Get-Content -Raw -Encoding UTF8 $manifestSrc | ConvertFrom-Json
+$modIds = @(); $modCount = 0; $modBytes = 0
+foreach ($modEntry in $modManifest.modules) {
+    $modType = if ($modEntry.type) { $modEntry.type } else { "data" }
+    if ($modType -ne "data" -or -not ($Full -or $modEntry.bundled)) { continue }
+    foreach ($modFile in $modEntry.files) {
+        $modRel = Join-Path $modEntry.installTo $modFile.path
+        $modSrc = Join-Path (Join-Path $RepoRoot "data\modules") $modRel
+        if (-not (Test-Path $modSrc)) { throw "module $($modEntry.id): $($modFile.path) is missing from data\modules" }
+        $modDst = Join-Path $modulesDest $modRel
+        New-Item -ItemType Directory -Force -Path (Split-Path $modDst) | Out-Null
+        Copy-Item -Force $modSrc $modDst
+        $modCount++; $modBytes += (Get-Item $modSrc).Length
+    }
+    $modIds += $modEntry.id
+}
+Write-Ok ("data modules staged: {0} ({1} files, {2:N1} MB)" -f ($modIds -join ", "), $modCount, ($modBytes / 1MB))
 
 # The two user-supplied slots. Create them EMPTY so the drop-in location exists
 # and is obvious on a fresh install. Each carries a README.txt for two reasons:

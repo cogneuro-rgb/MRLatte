@@ -399,16 +399,13 @@ def dependents(atlas_id: str) -> list:
     return [d["id"] for d in scan() if d.get("derivedFrom") == atlas_id]
 
 
-def remove(atlas_id: str) -> dict:
-    """Delete an atlas folder, preferring the OS trash.
+def check_removable(atlas_id: str) -> dict:
+    """The descriptor of an atlas that may be removed, else AtlasError.
 
     Two refusals, both distinct from the module ledger's:
       * the folder must resolve inside ATLAS_DIR;
       * an atlas another installed atlas was derived from stays, or the child's
         provenance becomes a dangling reference.
-
-    A git-tracked folder is NOT refused -- it goes to the recycle bin and `git
-    checkout` restores it, so this is recoverable twice over.
     """
     d = require(atlas_id)
     folder = Path(d["dir"])
@@ -422,6 +419,18 @@ def remove(atlas_id: str) -> dict:
             "'%s' is the source of %s. Remove %s first."
             % (d["id"], ", ".join(children),
                "it" if len(children) == 1 else "those"))
+    return d
+
+
+def remove(atlas_id: str) -> dict:
+    """Delete an atlas folder, preferring the OS trash (refusals:
+    check_removable).
+
+    A git-tracked folder is NOT refused -- it goes to the recycle bin and `git
+    checkout` restores it, so this is recoverable twice over.
+    """
+    d = check_removable(atlas_id)
+    folder = Path(d["dir"])
 
     freed = d.get("bytes", 0)
     method = _trash_tree(folder)

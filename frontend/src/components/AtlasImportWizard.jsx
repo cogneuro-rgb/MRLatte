@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Check, Upload, X } from "lucide-react";
 import { commitImport, discardImport, stageImport } from "@/lib/atlasApi";
@@ -17,16 +17,23 @@ import { commitImport, discardImport, stageImport } from "@/lib/atlasApi";
  *
  * Nothing touches the atlas directory until commit; step 1 stages the upload in
  * a temp dir the backend cleans up on commit, discard or error.
+ *
+ * A 4-D probability atlas (one map per region, like the shipped tract atlases)
+ * is accepted too: the backend builds its label map at the cut set in step 2
+ * and keeps the per-region maps (atlas_ops.maxprob_from_4d).
+ *
+ * `initialVolume` / `initialLabels` are files dropped onto the Atlas Manager.
  */
-export default function AtlasImportWizard({ onInstalled, onClose }) {
+export default function AtlasImportWizard({ onInstalled, onClose, initialVolume = null, initialLabels = null }) {
   const [stage, setStage] = useState(null);   // server response from /import/stage
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ id: "", name: "", short: "", description: "", attribution: "" });
   const [splitLR, setSplitLR] = useState(false);
   const [regions, setRegions] = useState([]);
   const [filter, setFilter] = useState("");
-  const volumeRef = useRef(null);
-  const labelsRef = useRef(null);
+  const [cutPct, setCutPct] = useState(25);          // 4-D: % of the volume's maximum
+  const [kind, setKind] = useState("tracts");         // 4-D: what its maps are of
+  const [picked, setPicked] = useState({ volume: initialVolume, labels: initialLabels });
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -37,13 +44,13 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
   }, [regions, filter]);
 
   const upload = async () => {
-    const volume = volumeRef.current?.files?.[0];
+    const volume = picked.volume;
     if (!volume) return toast.error("Choose an atlas volume (.nii or .nii.gz)");
     setBusy(true);
     try {
       const res = await stageImport({
         volume,
-        labels: labelsRef.current?.files?.[0] || null,
+        labels: picked.labels || null,
         name: volume.name,
       });
       setStage(res);
@@ -84,6 +91,7 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
         attribution: form.attribution.trim() || null,
         splitLR,
         regions,
+        ...(stage.report?.frames ? { threshold: cutPct / 100, kind } : {}),
       });
       toast.success(`${res.atlas.name} installed`);
       setStage(null);
@@ -102,26 +110,31 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
   // ---- step 1 --------------------------------------------------------------
   if (!stage) {
     return (
-      <div className="space-y-3 text-[12px]">
+      <div className="space-y-3 text-[13px]">
         <p className="text-muted-foreground">
-          Add your own parcellation. The volume must be a 3-D NIfTI whose voxel
-          values are whole numbers, one per region — the same thing FSL, FreeSurfer
-          and AFNI call a label or parcellation volume.
+          Add your own atlas, in MNI space. Either a 3-D NIfTI whose voxel values
+          are whole numbers, one per region (what FSL, FreeSurfer and AFNI call a
+          label or parcellation volume), or a 4-D probability atlas with one map
+          per region, like the tract atlases.
         </p>
 
         <label className="block">
           <span className="mb-1 block text-foreground">Atlas volume <span className="text-muted-foreground">(required)</span></span>
-          <input ref={volumeRef} type="file" accept=".nii,.nii.gz,.gz"
-            className="w-full border border-border bg-transparent px-2 py-1 text-[11px]"
+          {picked.volume && <span className="mb-1 block text-[12px] text-foreground" data-testid="atlas-import-picked">{picked.volume.name}</span>}
+          <input type="file" accept=".nii,.nii.gz,.gz"
+            onChange={(e) => setPicked((p) => ({ ...p, volume: e.target.files?.[0] || null }))}
+            className="field w-full py-1 text-[12px]"
             data-testid="atlas-import-volume" />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-foreground">Region names <span className="text-muted-foreground">(optional)</span></span>
-          <input ref={labelsRef} type="file" accept=".json,.csv,.tsv,.txt,.xml,.lut"
-            className="w-full border border-border bg-transparent px-2 py-1 text-[11px]"
+          {picked.labels && <span className="mb-1 block text-[12px] text-foreground">{picked.labels.name}</span>}
+          <input type="file" accept=".json,.csv,.tsv,.txt,.xml,.lut"
+            onChange={(e) => setPicked((p) => ({ ...p, labels: e.target.files?.[0] || null }))}
+            className="field w-full py-1 text-[12px]"
             data-testid="atlas-import-labels" />
-          <span className="mt-1 block text-[11px] text-muted-foreground">
+          <span className="mt-1 block text-[12px] text-muted-foreground">
             Most atlases ship their names in a separate file. Accepted:
             JSON (<code>[{"{index, name}"}]</code> or <code>{'{"1": "name"}'}</code>),
             CSV (<code>value,name</code>), a FreeSurfer/FSL colour LUT
@@ -132,14 +145,14 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
           </span>
         </label>
 
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button onClick={cancel} className="px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground">
+            Cancel
+          </button>
           <button onClick={upload} disabled={busy}
-            className="flex items-center gap-1 border border-border px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-panel-hover disabled:opacity-50"
+            className="flex items-center gap-1 border border-border px-2 py-1 text-[12px] text-foreground transition-colors hover:bg-panel-hover disabled:opacity-50"
             data-testid="atlas-import-upload">
             <Upload size={12} /> {busy ? "Inspecting…" : "Inspect atlas"}
-          </button>
-          <button onClick={cancel} className="px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground">
-            Cancel
           </button>
         </div>
       </div>
@@ -149,25 +162,27 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
   // ---- step 2 --------------------------------------------------------------
   const rep = stage.report || {};
   return (
-    <div className="space-y-3 text-[12px]">
-      <div className="border border-border p-2">
+    <div className="space-y-3 text-[13px]">
+      <div className="border border-border p-2 rounded-lg">
         <div className="mb-1 flex items-center gap-1 text-foreground">
           <Check size={12} className="opacity-70" /> What we found
         </div>
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-          <dt>Type</dt><dd className="text-foreground">{rep.kind}</dd>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
+          <dt>Type</dt><dd className="text-foreground">{rep.frames ? "probability maps, one per region" : rep.kind}</dd>
           <dt>Regions</dt><dd className="text-foreground">{rep.labelCount}</dd>
           <dt>Grid</dt><dd className="text-foreground">{(rep.shape || []).join(" × ")}</dd>
           <dt>Voxel size</dt><dd className="text-foreground">{(rep.voxelSizeMM || []).join(" × ")} mm</dd>
-          <dt>Left/right</dt>
-          <dd className="text-foreground">
-            {rep.lateralized === true ? "already split"
-              : rep.canSplitLR ? `${rep.bilateralValues.length} region(s) span both sides`
-              : "unknown"}
-          </dd>
+          {!rep.frames && <>
+            <dt>Left/right</dt>
+            <dd className="text-foreground">
+              {rep.lateralized === true ? "already split"
+                : rep.canSplitLR ? `${rep.bilateralValues.length} region(s) span both sides`
+                : "unknown"}
+            </dd>
+          </>}
         </dl>
         {(rep.warnings || []).map((w, i) => (
-          <div key={i} className="mt-1 flex items-start gap-1 text-[11px] text-warning">
+          <div key={i} className="mt-1 flex items-start gap-1 text-[12px] text-warning">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             <span>{w}</span>
           </div>
@@ -187,11 +202,36 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
       <Field label="Description" value={form.description}
         onChange={(v) => setForm((f) => ({ ...f, description: v }))} testId="atlas-import-desc" />
 
+      {rep.frames > 0 && (
+        <div className="grid grid-cols-2 gap-2 border border-border p-2 rounded-lg" data-testid="atlas-import-4d">
+          <label className="block">
+            <span className="mb-0.5 block text-[12px] text-foreground">Region cut-off (% of the highest value)</span>
+            <input type="number" min={1} max={100} value={cutPct}
+              onChange={(e) => setCutPct(Math.min(100, Math.max(1, Number(e.target.value) || 25)))}
+              className="field w-full"
+              data-testid="atlas-import-cut" />
+            <span className="mt-0.5 block text-[11.5px] text-muted-foreground">
+              Values here run {rep.valueRange?.[0]}–{rep.valueRange?.[1]}. A voxel belongs to a region where
+              that region’s map reaches the cut-off; where several do, the label map shows the most likely one.
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-0.5 block text-[12px] text-foreground">Its maps are of</span>
+            <select value={kind} onChange={(e) => setKind(e.target.value)}
+              className="w-full border border-border bg-panel px-2 py-1 text-[12px] text-foreground focus:outline-none"
+              data-testid="atlas-import-kind">
+              <option value="tracts">White-matter tracts</option>
+              <option value="parcellation">Brain regions</option>
+            </select>
+          </label>
+        </div>
+      )}
+
       {rep.canSplitLR && (
         <label className="flex items-start gap-2 border border-border p-2">
           <input type="checkbox" checked={splitLR} onChange={(e) => setSplitLR(e.target.checked)}
             className="mt-0.5" data-testid="atlas-import-split" />
-          <span className="text-[11px]">
+          <span className="text-[12px]">
             <span className="text-foreground">Split left and right</span>
             <span className="block text-muted-foreground">
               {rep.bilateralValues.length} of {rep.labelCount} regions have voxels in
@@ -212,36 +252,36 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
           <span className="text-foreground">Region names</span>
           <input type="text" value={filter} onChange={(e) => setFilter(e.target.value)}
             placeholder={`Filter ${regions.length}…`}
-            className="border border-border bg-transparent px-2 py-0.5 text-[11px] focus:outline-none"
+            className="field"
             data-testid="atlas-import-region-filter" />
         </div>
-        <div className="max-h-56 overflow-y-auto border border-border">
+        <div className="max-h-56 overflow-y-auto border border-border rounded-lg">
           {shown.map((r) => (
             <div key={r.value} className="flex items-center gap-2 border-b border-border px-2 py-0.5 last:border-b-0">
-              <span className="w-10 shrink-0 text-right text-[10px] text-muted-foreground">{r.value}</span>
+              <span className="w-10 shrink-0 text-right text-[11.5px] text-muted-foreground">{r.value}</span>
               <input value={r.name} onChange={(e) => renameRegion(r.value, e.target.value)}
-                className="min-w-0 flex-1 bg-transparent py-0.5 text-[11px] text-foreground focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent py-0.5 text-[12px] text-foreground focus:outline-none"
                 data-testid={`atlas-import-region-${r.value}`} />
             </div>
           ))}
           {regions.length > shown.length && (
-            <div className="px-2 py-1 text-[11px] text-muted-foreground">
+            <div className="px-2 py-1 text-[12px] text-muted-foreground">
               …and {regions.length - shown.length} more (filter to reach them)
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button onClick={commit} disabled={busy}
-          className="flex items-center gap-1 border border-border px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-panel-hover disabled:opacity-50"
-          data-testid="atlas-import-commit">
-          <Check size={12} /> {busy ? "Installing…" : "Install atlas"}
-        </button>
+      <div className="flex items-center justify-end gap-2">
         <button onClick={cancel} disabled={busy}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="flex items-center gap-1 px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50"
           data-testid="atlas-import-cancel">
           <X size={12} /> Discard
+        </button>
+        <button onClick={commit} disabled={busy}
+          className="flex items-center gap-1 border border-border px-2 py-1 text-[12px] text-foreground transition-colors hover:bg-panel-hover disabled:opacity-50"
+          data-testid="atlas-import-commit">
+          <Check size={12} /> {busy ? "Installing…" : "Install atlas"}
         </button>
       </div>
     </div>
@@ -251,11 +291,11 @@ export default function AtlasImportWizard({ onInstalled, onClose }) {
 function Field({ label, hint, value, onChange, testId }) {
   return (
     <label className="block">
-      <span className="mb-0.5 block text-[11px] text-foreground">{label}</span>
+      <span className="mb-0.5 block text-[12px] text-foreground">{label}</span>
       <input value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-border bg-transparent px-2 py-1 text-[11px] text-foreground focus:outline-none"
+        className="field w-full"
         data-testid={testId} />
-      {hint && <span className="mt-0.5 block text-[10px] text-muted-foreground">{hint}</span>}
+      {hint && <span className="mt-0.5 block text-[11.5px] text-muted-foreground">{hint}</span>}
     </label>
   );
 }

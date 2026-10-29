@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_MANIFEST = REPO_ROOT / "data" / "modules" / "manifest.json"
 REAL_ATLASES = REPO_ROOT / "data" / "modules" / "atlases"
 
-RETINOTOPY = "retinotopy-benson-wang"
+RETINOTOPY = "retinotopy-benson14"
 # Both HCP-derived assets are now `slot` modules: any conforming file, any
 # name, dropped into a directory. Ids name the ROLE, not one artifact.
 TRACTOGRAPHY = "tractography-whole-brain"
@@ -67,6 +67,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("MRLATTE_MODULE_MANIFEST", str(REAL_MANIFEST))
     monkeypatch.setenv("MRLATTE_MODULE_JOBS_DIR", str(tmp_path / "jobs"))
     monkeypatch.delenv("MRLATTE_MODULE_RELEASE_BASE", raising=False)
+    monkeypatch.delenv("MRLATTE_BUNDLED_MODULES", raising=False)
     # Per-asset overrides would bypass the module root entirely.
     for var in ("ATLAS_DIR", "GLOBAL_TRACT_FILE", "LNM_BUNDLE",
                 "VALIDATION_DIR", "VALIDATION_REPORT"):
@@ -135,7 +136,7 @@ def upload(client, module_id, path):
 
 # === 1. Successful sideload of a multi-file module ============================
 
-@pytest.mark.parametrize("top_dir", [None, "retinotopy-benson-wang"])
+@pytest.mark.parametrize("top_dir", [None, "retinotopy-benson14"])
 def test_sideload_multifile_installs_and_flips_capability(client, env, tmp_path, top_dir):
     before = module_state(client, RETINOTOPY)
     assert before["installed"] is False
@@ -183,7 +184,7 @@ def test_sideload_only_writes_inside_the_module_root(client, env, tmp_path):
 # === 2. Hash-mismatch rejection ===============================================
 
 def test_hash_mismatch_is_rejected_and_names_the_file(client, env, tmp_path):
-    bad = "wang2015/wang2015_maxprob.nii.gz"
+    bad = "benson14/benson14_polar_angle.nii.gz"
     r = upload(client, RETINOTOPY,
                retinotopy_zip(tmp_path / "bad.zip", corrupt=bad))
     assert r.status_code == 400, r.text
@@ -202,7 +203,7 @@ def test_hash_mismatch_is_rejected_and_names_the_file(client, env, tmp_path):
 
 def test_declared_size_mismatch_is_rejected_before_decompressing(client, env, tmp_path):
     payload = _retinotopy_payload()
-    payload["wang2015/wang2015_labels.json"] += b"\x00" * 64
+    payload["wm_retinotopy/wm_polar_angle.nii.gz"] += b"\x00" * 64
     r = upload(client, RETINOTOPY, build_zip(tmp_path / "s.zip", payload))
     assert r.status_code == 400, r.text
     assert r.json()["detail"]["error"] == "declared size mismatch"
@@ -313,7 +314,7 @@ def test_truncated_part_is_replaced_not_promoted(client, env, tmp_path):
     sideload, and the promoted file is the verified one."""
     atlases = env.root / "atlases"
     atlases.mkdir(parents=True)
-    victim = "wang2015/wang2015_labels.json"
+    victim = "wm_retinotopy/wm_eccentricity.nii.gz"
     (atlases / victim).parent.mkdir(parents=True, exist_ok=True)
     (atlases / (victim + ".part")).write_bytes(b"truncated garbage")
 
@@ -417,8 +418,8 @@ def test_uninstall_refuses_when_an_env_override_points_outside_the_root(
 
 def test_checked_in_data_module_is_not_uninstallable(client, env):
     """Files planted directly under the module root (no sideload, no ledger
-    entry) simulate the repo-tracked payloads — mni152-template, atlases-core
-    — that ship with a checkout. `installed` is true (the files are there),
+    entry) simulate the repo-tracked payloads — the template and every atlas —
+    that ship with a checkout. `installed` is true (the files are there),
     but `uninstallable` must be false: the store's button would otherwise
     tell the user this is deletable when `_uninstall_guard` always 409s it."""
     for rel, data in _retinotopy_payload().items():
@@ -567,14 +568,14 @@ def _await_job(client, job_id, timeout=60):
 
 
 def test_download_install_from_local_http_server(client, env, http_server, monkeypatch):
-    retinotopy_zip(http_server.dir / "modules-v1" / "retinotopy-benson-wang.zip")
+    retinotopy_zip(http_server.dir / "modules-v1" / f"{RETINOTOPY}.zip")
     monkeypatch.setenv("MRLATTE_MODULE_RELEASE_BASE", http_server.base)
 
     assert module_state(client, RETINOTOPY)["downloadable"] is True
     r = client.post(f"/api/modules/{RETINOTOPY}/install", json={})
     assert r.status_code == 200, r.text
     job_id = r.json()["job_id"]
-    assert r.json()["url"] == f"{http_server.base}/modules-v1/retinotopy-benson-wang.zip"
+    assert r.json()["url"] == f"{http_server.base}/modules-v1/{RETINOTOPY}.zip"
 
     status = _await_job(client, job_id)
     assert status["stage"] == "done", status
@@ -594,7 +595,7 @@ def test_download_install_from_local_http_server(client, env, http_server, monke
 
 def test_download_of_a_corrupt_archive_errors_and_promotes_nothing(
         client, env, http_server, monkeypatch):
-    retinotopy_zip(http_server.dir / "modules-v1" / "retinotopy-benson-wang.zip",
+    retinotopy_zip(http_server.dir / "modules-v1" / f"{RETINOTOPY}.zip",
                    corrupt="benson14/benson14_eccentricity.nii.gz")
     monkeypatch.setenv("MRLATTE_MODULE_RELEASE_BASE", http_server.base)
 
@@ -622,7 +623,7 @@ def test_download_404_is_reported_as_a_job_error(client, env, http_server, monke
     job_id = client.post(f"/api/modules/{RETINOTOPY}/install", json={}).json()["job_id"]
     status = _await_job(client, job_id)
     assert status["stage"] == "error", status
-    assert "404" in str(status["error"])
+    assert "may not be published yet" in str(status["error"])
     assert module_state(client, RETINOTOPY)["installed"] is False
 
 
@@ -733,13 +734,17 @@ def test_non_redistributable_module_is_a_slot_and_cannot_be_downloaded(client, e
     assert r.status_code in (404, 409), r.text
 
 
-def test_python_package_modules_are_not_installable(client, env):
+def test_python_package_modules_download_their_pinned_files_only(client, env):
+    """reports-figures pins its PyPI files, so the store may download it — but
+    there is nothing to sideload or hash-verify, and one this app did not
+    install is never removed. The install itself is tested offline in
+    test_python_module_install.py; nothing here starts a real download."""
     state = module_state(client, "reports-figures")
     assert state["sideloadable"] is False
-    assert state["notInstallableReason"]
-    for path, kwargs in (("install", {"json": {}}), ("verify", {})):
-        r = client.post(f"/api/modules/reports-figures/{path}", **kwargs)
-        assert r.status_code == 409, r.text
+    assert state["downloadable"] is True
+    assert state["notInstallableReason"] is None
+    r = client.post("/api/modules/reports-figures/verify")
+    assert r.status_code == 409, r.text
     r = client.delete("/api/modules/reports-figures")
     assert r.status_code == 409, r.text
 
@@ -1125,11 +1130,12 @@ def test_module_level_null_sha256_with_per_file_hashes_still_installs(
     assert v["ok"] is True and v["unhashed"] == []
 
 
-def test_slot_and_python_package_modules_are_unaffected(client, env):
-    """Neither type carries a hash, and neither reaches the installer. They must
+def test_slot_modules_are_unaffected(client, env):
+    """Slots carry no hash and never reach the download installer. They must
     keep failing the way they always did (409 'not installable'), not with a
-    hash complaint."""
-    for mid in (TRACTOGRAPHY, LNM, "reports-figures", "validation-neuropythy"):
+    hash complaint. (Python-package modules now download pinned files — see
+    test_python_module_install.py.)"""
+    for mid in (TRACTOGRAPHY, LNM):
         r = client.post(f"/api/modules/{mid}/install", json={})
         assert r.status_code == 409, (mid, r.text)
         detail = json.dumps(r.json()["detail"])

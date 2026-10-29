@@ -3,8 +3,9 @@ import { Plus } from "lucide-react";
 import { SidebarSection } from "@/components/SidebarSection";
 import FileUploader from "@/components/FileUploader";
 import { UserLayerList } from "@/components/UserLayerList";
-import { polarAngleDiscToDataURL } from "@/components/PolarAngleDisc";
-import { visualFieldMap2DToDataURL, visualFieldMap2DDataURL } from "@/components/VisualFieldMap2D";
+import { MaskQcCheck } from "@/components/MaskQcCheck";
+import { Disclosure } from "@/components/ui/disclosure";
+import { visualFieldMap2DDataURL } from "@/components/VisualFieldMap2D";
 import { serialUpload } from "@/lib/uploadUtils";
 import { computeVoxelCounts2D } from "@/lib/retinotopyAnalysis";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -35,12 +36,8 @@ export function LesionMasksSection({
   ensureAtlasRegions,
   ensureAtlasLoaded,
   userFileCache,
-  retState,
-  polarOverlap,
-  baseLabel,
-  eccenOverlap,
-  eccenInverted,
   ensureRetinotopyLoaded,
+  retinoVolume,
   polarThresh,
   overlayMeta,
   handleUserEdit,
@@ -65,35 +62,34 @@ export function LesionMasksSection({
   scheduleThresholdVolume,
   atlasState,
   allRetinotopyLayers,
-  bensonVfMap2dRef,
-  wmVfMap2dRef,
-  benson2DGrid,
-  wm2DGrid,
-  polarActive,
-  eccenActive,
   selectedLesionIds,
-  wmPolarOverlap,
-  wmEccenOverlap,
   layerNotes,
   onNotesChange,
+  // Whether lqtpy's brain-mask checks apply (the base is the MNI template):
+  // the same answer the drawing's quality check uses.
+  qcMni,
 }) {
-  const sharedPolarDiscDataUrl = () => polarAngleDiscToDataURL({
-    colormap: retState.benson_polar_angle.colormap,
-    arcSegments: polarOverlap.arcSegments,
-    summaryText: polarOverlap.summary,
-    baseLabel,
-    eccenColormap: retState.benson_eccentricity.colormap,
-    eccenArcSegments: eccenOverlap.arcSegments,
-    eccenSummaryText: eccenOverlap.summary,
-    eccenInverted,
-  });
+  // The 2D visual-field map for ONE lesion, from the retinotopy maps
+  // (off-screen, via retinoVolume) -- not a capture of the Retinotopy panel,
+  // whose state (which lesions are selected, which layers are on) has nothing
+  // to do with the report being made. Null when a map isn't loaded.
+  const vfMapFor = async (lesionId, paId, ecId, thresh = {}) => {
+    const lv = viewerRef.current?.getVolume?.(lesionId);
+    const pa = retinoVolume(paId);
+    const ec = retinoVolume(ecId);
+    if (!(pa?.img && ec?.img && lv?.img)) return null;
+    return await visualFieldMap2DDataURL({
+      gridResult: computeVoxelCounts2D(lv, pa, ec), active: true, selectedCount: 1, ...thresh,
+    });
+  };
+  const bensonThresh = { thresholdMode: polarThresh.mode, thresholdMin: polarThresh.min };
 
   return (
-    <SidebarSection title="Lesion Mask" icon={Plus} testId="section-lesion"
+    <SidebarSection title="Lesion masks" icon={Plus} testId="section-lesion"
       open={lesionSectionOpen} onOpenChange={setLesionSectionOpen} keepMounted
       badge={lesionLayers.filter((l) => l.visible).length}>
-      <FileUploader label="Lesion Mask(s)" description=".nii / .nii.gz / .mgz — overlaid in red; multi-select supported"
-        variant="danger" testId="upload-lesion-button" multiple
+      <FileUploader label="Load lesion masks" description=".nii .nii.gz .mgz · overlaid in red · several at once"
+        testId="upload-lesion-button" multiple
         onFiles={serialUpload((f) => addUserFile(f, "lesion"))}
         onFile={(f) => addUserFile(f, "lesion")} />
       {/* Item 105: One-Click Summary, Atlas Overlap and the lesion Report are no
@@ -107,7 +103,12 @@ export function LesionMasksSection({
         layerNotes={layerNotes} onNotesChange={onNotesChange}
         {...{ handleUserToggle, handleUserOpacity, handleUserColormap, handleUserColormapInvert, handleUserClipChange, handleUserTransform, handleUserRemove, handleCalRangeChange, handleColorRangeChange, handleAutoColorRange, handleAutoThreshold, handleIgnoreZeroChange, handleInvertThresholdChange, histograms, requestHistogram, thresholdVolumes, scheduleThresholdVolume }}
         renderLayerExtra={(lesion) => (
-          <div className="space-y-3">
+          <div className="space-y-2">
+            {/* Sidebar declutter: the two one-click tools are rows; overlap
+                and the report fold away under their names. */}
+            <div className="cap text-subtle">Analyse this lesion</div>
+            <MaskQcCheck lesion={lesion} userFileCache={userFileCache} mni={qcMni} viewerRef={viewerRef}
+              onAddFixedCopy={(file) => addUserFile(file, "lesion")} />
             <OneClickSummaryPanel
               viewerRef={viewerRef}
               lesionLayers={[lesion]}
@@ -115,33 +116,16 @@ export function LesionMasksSection({
               ensureAtlasRegions={ensureAtlasRegions}
               ensureAtlasLoaded={ensureAtlasLoaded}
               userFileCache={userFileCache}
-              getPolarDiscDataUrl={sharedPolarDiscDataUrl}
               getVfMap2dDataUrl={async (lesionId) => {
-                // Build the 2D VF map for the summary's OWN lesion --
-                // independent of the Retinotopy panel's transient state
-                // (selectedLesionIds / layer visibility). Ensure the Benson
-                // atlases are loaded, sample the deficit grid for that lesion,
-                // and force the deficit render gates on.
-                const viewer = viewerRef.current;
+                // The summary's OWN lesion, with the Benson maps loaded first.
                 await ensureRetinotopyLoaded("benson_polar_angle", { silent: true });
                 await ensureRetinotopyLoaded("benson_eccentricity", { silent: true });
-                const pa = viewer?.getVolume?.("benson_polar_angle");
-                const ec = viewer?.getVolume?.("benson_eccentricity");
-                const lv = viewer?.getVolume?.(lesionId);
-                const grid = (pa?.img && ec?.img && lv?.img)
-                  ? computeVoxelCounts2D(lv, pa, ec)
-                  : null;
-                return await visualFieldMap2DDataURL({
-                  gridResult: grid,
-                  active: true,
-                  selectedCount: 1,
-                  thresholdMode: polarThresh.mode,
-                  thresholdMin: polarThresh.min,
-                });
+                return await vfMapFor(lesionId, "benson_polar_angle", "benson_eccentricity", bensonThresh);
               }}
             />
-            <div className="pt-3 border-t border-border">
+            <Disclosure title="Lesion ∩ atlas overlap" className="border-t border-border" testId={`overlap-fold-${lesion.id}`}>
               <OverlapPanel
+                bare
                 viewerRef={viewerRef}
                 lesionLayers={[lesion]}
                 // All installed atlases, not just the ones currently toggled
@@ -157,9 +141,10 @@ export function LesionMasksSection({
                 // already reads (falls back to the in-memory drawing).
                 userFileCache={userFileCache}
               />
-            </div>
-            <div className="pt-3 border-t border-border">
+            </Disclosure>
+            <Disclosure title="One-click lesion report" className="border-t border-border" testId={`report-fold-${lesion.id}`}>
               <LesionReportPanel
+                bare
                 viewerRef={viewerRef}
                 lesionLayers={[lesion]}
                 standardAtlases={standardAtlases}
@@ -168,6 +153,7 @@ export function LesionMasksSection({
                 ensureAtlasLoaded={ensureAtlasLoaded}
                 // lqtpy migration: same lesion-File resolution as OverlapPanel.
                 userFileCache={userFileCache}
+                retinoVolume={retinoVolume}
                 retinotopyLayers={allRetinotopyLayers
                   .filter((l) => l.legendType === "polar" || l.legendType === "eccen")
                   .map((l) => ({
@@ -177,38 +163,10 @@ export function LesionMasksSection({
                     illustrative: l.id.startsWith("wm_") || l.id.startsWith("lgn_") || l.id.startsWith("or_"),
                     attribution: l.attribution || null,
                   }))}
-                getPolarDiscDataUrl={sharedPolarDiscDataUrl}
-                getVfMap2dDataUrl={async () => {
-                  const el = bensonVfMap2dRef.current?.getSvgEl?.();
-                  if (el) return await visualFieldMap2DToDataURL(el);
-                  return await visualFieldMap2DDataURL({
-                    gridResult: benson2DGrid,
-                    active: polarActive || eccenActive,
-                    selectedCount: selectedLesionIds.size,
-                    thresholdMode: polarThresh.mode,
-                    thresholdMin: polarThresh.min,
-                  });
-                }}
-                getWmPolarDiscDataUrl={() => polarAngleDiscToDataURL({
-                  colormap: "polar_angle_360",
-                  arcSegments: wmPolarOverlap.arcSegments,
-                  summaryText: wmPolarOverlap.summary,
-                  baseLabel: "WM Retinotopy (population template)",
-                  eccenColormap: "warm",
-                  eccenArcSegments: wmEccenOverlap.arcSegments,
-                  eccenSummaryText: wmEccenOverlap.summary,
-                })}
-                getWmVfMap2dDataUrl={async () => {
-                  const el = wmVfMap2dRef.current?.getSvgEl?.();
-                  if (el) return await visualFieldMap2DToDataURL(el);
-                  return await visualFieldMap2DDataURL({
-                    gridResult: wm2DGrid,
-                    active: selectedLesionIds.size > 0,
-                    selectedCount: selectedLesionIds.size,
-                  });
-                }}
+                getVfMap2dDataUrl={(lesionId) => vfMapFor(lesionId, "benson_polar_angle", "benson_eccentricity", bensonThresh)}
+                getWmVfMap2dDataUrl={(lesionId) => vfMapFor(lesionId, "wm_polar_angle", "wm_eccentricity")}
               />
-            </div>
+            </Disclosure>
           </div>
         )}
       />

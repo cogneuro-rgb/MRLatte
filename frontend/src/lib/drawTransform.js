@@ -65,8 +65,12 @@ export function transformLabels(src, dims, vox2mm, transform, out) {
   dst.fill(0);
   const box = labelBounds(src, dims);
   if (!box) return dst;
-  const centreVox = [0, 1, 2].map((i) => (box[0][i] + box[1][i]) / 2);
-  const world = transformMatrix(transform, apply(vox2mm, centreVox));
+  // Turns pivot on transform.pivot (world mm) when set, else on the centre of
+  // the drawn voxels' bounding box.
+  const pivot = Array.isArray(transform?.pivot) && transform.pivot.length >= 3
+    ? transform.pivot
+    : apply(vox2mm, [0, 1, 2].map((i) => (box[0][i] + box[1][i]) / 2));
+  const world = transformMatrix(transform, pivot);
   const mm2vox = invert4(vox2mm);
   const fwd = mul4(mm2vox, mul4(world, vox2mm));            // source voxel -> destination voxel
   const back = invert4(fwd);                               // destination voxel -> source voxel

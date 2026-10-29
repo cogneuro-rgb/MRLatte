@@ -38,11 +38,17 @@ async def run_atlas_validation():
 @router.get("/validation/round-trip")
 async def run_round_trip_validation():
     """Round-trip fidelity + neuropythy reference validation (runs in ~10-30 s)."""
+    # In a worker: neuropythy and nilearn are one-click modules, and importing
+    # them here would keep them in use until restart (validation_worker.py).
+    workdir = Path(tempfile.mkdtemp(prefix="nv_validate_"))
     try:
-        scripts_dir = str(Path(__file__).parent.parent / "scripts")
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-        from validate_round_trip import run as _rt_run
-        return await run_in_threadpool(_rt_run, ATLAS_DIR)
+        # validate_round_trip.py sits beside validation_plots/: tools/scripts in
+        # a checkout, resources/scripts in an install (both set VALIDATION_DIR).
+        scripts_dir = str(VALIDATION_DIR.parent)
+        return await run_in_threadpool(
+            _run_worker_json, VALIDATION_WORKER_SCRIPT,
+            {"scripts_dir": scripts_dir, "atlas_dir": str(ATLAS_DIR)}, workdir, 300)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Round-trip validation failed: {e}")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)

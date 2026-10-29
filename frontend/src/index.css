@@ -13,9 +13,9 @@ body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family:
-        "IBM Plex Sans",
+        "Instrument Sans",
+        system-ui,
         -apple-system,
-        BlinkMacSystemFont,
         "Segoe UI",
         sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -26,13 +26,23 @@ body {
 code,
 .font-mono {
     font-family:
-        "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas,
-        "Courier New", monospace;
+        "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
 }
 
 ::selection {
-    background: hsl(var(--foreground));
-    color: hsl(var(--background));
+    background: hsl(var(--crema-tint));
+    color: hsl(var(--foreground));
+}
+
+/* One focus ring for every control: Crema, 2px, offset so it never sits on
+   the control's own border. Utilities (focus:outline-none on inputs that
+   draw their own focus border) still win, since this is the base layer. */
+@layer base {
+    :focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
+    }
 }
 
 /* Custom scrollbar for sidebar */
@@ -43,79 +53,117 @@ code,
     background: transparent;
 }
 .thin-scroll::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 0;
+    background: hsl(var(--edge));
+    border-radius: 3px;
 }
 .thin-scroll::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
 }
 
-/* Theme tokens. :root is the dark palette (the app's original/default look —
+/* Theme tokens. :root is the dark palette ("Espresso", the default look —
    no class needed, and it's the safe fallback if the anti-flash script in
-   index.html hasn't run yet). .light overrides with the light palette.
-   Three background tiers (background < panel < panel-hover) capture the
-   app's existing depth hierarchy (root canvas < sidebar/topbar/cards <
-   hover/nested surfaces), which the original single-tier shadcn --card
-   token couldn't express. --subtle-foreground is a fourth text tier below
-   --muted-foreground, for the smallest uppercase labels. */
+   index.html hasn't run yet). .light overrides with the light palette ("Oat").
+   The two are tuned separately, not inverted: every text/status pair passes
+   WCAG AA on the surfaces it sits on (tightest: subtle on panel-hover, dark,
+   4.52:1). Surfaces: background < panel < panel-hover/card < panel-active.
+   Text: foreground > muted-foreground > subtle-foreground (smallest labels).
+   Crema is the one accent: primary actions, selection, focus. Data colours
+   (lesion red, pen labels, colormaps) never come from these tokens. */
 @layer base {
     :root,
     .dark {
-        --background: 0 0% 2%;
-        --panel: 0 0% 4%;
-        --panel-hover: 0 0% 7%;
-        /* Open collapsible section — one step lighter than panel-hover in dark
-           mode for a little more contrast against the sidebar. */
-        --panel-active: 0 0% 10%;
-        --foreground: 0 0% 96%;
-        --card: 0 0% 4%;
-        --card-foreground: 0 0% 96%;
-        --popover: 0 0% 4%;
-        --popover-foreground: 0 0% 96%;
-        --primary: 0 0% 96%;
-        --primary-foreground: 0 0% 4%;
-        --secondary: 0 0% 11%;
-        --secondary-foreground: 0 0% 96%;
-        --muted: 0 0% 11%;
-        --muted-foreground: 0 0% 55%;
-        --subtle-foreground: 0 0% 40%;
-        --accent: 0 0% 11%;
-        --accent-foreground: 0 0% 96%;
-        --destructive: 4 100% 59%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 240 4% 15%;
-        --input: 240 4% 15%;
-        --ring: 0 0% 83%;
-        --radius: 0;
+        --background: 30 5.9% 6.7%;
+        --panel: 40 6.7% 8.8%;
+        --panel-hover: 45 6.7% 11.8%;
+        /* Open collapsible section, pressed segment — one tier above hover. */
+        --panel-active: 36 6.3% 15.5%;
+        --foreground: 38 31.4% 93.1%;
+        --card: 45 6.7% 11.8%;
+        --card-foreground: 38 31.4% 93.1%;
+        --popover: 45 6.7% 11.8%;
+        --popover-foreground: 38 31.4% 93.1%;
+        --primary: 29 68% 65.7%;
+        --primary-foreground: 30 5.9% 6.7%;
+        --secondary: 36 6.3% 15.5%;
+        --secondary-foreground: 38 31.4% 93.1%;
+        --muted: 36 6.3% 15.5%;
+        --muted-foreground: 37 12% 70.6%;
+        --subtle-foreground: 35 6.9% 51.6%;
+        --accent: 36 6.3% 15.5%;
+        --accent-foreground: 38 31.4% 93.1%;
+        --destructive: 5 84% 68.2%;
+        --destructive-foreground: 30 5.9% 6.7%;
+        --border: 40 7.1% 16.5%;
+        --edge: 37 7.3% 21.6%;
+        --input: 37 7.3% 21.6%;
+        --ring: 29 68% 65.7%;
+        --crema: 29 68% 65.7%;
+        --crema-foreground: 30 5.9% 6.7%;
+        --crema-tint: 29 68% 65.7% / 0.14;
+        --crema-line: 29 68% 65.7% / 0.42;
+        --ok: 150 46.5% 60.4%;
+        --warn: 47 77.8% 61.2%;
+        --knob: 38 31.4% 93.1%;
+        --knob-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+        --elev-1: 0 1px 2px rgb(0 0 0 / 0.4);
+        --elev-2: 0 12px 32px rgb(0 0 0 / 0.5), 0 0 0 1px hsl(37 7.3% 21.6%);
+        --radius: 8px;
+        color-scheme: dark;
     }
 
     .light {
-        --background: 0 0% 100%;
-        --panel: 0 0% 98%;
-        --panel-hover: 240 5% 92%;
-        /* Open collapsible section — one step darker than panel-hover in light
-           mode for a little more contrast against the sidebar. */
-        --panel-active: 240 5% 88%;
-        --foreground: 240 10% 6%;
-        --card: 0 0% 98%;
-        --card-foreground: 240 10% 6%;
+        --background: 40 25.7% 93.1%;
+        --panel: 40 37.5% 96.9%;
+        --panel-hover: 40 24% 90.2%;
+        --panel-active: 39 20% 86.3%;
+        --foreground: 36 9.4% 10.4%;
+        --card: 0 0% 100%;
+        --card-foreground: 36 9.4% 10.4%;
         --popover: 0 0% 100%;
-        --popover-foreground: 240 10% 6%;
-        --primary: 240 10% 6%;
+        --popover-foreground: 36 9.4% 10.4%;
+        --primary: 29 73.6% 31.2%;
         --primary-foreground: 0 0% 100%;
-        --secondary: 240 5% 92%;
-        --secondary-foreground: 240 10% 6%;
-        --muted: 240 5% 92%;
-        --muted-foreground: 240 4% 38%;
-        --subtle-foreground: 240 4% 55%;
-        --accent: 240 5% 92%;
-        --accent-foreground: 240 10% 6%;
-        --destructive: 4 90% 45%;
+        --secondary: 40 24% 90.2%;
+        --secondary-foreground: 36 9.4% 10.4%;
+        --muted: 40 24% 90.2%;
+        --muted-foreground: 37 8.1% 31.6%;
+        --subtle-foreground: 37 7.8% 40.4%;
+        --accent: 40 24% 90.2%;
+        --accent-foreground: 36 9.4% 10.4%;
+        --destructive: 4 76.5% 40%;
         --destructive-foreground: 0 0% 100%;
-        --border: 240 6% 87%;
-        --input: 240 6% 87%;
-        --ring: 240 5% 55%;
-        --radius: 0;
+        --border: 39 20% 86.3%;
+        --edge: 38 16.5% 77.5%;
+        --input: 38 16.5% 77.5%;
+        --ring: 29 73.6% 31.2%;
+        --crema: 29 73.6% 31.2%;
+        --crema-foreground: 0 0% 100%;
+        --crema-tint: 33 60% 91.2%;
+        --crema-line: 29 73.6% 31.2% / 0.35;
+        --ok: 152 61.8% 30.8%;
+        --warn: 47 100% 23.9%;
+        --knob: 0 0% 100%;
+        --knob-shadow: 0 1px 3px rgb(29 27 24 / 0.35), 0 0 0 1px rgb(29 27 24 / 0.18);
+        --elev-1: 0 1px 2px rgb(29 27 24 / 0.08);
+        --elev-2: 0 12px 32px rgb(29 27 24 / 0.16), 0 0 0 1px hsl(38 16.5% 77.5%);
+        color-scheme: light;
+    }
+
+    /* System "Increase contrast": the smallest labels take the secondary text
+       colour, hairlines step up to the old edge, and edges get stronger. The
+       light rule comes second so it wins on <html class="light">. */
+    @media (prefers-contrast: more) {
+        :root,
+        .dark {
+            --subtle-foreground: 37 12% 70.6%;
+            --border: 37 7.3% 21.6%;
+            --edge: 37 7% 34%;
+        }
+        .light {
+            --subtle-foreground: 37 8.1% 31.6%;
+            --border: 38 16.5% 77.5%;
+            --edge: 38 12% 58%;
+        }
     }
 }
 
@@ -123,6 +171,418 @@ code,
     * {
         @apply border-border;
     }
+}
+
+/* Controls are rounded by default (6px); cards and panes set 8-12px where
+   they are built. Joined groups opt out with rounded-none. Text fields focus
+   to a Crema border with a soft halo. */
+@layer base {
+    button,
+    input,
+    select,
+    textarea {
+        border-radius: 6px;
+    }
+    input[type="checkbox"],
+    input[type="radio"] {
+        accent-color: hsl(var(--crema));
+    }
+    input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+    select:focus,
+    textarea:focus {
+        border-color: hsl(var(--crema));
+        box-shadow: 0 0 0 3px hsl(var(--crema-tint));
+    }
+}
+
+/* Shared controls (the Components board). Utilities still win over these, so
+   a call site can widen or pad one without restating the rest. */
+@layer components {
+    .btn,
+    .btn-primary,
+    .btn-ghost {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 0 11px;
+        border-radius: 6px;
+        border: 1px solid hsl(var(--edge));
+        background: hsl(var(--card));
+        color: hsl(var(--foreground));
+        font-size: 12.5px;
+        font-weight: 500;
+        line-height: 16px;
+        white-space: nowrap;
+        transition: filter 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+    }
+    .btn-primary {
+        background: hsl(var(--crema));
+        border-color: transparent;
+        color: hsl(var(--crema-foreground));
+        font-weight: 600;
+    }
+    .btn-ghost {
+        background: transparent;
+        border-color: transparent;
+        color: hsl(var(--muted-foreground));
+    }
+    .btn:hover:not(:disabled),
+    .btn-primary:hover:not(:disabled) {
+        filter: brightness(1.12);
+    }
+    .light .btn:hover:not(:disabled),
+    .light .btn-primary:hover:not(:disabled) {
+        filter: brightness(0.95);
+    }
+    .btn-ghost:hover:not(:disabled) {
+        background: hsl(var(--panel-hover));
+        color: hsl(var(--foreground));
+    }
+    .btn:active:not(:disabled),
+    .btn-primary:active:not(:disabled),
+    .btn-ghost:active:not(:disabled) {
+        transform: translateY(1px);
+        filter: brightness(0.92);
+    }
+    .btn:disabled,
+    .btn-primary:disabled,
+    .btn-ghost:disabled,
+    .btn-mini:disabled,
+    .icon-btn:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+    }
+
+    /* Small bordered button: Auto, Lock, Reset, Full. Pressed = raised neutral
+       (Crema is for primary actions only). */
+    .btn-mini {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 5px;
+        border: 1px solid hsl(var(--edge));
+        color: hsl(var(--muted-foreground));
+        font-size: 11.5px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out;
+    }
+    .btn-mini:hover:not(:disabled) {
+        color: hsl(var(--foreground));
+        background: hsl(var(--panel-hover));
+    }
+    .btn-mini[aria-pressed="true"] {
+        background: hsl(var(--panel-active));
+        border-color: hsl(var(--edge));
+        color: hsl(var(--foreground));
+    }
+
+    /* Square icon button (toolbar, row actions). Pressed = raised neutral. */
+    .icon-btn {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        color: hsl(var(--muted-foreground));
+        transition: color 120ms ease-out, background-color 120ms ease-out;
+    }
+    .icon-btn:hover:not(:disabled) {
+        color: hsl(var(--foreground));
+        background: hsl(var(--panel-hover));
+    }
+    .icon-btn[aria-pressed="true"] {
+        background: hsl(var(--panel-active));
+        color: hsl(var(--foreground));
+        box-shadow: inset 0 0 0 1px hsl(var(--edge));
+    }
+
+    /* Segmented chooser: a sunken track with the chosen option raised. */
+    .seg {
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 7px;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--border));
+    }
+    .seg > button {
+        min-height: 22px;
+        padding: 0 8px;
+        border-radius: 5px;
+        font-size: 11.5px;
+        color: hsl(var(--muted-foreground));
+        transition: color 120ms ease-out, background-color 120ms ease-out;
+    }
+    .seg > button:hover:not(:disabled) {
+        color: hsl(var(--foreground));
+    }
+    .seg > button[aria-pressed="true"],
+    .seg > button[aria-checked="true"] {
+        background: hsl(var(--panel-active));
+        color: hsl(var(--foreground));
+        box-shadow: inset 0 0 0 1px hsl(var(--edge));
+    }
+
+    /* Text field. */
+    .field {
+        min-height: 28px;
+        border-radius: 6px;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--edge));
+        padding: 0 8px;
+        font-size: 12px;
+        color: hsl(var(--foreground));
+        outline: none;
+    }
+    .field::placeholder {
+        color: hsl(var(--subtle-foreground));
+    }
+    @media (prefers-contrast: more) {
+        .btn-mini,
+        .field {
+            border-width: 1.5px;
+        }
+    }
+
+    /* Slider handles. Round on a plain slider; an upright bar on the
+       Levels-style threshold slider, where it sits on the colour strip. */
+    .slider-knob,
+    .level-knob {
+        display: block;
+        background: hsl(var(--knob));
+        box-shadow: var(--knob-shadow);
+        cursor: grab;
+        transition: box-shadow 120ms ease-out;
+    }
+    .slider-knob {
+        width: 14px;
+        height: 14px;
+        border-radius: 7px;
+    }
+    .level-knob {
+        width: 10px;
+        height: 18px;
+        border-radius: 4px;
+    }
+    .slider-knob:focus-visible,
+    .level-knob:focus-visible {
+        outline: none;
+        box-shadow: var(--knob-shadow), 0 0 0 3px hsl(var(--crema-line));
+    }
+    .slider-knob:active,
+    .level-knob:active {
+        cursor: grabbing;
+    }
+    [data-disabled] > .slider-knob,
+    [data-disabled] > .level-knob,
+    .slider-knob[data-disabled],
+    .level-knob[data-disabled] {
+        cursor: not-allowed;
+    }
+
+    /* On/off switch (components/ui/switch.jsx). */
+    .switch {
+        position: relative;
+        flex: none;
+        width: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: hsl(var(--edge));
+        transition: background-color 120ms ease-out;
+    }
+    /* Invisible hit area: the visible track is 28x16, under the 20x20 minimum. */
+    .switch::before {
+        content: "";
+        position: absolute;
+        inset: -4px -2px;
+    }
+    .switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: hsl(var(--muted-foreground));
+        transition: left 120ms ease-out, background-color 120ms ease-out;
+    }
+    .switch[aria-checked="true"] {
+        background: hsl(var(--crema));
+    }
+    .switch[aria-checked="true"]::after {
+        left: 14px;
+        background: hsl(var(--crema-foreground));
+    }
+    .switch:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+    }
+
+    /* Viewer toolbar (Dashboard). One row when there is room; labels
+       shorten as the viewer narrows (container queries below). */
+    .toolbar {
+        container-type: inline-size;
+    }
+    .tb-b,
+    .tb-i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 30px;
+        border-radius: 6px;
+        color: hsl(var(--muted-foreground));
+        font-size: 12.5px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: color 120ms ease-out, background-color 120ms ease-out;
+    }
+    .tb-b {
+        padding: 0 7px;
+    }
+    .tb-i {
+        width: 28px;
+    }
+    .tb-b:hover:not(:disabled),
+    .tb-i:hover:not(:disabled) {
+        color: hsl(var(--foreground));
+        background: hsl(var(--panel-hover));
+    }
+    .tb-b[aria-pressed="true"],
+    .tb-i[aria-pressed="true"] {
+        background: hsl(var(--panel-active));
+        color: hsl(var(--foreground));
+        box-shadow: inset 0 0 0 1px hsl(var(--edge));
+    }
+    /* Options chevron joined to the button on its left. */
+    .tb-c {
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 30px;
+        margin-left: -3px;
+        border-radius: 5px;
+        color: hsl(var(--subtle-foreground));
+    }
+    .tb-c:hover,
+    .tb-c[aria-expanded="true"] {
+        color: hsl(var(--foreground));
+        background: hsl(var(--panel-hover));
+    }
+    .tb-seg {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 8px;
+        background: hsl(var(--background));
+        box-shadow: inset 0 0 0 1px hsl(var(--border));
+    }
+    .tb-seg .tb-b,
+    .tb-seg .tb-i {
+        height: 28px;
+    }
+    .tb-seg .tb-b[aria-pressed="true"] {
+        background: hsl(var(--panel-active));
+        box-shadow: inset 0 0 0 1px hsl(var(--edge));
+        color: hsl(var(--foreground));
+    }
+    .tb-sep {
+        flex: none;
+        width: 1px;
+        height: 22px;
+        margin: 0 2px;
+        background: hsl(var(--border));
+    }
+    .tb-short {
+        display: none;
+    }
+    /* Popover under a toolbar button. */
+    .popover {
+        border-radius: 10px;
+        border: 1px solid hsl(var(--edge));
+        background: hsl(var(--popover));
+        box-shadow: var(--elev-2);
+    }
+
+    /* Count badge beside a heading. */
+    .count {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        line-height: 16px;
+        padding: 0 6px;
+        border-radius: 4px;
+        background: hsl(var(--panel-active));
+        color: hsl(var(--muted-foreground));
+    }
+}
+
+/* Small caps label: sub-section headings, readout keys, table heads. The one
+   place the UI uses capitals; everything else is sentence case. */
+@layer components {
+    .cap {
+        font-family: "Instrument Sans", system-ui, sans-serif;
+        font-size: 11px;
+        line-height: 14px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+}
+
+/* Splash (SplashScreen.jsx). Follows prefers-color-scheme, like Electron's
+   first page (public/electron.js), so the two match; in the app Electron sets
+   nativeTheme.themeSource from the user's appearance choice, which drives it. */
+.splash {
+    --sp-bg: #F2EFE9;
+    --sp-fg: #1D1B18;
+    --sp-dim: #6F695F;
+    --sp-line: #E3DED5;
+    --sp-ac: #8A4E15;
+    --sp-ac-tint: #F6EADB;
+    --sp-ok: #1E7F52;
+    background: var(--sp-bg);
+    color: var(--sp-fg);
+}
+@media (prefers-color-scheme: dark) {
+    .splash {
+        --sp-bg: #121110;
+        --sp-fg: #F3EFE8;
+        --sp-dim: #8C857B;
+        --sp-line: #2D2B27;
+        --sp-ac: #E3A66C;
+        --sp-ac-tint: rgb(227 166 108 / 0.14);
+        --sp-ok: #6BC99A;
+    }
+}
+.splash-logo {
+    box-shadow: 0 0 0 1px var(--sp-line), 0 10px 30px rgb(0 0 0 / 0.18);
+}
+.splash-bar {
+    background: var(--sp-line);
+}
+.splash-fill {
+    background: var(--sp-fg);
+}
+.splash-active {
+    background: var(--sp-ac);
+    box-shadow: 0 0 0 4px var(--sp-ac-tint);
+}
+.splash-pending {
+    box-shadow: inset 0 0 0 1.5px var(--sp-dim);
+}
+.splash-dim {
+    color: var(--sp-dim);
+}
+.splash-ok {
+    color: var(--sp-ok);
 }
 
 /* Niivue canvas should fill its parent */
@@ -142,20 +602,147 @@ canvas.niivue-canvas:focus-visible {
     outline: none;
 }
 
-/* Polar disc pulse for active retinotopy */
+/* Module store and Atlas Manager: a short rise in, and the row a section's
+   install prompt opened at lit briefly. None of it with reduced motion. */
+@keyframes modal-scrim-in {
+    from { opacity: 0; }
+}
+@keyframes modal-panel-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.985); }
+}
+@keyframes module-flash {
+    0%,
+    35% { background-color: hsl(var(--foreground) / 0.08); }
+    100% { background-color: transparent; }
+}
+.modal-scrim {
+    animation: modal-scrim-in 160ms ease-out;
+}
+.modal-panel {
+    animation: modal-panel-in 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+.module-flash {
+    animation: module-flash 1.8s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .modal-scrim,
+    .modal-panel,
+    .module-flash {
+        animation: none;
+    }
+    .switch,
+    .switch::after {
+        transition: none;
+    }
+}
+
+/* Polar disc pulse for active retinotopy. With reduced motion the ring stays
+   lit but still, so "active" is still shown. */
 @keyframes disc-glow {
     0%,
     100% {
         box-shadow:
-            0 0 0 1px #27272a,
-            0 0 24px -8px rgba(255, 255, 255, 0.1);
+            0 0 0 1px hsl(var(--border)),
+            0 0 24px -8px hsl(var(--crema) / 0.15);
     }
     50% {
         box-shadow:
-            0 0 0 1px #3f3f46,
-            0 0 32px -6px rgba(255, 255, 255, 0.2);
+            0 0 0 1px hsl(var(--edge)),
+            0 0 32px -6px hsl(var(--crema) / 0.3);
     }
 }
 .disc-active {
     animation: disc-glow 3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .disc-active {
+        animation: none;
+        box-shadow:
+            0 0 0 1px hsl(var(--edge)),
+            0 0 28px -7px hsl(var(--crema) / 0.25);
+    }
+}
+
+/* Windows High Contrast. Forced colours drop backgrounds and box-shadows, so
+   the on/off and pressed states that rely on them are redrawn with system
+   colours. */
+@media (forced-colors: active) {
+    .switch {
+        border: 1px solid CanvasText;
+    }
+    .switch[aria-checked="true"] {
+        background: Highlight;
+    }
+    /* The 1px border shrinks the padding box the knob is positioned in, so
+       nudge it in by the same amount to keep it centred in the track. */
+    .switch::after {
+        forced-color-adjust: none;
+        top: 1px;
+        left: 1px;
+        background: CanvasText;
+    }
+    .switch[aria-checked="true"]::after {
+        left: 13px;
+        background: HighlightText;
+    }
+    .tb-b[aria-pressed="true"],
+    .tb-i[aria-pressed="true"],
+    .seg > button[aria-pressed="true"],
+    .seg > button[aria-checked="true"],
+    .btn-mini[aria-pressed="true"],
+    .icon-btn[aria-pressed="true"] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
+    /* The pressed outline would otherwise replace the focus ring. */
+    .tb-b[aria-pressed="true"]:focus-visible,
+    .tb-i[aria-pressed="true"]:focus-visible,
+    .seg > button[aria-pressed="true"]:focus-visible,
+    .seg > button[aria-checked="true"]:focus-visible,
+    .btn-mini[aria-pressed="true"]:focus-visible,
+    .icon-btn[aria-pressed="true"]:focus-visible {
+        outline-color: CanvasText;
+        outline-offset: 2px;
+    }
+    .slider-knob,
+    .level-knob {
+        border: 1px solid CanvasText;
+    }
+}
+
+/* Put on elements whose colours are data (colour strips, histograms, colour
+   bars) so High Contrast leaves them alone. */
+.keep-colours {
+    forced-color-adjust: none;
+}
+
+/* A toast with Undo shows how long it will stay: a bar along its bottom edge
+   drains over its lifetime (lib/undoToast.js). It is a background layer, as
+   sonner already uses both pseudo-elements; the image needs !important over
+   the Toaster's inline `background`, while its width is left to the animation
+   (an !important size would beat the animation). Sonner holds the toast while
+   the pointer is over the stack (data-expanded), and the bar holds with it. */
+[data-sonner-toast].undo-toast {
+    background-image: linear-gradient(hsl(var(--muted-foreground)), hsl(var(--muted-foreground))) !important;
+    background-repeat: no-repeat !important;
+    background-position: left bottom !important;
+    animation: undo-drain var(--undo-ms, 5000ms) linear both;
+}
+[data-sonner-toast].undo-toast[data-expanded="true"] {
+    animation-play-state: paused;
+}
+@keyframes undo-drain {
+    from { background-size: 100% 2px; }
+    to { background-size: 0% 2px; }
+}
+
+/* The toolbar's labels shorten as the viewer narrows: "Coronal" -> "Cor",
+   icon-only buttons for 3D, Mosaic, Open and Save. */
+@container (max-width: 1060px) {
+    .tb-long {
+        display: none;
+    }
+    .tb-short {
+        display: inline;
+    }
 }

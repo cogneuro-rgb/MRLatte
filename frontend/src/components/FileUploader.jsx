@@ -72,11 +72,11 @@ export const FileUploader = ({
   const borderColor =
     variant === "danger"
       ? dragOver
-        ? "border-destructive"
-        : "border-border hover:border-destructive/60"
+        ? "border-destructive bg-destructive/10"
+        : "border-edge hover:border-destructive/60"
       : dragOver
-      ? "border-foreground"
-      : "border-border hover:border-muted-foreground";
+      ? "border-crema bg-crema-tint"
+      : "border-edge hover:bg-panel-hover";
 
   return (
     <label
@@ -91,28 +91,22 @@ export const FileUploader = ({
         setDragOver(false);
         if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
       }}
-      className={`group flex cursor-pointer items-center gap-3 border border-dashed ${borderColor} bg-panel px-3 py-3 transition-colors${disabled ? " pointer-events-none opacity-50" : ""}`}
+      className={`group flex min-h-[34px] cursor-pointer items-start gap-2 rounded-md border ${borderColor} px-[11px] py-[7px] transition-colors${disabled ? " pointer-events-none opacity-50" : ""}`}
       data-testid={`${testId}-label`}
     >
-      <div
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center border ${
-          variant === "danger"
-            ? "border-destructive/40 text-destructive"
-            : "border-border text-foreground group-hover:border-muted-foreground"
-        }`}
-      >
+      <span className={`mt-px flex-shrink-0 ${variant === "danger" ? "text-destructive" : "text-foreground"}`}>
         {variant === "danger" ? <Plus size={14} /> : <Upload size={14} />}
-      </div>
+      </span>
       <div className="flex-1 min-w-0">
         <div
-          className={`text-[12px] font-medium ${
+          className={`text-[12.5px] font-medium leading-4 ${
             variant === "danger" ? "text-destructive" : "text-foreground"
           }`}
         >
           {label}
         </div>
         {description && (
-          <div className="font-mono text-[10px] text-muted-foreground mt-0.5 truncate">
+          <div className="mt-px text-[11.5px] leading-4 text-subtle">
             {description}
           </div>
         )}

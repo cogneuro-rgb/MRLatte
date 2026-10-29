@@ -1,31 +1,30 @@
 #!/usr/bin/env python
-"""Isolated worker: One-Click Summary rendering + artifact manifest.
+"""Isolated worker: One-Click Summary data + artifact manifest.
 
 Given a lesion mask plus the (already-computed) tract-dissection and DA-LNM
-outputs, this worker produces the visual/report artifacts and declares exactly
-what it produced:
+outputs, this worker produces the run's data and declares exactly what it
+produced:
 
   * an optic-radiation / visual-pathway retinotopy check (lesion vs. named-tract
     atlas labels -- HCP1065, falling back to JHU),
-  * brainsprite viewers of the lesion, the affected tracts, and the DA-LNM
-    positive/negative network tails on MNI152 (nilearn view_img),
+  * the run's maps (affected tracts, network masks) and the atlas-overlap CSV,
   * an artifact manifest (rel/label/kind/bytes/group/default per file) so the
     frontend can offer a selective-download picker instead of one big ZIP.
 
-Item 103: this worker no longer composes its own report.html. It returns the
-same underlying data (retinotopy finding, dissection/LNM info, asset URLs)
-in its JSON result instead, so the frontend (lib/report/) composes ONE report
-document reusing the same section builders Tract Dissection and LNM use.
+It draws nothing. The report is the run's only figure output, and the
+frontend draws its figures from these maps (lib/report/figures.js) — so the
+summary needs neither nilearn nor matplotlib (the reports-figures module).
+Item 103: the frontend (lib/report/) composes ONE report document from the
+data returned here, reusing the section builders Tract Dissection and LNM use.
 
 Called by server.py via subprocess for crash isolation (mirrors
-dissect_worker.py / lnm_worker.py -- a nilearn/matplotlib crash kills only this
-process). Heavy imports are deferred and stdout is reserved for the single JSON
-result line; all library chatter is routed to stderr.
+dissect_worker.py / lnm_worker.py). Heavy imports are deferred and stdout is
+reserved for the single JSON result line; all library chatter is routed to
+stderr.
 
 Usage: python summary_render_worker.py <config_json_path>
 Output: one JSON line on stdout; traceback to stderr on failure.
 """
-import base64
 import json
 import shutil
 import sys
@@ -111,7 +110,7 @@ def _retinotopy_check(lesion_path):
         names = ", ".join(r["name"] for r in rows)
         finding = ("Lesion intersects the visual white-matter pathway: "
                    f"{names}. A visual-field deficit is plausible; correlate "
-                   "clinically with the retinotopic disc below.")
+                   "clinically.")
     else:
         finding = ("No occipital / visual-pathway intersection: the lesion does "
                    "not overlap the optic radiation or posterior thalamic "
@@ -119,52 +118,6 @@ def _retinotopy_check(lesion_path):
 
     return {"available": True, "intersects": bool(rows), "rows": rows,
             "finding": finding, "atlas_name": desc["short"]}
-
-
-# Phase 1b: nilearn + matplotlib are the optional `reports-figures` module, not
-# part of the base install. Everything below is FIGURE-ONLY, so it may keep
-# using them — but it must degrade with a message rather than raise, matching
-# the availability probe in routers/summary.py (which reports
-# `{ok: False, reason: "Missing dependency: …"}` when the stack is absent).
-REPORTS_HINT = (
-    "the report figure renderer is not installed. Install the "
-    "'reports-figures' module (pip install -r backend/requirements-reports.txt) "
-    "to enable nilearn/matplotlib figures.")
-
-
-def _reports_stack():
-    """(nilearn.plotting, nilearn.datasets.load_mni152_template) with matplotlib
-    pinned to Agg. Raises RuntimeError carrying REPORTS_HINT if absent."""
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        from nilearn import plotting
-        from nilearn.datasets import load_mni152_template
-    except ImportError as e:
-        raise RuntimeError(f"Missing dependency: {e} — {REPORTS_HINT}") from e
-    return plotting, load_mni152_template
-
-
-def _brainsprite_html(img_path, out_path, title="Lesion on MNI152", cmap="autumn",
-                       threshold=0.5, opacity=0.8):
-    """Interactive brainsprite of a NIfTI on MNI152; returns True on success."""
-    try:
-        import nibabel as nib
-        plotting, load_mni152_template = _reports_stack()
-        try:
-            bg = load_mni152_template(resolution=2)
-        except TypeError:
-            bg = load_mni152_template()
-        view = plotting.view_img(
-            nib.load(str(img_path)), bg_img=bg, threshold=threshold,
-            cmap=cmap, symmetric_cmap=False, colorbar=False,
-            black_bg=False, opacity=opacity, title=title,
-        )
-        view.save_as_html(str(out_path))
-        return True
-    except Exception as e:  # noqa: BLE001
-        print(f"[summary] brainsprite failed for {img_path}: {e}", file=sys.stderr)
-        return False
 
 
 def _write_overlap_csv(data_dir, overlap_model):
@@ -220,22 +173,12 @@ def _build_manifest(out_dir, ctx):
     """Assemble the artifact manifest from what this run actually produced.
 
     Pure function of (out_dir, ctx) -- unit-testable without the
-    nilearn/matplotlib reports stack, a real lesion, or a subprocess. `ctx`
-    carries the rel paths of the run-dependent artifacts (brainsprite viewers,
-    the retinotopy disc); the dissect/LNM maps and the overlap CSV have fixed
-    rel paths, so they're named directly. _artifact() drops anything that
-    doesn't exist on disk, so a skipped stage just produces a shorter list."""
+    real lesion or a subprocess. Only DATA is offered — the maps and the
+    overlap CSV, at fixed rel paths; the report (built by the frontend) is the
+    run's one figure output. _artifact() drops anything that doesn't exist on
+    disk, so a skipped stage just produces a shorter list. `ctx` is unused
+    today and kept for the call shape."""
     return [a for a in (
-        _artifact(out_dir, ctx.get("brainsprite_file"),
-                 "Lesion viewer (interactive)", "html", "Viewers", True),
-        _artifact(out_dir, ctx.get("dissect_brainsprite"),
-                 "Affected tracts viewer (interactive)", "html", "Viewers", True),
-        _artifact(out_dir, ctx.get("lnm_bs_pos"),
-                 "Positive network viewer (interactive)", "html", "Viewers", True),
-        _artifact(out_dir, ctx.get("lnm_bs_neg"),
-                 "Negative network viewer (interactive)", "html", "Viewers", True),
-        _artifact(out_dir, ctx.get("retino_disc"),
-                 "Retinotopy disc (image)", "image", "Images", True),
         _artifact(out_dir, "maps/affected_tracts.nii.gz",
                  "Affected tracts (NIfTI)", "map", "Maps", False),
         _artifact(out_dir, "maps/affected_tracts.trk",
@@ -259,31 +202,13 @@ def main():
 
     cfg = json.loads(Path(sys.argv[1]).read_text())
 
-    # Extra sys.path entries from the parent (optional Python stacks like
-    # python-reports/python-validation in a full packaged build — see
-    # worker_common.extra_sys_path_for_worker for why PYTHONPATH can't carry
-    # these across the subprocess boundary). Must run before any import that
-    # might need them — in particular _reports_stack()/_brainsprite_html()
-    # below, which is exactly the import this worker silently swallows when
-    # it fails (see REPORTS_HINT).
+    # Extra sys.path entries from the parent (optional Python stacks and
+    # installed python modules — see worker_common.extra_sys_path_for_worker
+    # for why PYTHONPATH can't carry these across the subprocess boundary).
+    # Must run before any import that might need them.
     for _p in cfg.get("sys_path") or []:
         if _p not in sys.path:
             sys.path.insert(0, _p)
-
-    # Best-effort only: matplotlib is part of the optional reports stack. The
-    # retinotopy check, the maps and the manifest all work without it, so a
-    # missing plotting stack must not abort the whole worker — the figure
-    # helpers each re-check and report their own reason. Must stay BELOW the sys.path
-    # injection above: in a full build matplotlib lives in python-reports,
-    # which only reaches this process via cfg["sys_path"], so running this
-    # first would log "unavailable" on every run while the figures in fact
-    # render fine (_reports_stack pins Agg again anyway).
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-    except ImportError as e:
-        print(f"[summary] matplotlib unavailable ({e}); figures will be skipped — "
-              f"{REPORTS_HINT}", file=sys.stderr)
 
     lesion_path = Path(cfg["lesion_path"])
     out_dir = Path(cfg["output_dir"])
@@ -291,10 +216,9 @@ def main():
     stages = cfg.get("stages", {})
     lesion_name = cfg.get("lesion_name") or lesion_path.name
 
-    images_dir = out_dir / "images"
     maps_dir = out_dir / "maps"
     data_dir = out_dir / "data"
-    for d in (images_dir, maps_dir, data_dir):
+    for d in (maps_dir, data_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     ctx = {"lesion_name": lesion_name, "overlap_model": cfg.get("overlap_model")}
@@ -315,24 +239,6 @@ def main():
                              "finding": "Retinotopy check could not be completed.",
                              "atlas_name": None}
 
-    # Client-rendered 2D retinotopy disc(s)
-    disc_pngs = cfg.get("disc_pngs") or {}
-    # Prefer the 2D visual-field map (matches the on-screen "Export PNG"); fall
-    # back to the classic polar-angle disc only if the 2D map failed to render.
-    disc_b64 = disc_pngs.get("vfmap") or disc_pngs.get("polar")
-    if disc_b64:
-        try:
-            raw = disc_b64.split(",", 1)[-1]  # strip data: URL prefix if present
-            (images_dir / "retinotopy_disc.png").write_bytes(base64.b64decode(raw))
-            ctx["retino_disc"] = "images/retinotopy_disc.png"
-        except Exception as e:  # noqa: BLE001
-            print(f"[summary] disc decode failed: {e}", file=sys.stderr)
-
-    # ── Brainsprite of the lesion on MNI ─────────────────────────────────────
-    set_status("brainsprite", 0.25, "Rendering lesion viewer…")
-    if _brainsprite_html(lesion_path, out_dir / "brainsprite_lesion.html"):
-        ctx["brainsprite_file"] = "brainsprite_lesion.html"
-
     # ── Tract dissection artefacts ───────────────────────────────────────────
     set_status("dissect_assets", 0.45, "Packaging tract dissection…")
     dissect = cfg.get("dissect")
@@ -343,14 +249,10 @@ def main():
         trk = rd / "affected_tracts.trk"
         if nii.exists():
             shutil.copy2(nii, maps_dir / "affected_tracts.nii.gz")
-            if _brainsprite_html(nii, out_dir / "brainsprite_tracts.html",
-                                 title="Affected tracts on MNI152", cmap="hot",
-                                 threshold=0.5, opacity=0.9):
-                ctx["dissect_brainsprite"] = "brainsprite_tracts.html"
         if trk.exists():
             shutil.copy2(trk, maps_dir / "affected_tracts.trk")
 
-    # ── DA-LNM maps + glass brains ───────────────────────────────────────────
+    # ── DA-LNM maps ──────────────────────────────────────────────────────────
     set_status("lnm_assets", 0.60, "Packaging network maps…")
     lnm = cfg.get("lnm")
     if lnm and lnm.get("result_dir"):
@@ -363,18 +265,6 @@ def main():
                          ("lnm_da.nii.gz", "lnm_da.nii.gz")):
             if (rd / src).exists():
                 shutil.copy2(rd / src, maps_dir / tag)
-        if (rd / "network_pos_bin.nii.gz").exists():
-            if _brainsprite_html(rd / "network_pos_bin.nii.gz",
-                                 out_dir / "brainsprite_lnm_positive.html",
-                                 title="Positive network", cmap="autumn",
-                                 threshold=0.5, opacity=0.85):
-                ctx["lnm_bs_pos"] = "brainsprite_lnm_positive.html"
-        if (rd / "network_neg_bin.nii.gz").exists():
-            if _brainsprite_html(rd / "network_neg_bin.nii.gz",
-                                 out_dir / "brainsprite_lnm_negative.html",
-                                 title="Negative network", cmap="winter",
-                                 threshold=0.5, opacity=0.85):
-                ctx["lnm_bs_neg"] = "brainsprite_lnm_negative.html"
     # ── Atlas overlap CSV ────────────────────────────────────────────────────
     set_status("csv", 0.85, "Writing atlas overlap table…")
     _write_overlap_csv(data_dir, cfg.get("overlap_model"))
@@ -390,13 +280,6 @@ def main():
     set_status("manifest", 0.92, "Finalizing artifacts…")
     artifacts = _build_manifest(out_dir, ctx)
 
-    # Item 103: absolute, servable URLs for every visual asset this worker
-    # produced, so the frontend (OneClickSummaryPanel) can compose the same
-    # sections lib/report/sections.js uses elsewhere (Open/Save), instead of
-    # this worker composing its own narrative HTML.
-    def asset_url(rel):
-        return f"/api/summary/result/{cfg['job_id']}/{rel}" if rel else None
-
     print(json.dumps({
         "ok": True,
         "artifacts": artifacts,
@@ -405,13 +288,6 @@ def main():
         "dissect_info": ctx.get("dissect_info"),
         "lnm_info": ctx.get("lnm_info"),
         "overlap_model": ctx.get("overlap_model"),
-        "assets": {
-            "brainsprite_lesion": asset_url(ctx.get("brainsprite_file")),
-            "brainsprite_tracts": asset_url(ctx.get("dissect_brainsprite")),
-            "brainsprite_lnm_pos": asset_url(ctx.get("lnm_bs_pos")),
-            "brainsprite_lnm_neg": asset_url(ctx.get("lnm_bs_neg")),
-            "retino_disc": asset_url(ctx.get("retino_disc")),
-        },
     }), file=_real_stdout, flush=True)
 
 

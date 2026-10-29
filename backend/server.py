@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from deps import ATLAS_DIR, STATIC_DIR, cleanup_old_tract_results
+from deps import ATLAS_DIR, STATIC_DIR, add_installed_python_modules, cleanup_old_tract_results
 from static_cache import REVALIDATE, CacheControlStaticFiles
 
 from routers.status import router as status_router
@@ -54,28 +54,66 @@ async def lifespan(_app: FastAPI):
         # here rather than closing over a name defined after this function.
         logging.getLogger(__name__).warning("tract-results cleanup skipped: %s", exc)
 
+    # One-click python-package modules installed under the module root. Ones
+    # removed while in use last session go first (routers.modules).
+    try:
+        from routers.modules import finish_pending_removals
+        removed = finish_pending_removals()
+        if removed:
+            logging.getLogger(__name__).info("python modules removed: %s", removed)
+        added = add_installed_python_modules()
+        if added:
+            logging.getLogger(__name__).info("python modules on sys.path: %s", added)
+    except Exception as exc:  # noqa: BLE001 — never fail startup on this
+        logging.getLogger(__name__).warning("python modules not added: %s", exc)
+
+    # The installed app: the data modules the installer ships go into the module
+    # root once each (routers.modules.seed_bundled_modules), before the preload
+    # below reads the atlases.
+    try:
+        from routers.modules import bundled_modules_dir, seed_bundled_modules
+        if os.environ.get("MRLATTE_BUNDLED_MODULES") and bundled_modules_dir() is None:
+            logging.getLogger(__name__).warning(
+                "MRLATTE_BUNDLED_MODULES is not a folder: %s", os.environ.get("MRLATTE_BUNDLED_MODULES"))
+        seeded = seed_bundled_modules()
+        if seeded["seeded"] or seeded["adopted"]:
+            logging.getLogger(__name__).info("data modules seeded: %s", seeded)
+    except Exception as exc:  # noqa: BLE001 — never fail startup on this
+        logging.getLogger(__name__).warning("bundled data modules not seeded: %s", exc)
+
     # Warm the lqtpy atlas bridge so the first /api/lesion/metrics request
     # doesn't pay atlas-load cost. Fail-soft on every axis (lqtpy absent, an
     # atlas failing to load, or the whole pass erroring) — see
-    # lesion_metrics.preload()'s docstring — and bounded so a slow/hanging
-    # atlas load can never stall startup indefinitely.
-    try:
-        import lesion_metrics as _lesion_metrics
-        import asyncio
-        info = await asyncio.wait_for(
-            asyncio.to_thread(_lesion_metrics.preload), timeout=30.0)
-        logging.getLogger(__name__).info(
-            "lesion-metrics preload: available=%s atlases=%s duration_s=%.3f%s",
-            info["available"], info["atlas_ids"], info["duration_s"],
-            f" error={info['error']}" if info.get("error") else "")
-    except asyncio.TimeoutError:
-        logging.getLogger(__name__).warning(
-            "lesion-metrics preload exceeded 30s, continuing without it")
-    except Exception as exc:  # noqa: BLE001 — never block startup on this
-        logging.getLogger(__name__).warning(
-            "lesion-metrics preload skipped: %s", exc)
+    # lesion_metrics.preload()'s docstring.
+    #
+    # In the BACKGROUND: the server starts answering at once, so the window,
+    # template and atlases load while this runs (it used to hold startup back
+    # by over a second). A lesion request that arrives meanwhile is safe:
+    # sync_atlases() is guarded by lesion_metrics._bridge_lock, so at worst it
+    # loads an atlas the warm-up was about to load anyway.
+    import asyncio
+
+    async def _warm_lesion_metrics():
+        log = logging.getLogger(__name__)
+        try:
+            import lesion_metrics as _lesion_metrics
+            info = await asyncio.wait_for(
+                asyncio.to_thread(_lesion_metrics.preload), timeout=30.0)
+            log.info(
+                "lesion-metrics preload: available=%s atlases=%s duration_s=%.3f%s",
+                info["available"], info["atlas_ids"], info["duration_s"],
+                f" error={info['error']}" if info.get("error") else "")
+        except asyncio.TimeoutError:
+            log.warning("lesion-metrics preload exceeded 30s, continuing without it")
+        except Exception as exc:  # noqa: BLE001 — never fail startup on this
+            log.warning("lesion-metrics preload skipped: %s", exc)
+
+    warm = asyncio.create_task(_warm_lesion_metrics())
 
     yield
+
+    if not warm.done():
+        warm.cancel()
 
 
 app = FastAPI(lifespan=lifespan)

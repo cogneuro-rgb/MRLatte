@@ -1,4 +1,7 @@
-// Workspace (.nvws.json) save/restore helpers.
+// Workspace (.mrlatte) save/restore helpers. A workspace is plain JSON; files
+// saved before 0.5.0 are named .nvws.json ("NeuroVue workspace", the app's old
+// name) and still open. A single extension is what lets Windows open the file
+// in MRLatte on a double-click (installer.nsh associates .mrlatte).
 //
 // Standard atlases & retinotopy reload from static /atlases/<id>/* URLs, so only
 // their visibility/settings are stored. A v3 or older workspace holds the
@@ -7,9 +10,23 @@
 // in-memory File objects, so their bytes are embedded as base64 to make the
 // workspace self-contained (this enlarges the file — documented trade-off).
 
-// v5 adds userLayers[].transform (manual move / rotate / scale). Dashboard only
-// stamps v5 when a layer actually has one; everything else is still written as v4.
-export const WORKSPACE_VERSION = 5;
+// v5 adds userLayers[].transform (manual move / rotate / scale); v6 adds the
+// base volume itself, and files saved as links (path + size instead of a copy;
+// a DICOM base as its source folder or zip, converted again on open). Dashboard
+// stamps the LOWEST version that can hold what the workspace contains, so a
+// workspace without a custom base or adjusted layer still opens in older
+// versions — and one with them is refused there instead of opening wrong.
+export const WORKSPACE_VERSION = 6;
+
+export const WORKSPACE_EXT = ".mrlatte";
+/** Names MRLatte opens as a workspace (current and pre-0.5.0). */
+export function isWorkspaceFileName(name) {
+  return /\.(mrlatte|nvws\.json|nvws)$/i.test(String(name || ""));
+}
+/** A workspace object from raw file bytes (quick-open / double-click). */
+export function parseWorkspaceBytes(bytes) {
+  return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+}
 
 export async function fileToBase64(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
@@ -75,9 +92,9 @@ export async function saveWorkspace(workspace) {
   // Build a human-readable filename: mrlatte-<label>-<date>.nvws.json
   const date = (workspace.savedAt || new Date().toISOString()).slice(0, 10);
   const rawLabel = (workspace.label || "session").replace(/[^a-zA-Z0-9_\-]/g, "_").slice(0, 40);
-  const filename = `mrlatte-${rawLabel}-${date}.nvws.json`;
+  const filename = `mrlatte-${rawLabel}-${date}${WORKSPACE_EXT}`;
   if (isDesktop() && window.mrlatte.saveWorkspace) {
-    const r = await window.mrlatte.saveWorkspace(json);
+    const r = await window.mrlatte.saveWorkspace(json, filename);
     return !r?.canceled;
   }
   const blob = new Blob([json], { type: "application/json" });
@@ -102,7 +119,7 @@ export async function openWorkspace() {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json,.nvws,application/json";
+    input.accept = ".mrlatte,.json,.nvws,application/json";
     input.onchange = async () => {
       const f = input.files?.[0];
       if (!f) return resolve(null);

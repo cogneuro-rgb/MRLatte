@@ -66,6 +66,21 @@ export async function applyQcFix({ viewerRef, lesionId, findingId }) {
 }
 
 /**
+ * Fix one finding of a LOADED lesion mask as a copy: the file itself is never
+ * changed. lqtpy's fixed mask comes back on the mask's own grid with its own
+ * values, named after the original ("<name>_fixed.nii.gz") for the caller to
+ * add as a new layer. Throws like applyQcFix.
+ * @returns {Promise<{file: File|null, removed: number}>} `file` null when nothing was removed
+ */
+export async function qcFixedCopy({ lesionId, findingId, name }) {
+  const res = await fetchQcFix({ lesionId, findingIds: [findingId], context: { labels_are_colours: true }, returnFixed: true });
+  if (!res.voxels_removed || !res.fixed_mask) return { file: null, removed: 0 };
+  const bytes = Uint8Array.from(atob(res.fixed_mask), (c) => c.charCodeAt(0));
+  const stem = String(name || "lesion").replace(/\.(nii\.gz|nii|mgz)$/i, "");
+  return { file: new File([bytes], `${stem}_fixed.nii.gz`, { type: "application/gzip" }), removed: res.voxels_removed };
+}
+
+/**
  * @param {{viewerRef?: object, file?: File, mni: boolean, fileName?: string, timeoutMs?: number}} args
  *   Pass `file` when the caller already serialised the drawing (Save/Download
  *   already need `currentDrawingAsFile` for their own purposes — reuse it

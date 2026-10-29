@@ -99,7 +99,11 @@ export function moduleSha256(m) {
  *  (see slotInstallModule). Only `python-package` modules remain uninstallable
  *  from the app — their pip source is deliberately not shelled out to. */
 export function isInstallableType(m) {
-  return ["data", "slot"].includes(m?.type || "data");
+  const type = m?.type || "data";
+  // A python-package module is installable only when its manifest pins a
+  // wheel (url + sha256) — the backend unzips it; nothing goes through pip.
+  if (type === "python-package") return (m?.sources || []).some((s) => s?.type === "wheel");
+  return ["data", "slot"].includes(type);
 }
 
 /** A user-supplied payload selected by path rather than uploaded. */

@@ -6,8 +6,10 @@ router = APIRouter()
 
 
 @router.get("/lnm/available")
-async def lnm_available():
-    """Report whether the DaLn mapper can run (deps + bundle present)."""
+def lnm_available():
+    """Report whether the DaLn mapper can run (deps + bundle present).
+
+    A plain `def` so FastAPI runs it in a worker thread (see tract_dissect_available)."""
     try:
         import numpy  # noqa: F401
         import nibabel  # noqa: F401
@@ -84,10 +86,11 @@ async def lnm_compute(
         # subprocess-isolation caveat as the tract worker — an in-process
         # lru_cache load is the fix once the bundle is available to benchmark.
         def _run_worker():
-            return subprocess.run(
-                [sys.executable, str(LNM_WORKER_SCRIPT), str(workdir / "config.json")],
-                capture_output=True, timeout=900,
-            )
+            with using_packages(*WORKER_PACKAGES[LNM_WORKER_SCRIPT]):
+                return subprocess.run(
+                    [sys.executable, str(LNM_WORKER_SCRIPT), str(workdir / "config.json")],
+                    capture_output=True, timeout=900,
+                )
 
         try:
             completed = await run_in_threadpool(_run_worker)

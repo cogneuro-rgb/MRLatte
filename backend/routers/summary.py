@@ -2,40 +2,21 @@
 from fastapi import APIRouter, Query
 from deps import *  # noqa: F401,F403 (shared config, models, helpers)
 
-from routers.modules import module_snapshot, module_by_id
+from routers.modules import module_snapshot
 
 router = APIRouter()
 
 
 @router.get("/summary/available")
 async def summary_available():
-    """Report whether the summary renderer can run (nilearn present).
+    """Report what the summary can run: {ok, dissect, lnm}.
 
-    Phase 3: this is now a thin shim over /api/modules — `ok` mirrors the
-    `reports-figures` module and dissect/lnm mirror the `dissect`/`lnm`
-    capabilities. The response SHAPE is unchanged ({ok, dissect, lnm} on
-    success, {ok: False, reason} when the plotting stack is missing) so every
-    existing caller (frontend/src/lib/summary.js) keeps working untouched.
+    The summary always runs: it needs no optional module (its report's
+    figures are drawn by the frontend — the reports-figures module is not
+    involved). dissect/lnm mirror the `dissect`/`lnm` capabilities, i.e.
+    whether the tractogram and the connectome are installed.
     """
-    snap = module_snapshot()
-    reports = module_by_id("reports-figures", snap)
-    if reports is None:
-        # Manifest missing or malformed — fall back to the original direct
-        # import probe rather than reporting a false negative.
-        try:
-            import nibabel  # noqa: F401
-            from nilearn import plotting  # noqa: F401
-        except Exception as e:  # noqa: BLE001
-            return {"ok": False, "reason": f"Missing dependency: {e}"}
-        return {"ok": True,
-                "dissect": GLOBAL_TRACT_FILE.exists(),
-                "lnm": LNM_BUNDLE.exists()}
-
-    if not reports["installed"]:
-        missing = ", ".join(reports.get("missing") or []) or reports["name"]
-        return {"ok": False, "reason": f"Missing dependency: {missing}"}
-
-    caps = snap["capabilities"]
+    caps = (await run_in_threadpool(module_snapshot))["capabilities"]
     return {"ok": True,
             "dissect": bool(caps.get("dissect")),
             "lnm": bool(caps.get("lnm"))}
@@ -100,7 +81,7 @@ async def summary_status(job_id: str):
     return JSONResponse(content=json.loads(status_path.read_text()))
 @router.get("/summary/result/{job_id}/{filename:path}")
 async def summary_result(job_id: str, filename: str):
-    """Serve a summary artifact by raw path (brainsprite_*.html, images/…, maps/…)."""
+    """Serve a summary artifact by raw path (maps/…, data/…)."""
     if not _UUID4_RE.match(job_id):
         raise HTTPException(status_code=400, detail="Invalid job id.")
     if "\\" in filename or ".." in filename:

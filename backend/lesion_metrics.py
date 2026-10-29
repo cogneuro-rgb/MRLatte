@@ -375,13 +375,15 @@ QC_FIX_IDS = ("specks", "strokes", "edge_artifact", "outside_brain")
 
 
 def run_qc_fix(lesion_path, finding_ids, *, threshold: float = DEFAULT_THRESHOLD,
-               context: "dict | None" = None) -> dict:
+               context: "dict | None" = None, return_fixed: bool = False) -> dict:
     """Which voxels lqtpy's own fix would remove, for the given findings.
 
     Returns the `removed` mask (as a gzipped NIfTI on the lesion's own grid,
     base64) rather than the fixed lesion: the caller applies the removal to
     its drawing as one undoable edit, which keeps the pen colours that a
-    rebuilt binary mask would lose. Raises UnfixableFindingError (400) for an
+    rebuilt binary mask would lose. With `return_fixed` (a loaded mask, fixed
+    as a copy) it also returns `fixed_mask`: the mask itself with those voxels
+    set to 0, its own values and data type kept. Raises UnfixableFindingError (400) for an
     id outside QC_FIX_IDS and LqtpyUnavailableError (503) when lqtpy has no
     `qc.fix` (it arrived in 0.6.0).
     """
@@ -409,7 +411,7 @@ def run_qc_fix(lesion_path, finding_ids, *, threshold: float = DEFAULT_THRESHOLD
     out = nib.Nifti1Image(removed.astype(np.uint8), src.affine)
     out.set_qform(src.header.get_qform(), code=int(src.header["qform_code"]))
     out.set_sform(src.header.get_sform(), code=int(src.header["sform_code"]))
-    return {
+    result = {
         "voxels_removed": int(removed.sum()),
         "applied": list(report.get("applied") or []),
         "skipped": report.get("skipped") or [],
@@ -417,6 +419,12 @@ def run_qc_fix(lesion_path, finding_ids, *, threshold: float = DEFAULT_THRESHOLD
         "provenance": {"engine": "lqtpy.qc.fix", "version": getattr(lqtpy, "__version__", "unknown"),
                        "threshold": threshold},
     }
+    if return_fixed:
+        data = np.asanyarray(src.dataobj).copy()
+        data[removed] = 0   # a 3-D index also clears every volume of a 4-D file
+        fixed = nib.Nifti1Image(data, src.affine, src.header)
+        result["fixed_mask"] = base64.b64encode(gzip.compress(fixed.to_bytes())).decode("ascii")
+    return result
 
 
 # --------------------------------------------------------------------------- #

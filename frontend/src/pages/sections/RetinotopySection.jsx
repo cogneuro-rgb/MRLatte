@@ -1,11 +1,13 @@
 import React from "react";
-import { Eye } from "lucide-react";
+import { Eye, Info } from "lucide-react";
 import { SidebarSection } from "@/components/SidebarSection";
 import LayerControlAdvanced from "@/components/LayerControlAdvanced";
 import { PolarAngleDisc, EccentricityBar } from "@/components/PolarAngleDisc";
 import { VisualFieldMap2D } from "@/components/VisualFieldMap2D";
 import { RETINOTOPY_LAYERS } from "@/lib/atlasConfig";
 import { ModuleGate } from "@/components/ModuleGate";
+import { useCapability } from "@/hooks/use-modules";
+import { useAtlasManager } from "@/hooks/use-atlases";
 
 /**
  * Retinotopy sidebar section: retinotopic atlas display layers, plus the
@@ -60,8 +62,14 @@ export function RetinotopySection({
   layerNotes,
   onNotesChange,
 }) {
+  // Wang 2015 is its own atlas module; without it its layer gives way to a
+  // pointer to the Atlas Manager. Unknown (loading) counts as present.
+  const hasWang = useCapability("retinotopy-wang") !== false;
+  const { openManager } = useAtlasManager();
+  // Sidebar declutter: the note on what these layers are opens from (i).
+  const [layersInfo, setLayersInfo] = React.useState(false);
   return (
-    <SidebarSection title="Retinotopy" icon={Eye} testId="section-retinotopy" defaultOpen={false} badge={retActive}>
+    <SidebarSection title="Retinotopy" icon={Eye} testId="section-retinotopy" capability="retinotopy" defaultOpen={false} badge={retActive}>
       {/* Everything below needs the Benson/Wang retinotopy atlases. The gate
           wraps the section BODY rather than the section itself so the
           collapsible header stays where users expect it. */}
@@ -71,14 +79,40 @@ export function RetinotopySection({
           separately from the deficit analysis below makes it obvious why
           the panel has "4 atlases and then 2 maps" (SMALL-FIXES 53). */}
       <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-          atlas layers
+        <div className="flex items-center gap-1">
+          <span className="cap text-subtle">atlas layers</span>
+          <button
+            type="button"
+            onClick={() => setLayersInfo((v) => !v)}
+            aria-expanded={layersInfo}
+            aria-label="About these layers"
+            title="About these layers"
+            className="icon-btn h-5 w-5"
+            data-testid="retinotopy-layers-info"
+          >
+            <Info size={12} />
+          </button>
         </div>
-        <div className="font-mono text-[9px] text-subtle leading-relaxed pb-0.5">
-          Retinotopic maps overlaid on the scan. Toggling these only changes what
-          you see — the deficit analysis below is computed independently.
-        </div>
+        {layersInfo && (
+          <div className="text-[12px] text-subtle leading-relaxed pb-0.5">
+            Retinotopic maps overlaid on the scan. Toggling these only changes what
+            you see — the deficit analysis below is computed independently.
+          </div>
+        )}
         {RETINOTOPY_LAYERS.map((l) => {
+          if (l.id === "wang2015_prob" && !hasWang) {
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => openManager("retinotopy-wang2015")}
+                className="w-full border border-dashed border-border px-2 py-1.5 text-left font-mono text-[10.5px] text-subtle leading-relaxed hover:text-foreground transition-colors"
+                data-testid="retinotopy-wang-missing"
+              >
+                {l.name} isn't installed. Install it in the Atlas Manager.
+              </button>
+            );
+          }
           const m = overlayMeta[l.id] || {};
           return (
             <LayerControlAdvanced
@@ -124,8 +158,8 @@ export function RetinotopySection({
           CORTICAL (Benson) and WHITE MATTER (population template). Both are
           computed from the selected lesion(s) — nothing here depends on the
           atlas-layer toggles above (SMALL-FIXES 53). */}
-      <div className="border border-border bg-panel p-4 space-y-3" data-testid="retinotopy-deficit">
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="border border-border bg-panel p-4 space-y-3 rounded-lg" data-testid="retinotopy-deficit">
+        <div className="cap text-subtle">
           visual field deficit
         </div>
         {/* Lesion-aware legend picker: shared between both wheels. Multi-select
@@ -135,24 +169,24 @@ export function RetinotopySection({
             <button
               type="button"
               onClick={() => setLesionPickerOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-2 py-1.5 border border-border bg-background text-foreground text-[11px] hover:text-foreground hover:border-muted-foreground"
+              className="w-full flex items-center justify-between px-2 py-1.5 border border-border bg-background text-foreground text-[12px] hover:text-foreground hover:border-muted-foreground"
               data-testid="retinotopy-lesion-picker-toggle"
             >
-              <span className="font-mono uppercase tracking-[0.15em] text-[10px]">
+              <span className="cap">
                 Lesions for overlap
               </span>
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {selectedLesionIds.size} / {lesionLayers.length}
               </span>
             </button>
             {lesionPickerOpen && (
-              <div className="mt-1 border border-border bg-background divide-y divide-border">
+              <div className="mt-1 border border-border bg-background divide-y divide-border rounded-lg">
                 {lesionLayers.map((l) => {
                   const checked = selectedLesionIds.has(l.id);
                   return (
                     <label
                       key={l.id}
-                      className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-foreground cursor-pointer"
+                      className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-foreground cursor-pointer"
                       data-testid={`retinotopy-lesion-opt-${l.id}`}
                     >
                       <input
@@ -172,21 +206,25 @@ export function RetinotopySection({
         {/* No lesion ⇒ nothing to compute. Say so explicitly instead of
             rendering a silently greyed-out map (SMALL-FIXES 53). */}
         {selectedLesionIds.size === 0 && (
-          <div className="text-[10px] text-muted-foreground leading-relaxed" data-testid="retinotopy-deficit-empty">
+          <div className="text-[12px] text-muted-foreground leading-relaxed" data-testid="retinotopy-deficit-empty">
             {lesionLayers.length === 0
               ? "Load or draw a lesion mask to compute the visual-field deficit."
-              : "Select a lesion above to compute the visual-field deficit."}
+              : "Select a lesion above to see its visual-field deficit on the cortical (Benson) and white-matter maps."}
           </div>
         )}
+        {/* Sidebar declutter: the maps, their settings and Export PNG appear
+            with a selected lesion; before that they were two full-size empty
+            maps. */}
+        {selectedLesionIds.size > 0 && (<>
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="cap text-subtle">
             cortical (benson)
           </span>
           {/* ONE view toggle for BOTH maps — two separate toggles for what is
               the same choice was needless duplication. */}
           <button
             onClick={() => setBensonViewMode((v) => v === "2d" ? "classic" : "2d")}
-            className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground border border-border px-2 py-0.5"
+            className="cap text-subtle hover:text-foreground border border-border px-2 py-0.5"
             data-testid="retinotopy-viewmode-toggle"
           >
             {bensonViewMode === "2d" ? "classic →" : "← 2D map"}
@@ -251,7 +289,7 @@ export function RetinotopySection({
           <>
         <div className="my-3 h-px bg-border" />
         <div className="space-y-3" data-testid="wm-retinotopy-legend">
-          <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+          <div className="cap text-subtle">
             white matter (population template)
           </div>
           <>
@@ -293,7 +331,7 @@ export function RetinotopySection({
                   />
                 </>
               )}
-              <div className="font-mono text-[8px] text-subtle leading-relaxed pt-1">
+              <div className="text-[12px] text-subtle leading-relaxed pt-1">
                 Anatomical/illustrative · population template, not a validated clinical
                 prediction · Amorosino et al. 2026 · brainlife.pub.67 (CC-BY)
               </div>
@@ -302,6 +340,7 @@ export function RetinotopySection({
         </div>
           </>
         )}
+        </>)}
       </div>
       </ModuleGate>
     </SidebarSection>

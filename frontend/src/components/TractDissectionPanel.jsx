@@ -59,11 +59,11 @@ function LesionInput({ label, file, onFile, selId, onSelect, uploadTestId, selec
   return (
     <div className="space-y-1.5">
       {label && (
-        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">{label}</div>
+        <div className="cap text-subtle">{label}</div>
       )}
       <FileUploader
         label={label ? `Upload ${label.toLowerCase()}` : "Upload lesion mask"}
-        description=".nii / .nii.gz"
+        description=".nii .nii.gz"
         accept=".nii,.nii.gz"
         onFile={(f) => { onFile(f); onSelect(""); }}
         testId={uploadTestId}
@@ -72,20 +72,20 @@ function LesionInput({ label, file, onFile, selId, onSelect, uploadTestId, selec
         <button
           type="button"
           onClick={onUseDrawing}
-          className="w-full py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+          className="w-full py-1.5 text-[12px] font-medium btn"
           data-testid={`${uploadTestId}-use-drawing`}
         >
           Use current drawing
         </button>
       )}
       {file && (
-        <div className="font-mono text-[10px] text-muted-foreground truncate">{file.name}</div>
+        <div className="font-mono text-[11px] text-muted-foreground truncate">{file.name}</div>
       )}
       {lesionLayers.length > 0 && (
         <select
           value={selId}
           onChange={(e) => { onSelect(e.target.value); onFile(null); }}
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
           data-testid={selectTestId}
         >
           <option value="">
@@ -107,7 +107,7 @@ function ModeSelect({ value, onChange, testId }) {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+      className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
       data-testid={testId}
     >
       <option value="through">Passes through this ROI</option>
@@ -122,13 +122,13 @@ function AtlasSelect({ value, onChange, testId }) {
   const atlases = useVisibleAtlases();
   return (
     <div className="space-y-1">
-      <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle">
+      <div className="cap text-subtle">
         Region atlas
       </div>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+        className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
         data-testid={testId}
       >
         {atlases.map((a) => (
@@ -430,13 +430,13 @@ export const TractDissectionPanel = ({
 
   return (
     <div className="space-y-3" data-testid="tract-dissection-panel">
-      <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
+      <div className="flex items-center gap-2 cap text-subtle">
         <GitBranch size={11} /> virtual dissection (BCB/TrackVis)
       </div>
 
       {/* ── Availability notice ── */}
       {available !== null && available !== true && (
-        <div className="font-mono text-[10px] text-muted-foreground border border-border px-2 py-2">
+        <div className="font-mono text-[11px] text-muted-foreground border border-border px-2 py-2 rounded-lg">
           {available?.reason?.toLowerCase().includes("fetch")
             ? "Backend server unavailable — start the backend and reload."
             : available?.tract_file_present === false
@@ -451,14 +451,14 @@ export const TractDissectionPanel = ({
           <div className="flex gap-1">
             <button
               onClick={() => { setMode("single"); setResult(null); }}
-              className={`flex-1 py-1.5 text-[10px] uppercase tracking-[0.15em] border transition-colors ${activeToggleCls(mode === "single")}`}
+              className={`flex-1 py-1.5 text-[12px] font-medium border transition-colors ${activeToggleCls(mode === "single")}`}
               data-testid="tract-mode-single"
             >
-              Single Lesion
+              Single lesion
             </button>
             <button
               onClick={() => { setMode("between"); setResult(null); }}
-              className={`flex-1 py-1.5 text-[10px] uppercase tracking-[0.15em] border transition-colors ${activeToggleCls(mode === "between")}`}
+              className={`flex-1 py-1.5 text-[12px] font-medium border transition-colors ${activeToggleCls(mode === "between")}`}
               data-testid="tract-mode-between"
             >
               <SplitSquareHorizontal size={10} className="inline mr-1" />
@@ -527,8 +527,8 @@ export const TractDissectionPanel = ({
             {busy
               ? "Running…"
               : mode === "between"
-                ? "Find Connecting Tracts"
-                : "Run Dissection"}
+                ? "Find connecting tracts"
+                : "Run dissection"}
           </button>
         </>
       )}
@@ -554,7 +554,7 @@ export const TractDissectionPanel = ({
             <button
               onClick={toggleTrkVisible}
               title={trkVisible ? "Hide tract in 3D view" : "Show tract in 3D view"}
-              className="flex items-center gap-1 px-2 py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+              className="flex items-center gap-1 px-2 py-1 text-[11.5px] font-medium btn"
               data-testid="tract-toggle-visible"
             >
               {trkVisible ? <Eye size={11} /> : <EyeOff size={11} />}
@@ -574,7 +574,7 @@ export const TractDissectionPanel = ({
           <button
             onClick={deleteResult}
             title={trkLoaded ? "Remove tract from viewer and clear this result" : "Dismiss this result"}
-            className="flex items-center gap-1 px-2 py-1 text-[9px] uppercase tracking-[0.15em] border bg-transparent text-muted-foreground border-border hover:text-red-400 hover:border-red-900"
+            className="btn flex items-center gap-1 px-2 hover:!text-destructive"
             data-testid="tract-delete"
           >
             <Trash2 size={11} />{trkLoaded ? "Delete" : "Dismiss"}
@@ -584,7 +584,7 @@ export const TractDissectionPanel = ({
 
       {/* ── No-result message ── */}
       {result && result.n_selected_streamlines === 0 && (
-        <div className="font-mono text-[10px] text-muted-foreground border border-border px-2 py-2">
+        <div className="font-mono text-[11px] text-muted-foreground border border-border px-2 py-2 rounded-lg">
           {result.message || "No streamlines satisfy the selection criteria."}
         </div>
       )}
@@ -600,7 +600,7 @@ export const TractDissectionPanel = ({
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
                 placeholder={`name for saved tract… (default: ${deriveDefaultTractName()})`}
-                className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+                className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
                 data-testid="tract-save-name"
               />
               <button
@@ -608,19 +608,19 @@ export const TractDissectionPanel = ({
                 className={primaryBtnCls}
                 data-testid="tract-save"
               >
-                <Save size={11} />Save Tract
+                <Save size={11} />Save tract
               </button>
             </div>
           )}
 
-          <div className="border border-border bg-panel p-3 space-y-1" data-testid="tract-stats">
+          <div className="border border-border bg-panel p-3 space-y-1 rounded-lg" data-testid="tract-stats">
             {mode === "between" && (
-              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground pb-1">
+              <div className="cap text-subtle pb-1">
                 Connecting streamlines
               </div>
             )}
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Selected streamlines</span>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Selected streamlines</span>
               <span className="text-foreground">
                 {result.n_selected_streamlines.toLocaleString()} / {result.n_input_streamlines.toLocaleString()}
                 {" "}
@@ -629,19 +629,19 @@ export const TractDissectionPanel = ({
                 </span>
               </span>
             </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Affected-tract volume</span>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Affected-tract volume</span>
               <span className="text-foreground">{result.tract_volume_cm3.toFixed(3)} cm³</span>
             </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Affected voxels</span>
+            <div className="flex justify-between text-[13px]">
+              <span className="text-[13px] text-muted-foreground">Affected voxels</span>
               <span className="text-foreground">{result.affected_voxels.toLocaleString()}</span>
             </div>
             {overlapEntries.length > 0 && (
               <div className="pt-1 space-y-0.5" data-testid="tract-atlas-breakdown">
                 {overlapEntries.map((e) => (
-                  <div key={e.key} className="flex justify-between text-[11px]">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">{e.name}</span>
+                  <div key={e.key} className="flex justify-between text-[12px]">
+                    <span className="cap text-subtle">{e.name}</span>
                     <span className="text-foreground">{e.count} regions</span>
                   </div>
                 ))}
@@ -654,7 +654,7 @@ export const TractDissectionPanel = ({
               <a
                 href={tractResultUrl(result.files.nifti)}
                 download
-                className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground no-underline"
+                className="btn flex items-center justify-center gap-1.5 no-underline"
                 data-testid="tract-download-nifti"
               >
                 <Download size={11} />NIfTI
@@ -662,7 +662,7 @@ export const TractDissectionPanel = ({
               <a
                 href={tractResultUrl(result.files.trk)}
                 download
-                className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground no-underline"
+                className="btn flex items-center justify-center gap-1.5 no-underline"
                 data-testid="tract-download-trk"
               >
                 <Download size={11} />.trk
@@ -672,7 +672,7 @@ export const TractDissectionPanel = ({
 
           <button
             onClick={handleOpenReport}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+            className="btn w-full flex items-center justify-center gap-1.5"
             data-testid="tract-export-html"
           >
             <FileCode size={11} />Report
@@ -680,7 +680,7 @@ export const TractDissectionPanel = ({
           <ReportDialog
             open={reportOpen}
             onOpenChange={setReportOpen}
-            title="Tract Disconnection Report"
+            title="Tract disconnection report"
             subject={reportModel?.lesionName}
             html={reportModel ? buildReport("tract", reportModel) : null}
             filename={`tract_report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`}
@@ -691,7 +691,7 @@ export const TractDissectionPanel = ({
       {/* Bottom-left running box (item 57) — now a pollable job (SMALL-FIXES
           101), so it shows a real staged progress bar. */}
       <RunningIndicator
-        title="Tract Dissection"
+        title="Tract dissection"
         active={busy}
         message={job?.message}
         progress={job?.progress}

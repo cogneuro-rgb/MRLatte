@@ -1,9 +1,10 @@
 import { toast } from "sonner";
 import { NVImage, NVUtilities, PEN_TYPE } from "@niivue/niivue";
 import { interpolateSlices } from "@/lib/drawInterpolate";
-import { rleEncode, rleDecode } from "@/lib/drawHistory";
-import { harmonizeQformWithSform, setNiftiAffine } from "@/lib/niftiHeader";
+import { rleEncode, rleDecode, hasAnyNonZero, sameBytes } from "@/lib/drawHistory";
+import { harmonizeQformWithSform } from "@/lib/niftiHeader";
 import { transformLabels, mat4ToRows } from "@/lib/drawTransform";
+import { visiblePivot, pivotSignature } from "@/lib/layerPivot";
 import { normalizeTransform, isIdentityTransform, IDENTITY_TRANSFORM } from "@/lib/overlayTransform";
 
 /**
@@ -36,13 +37,6 @@ import { normalizeTransform, isIdentityTransform, IDENTITY_TRANSFORM } from "@/l
  *   changes (setInterpolateAllOrientation below).
  * @param {(centerMM: number[], radiusMM: number, labelValue: number) => boolean} deps.rasterizeSphere
  */
-function sameBytes(a, b) {
-  if (a === b) return true;
-  if (!a || !b || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-}
-
 export function createDrawingApi(ctx, {
   setDrawingActive,
   snapshotForUndo,
@@ -129,7 +123,7 @@ export function createDrawingApi(ctx, {
       if (!dims) return null;
       const n = (dims[1] || 0) * (dims[2] || 0) * (dims[3] || 0);
       if (!n || nv.drawBitmap.length < n) return null;
-      if (!nv.drawBitmap.some((v) => v !== 0)) return null;
+      if (!hasAnyNonZero(nv.drawBitmap)) return null;
       return {
         img: nv.drawBitmap,
         dims: base.dims,
@@ -326,7 +320,7 @@ export function createDrawingApi(ctx, {
     isDrawingEmpty: () => {
       const nv = nvRef.current;
       if (!nv?.drawBitmap) return true;
-      return !nv.drawBitmap.some((v) => v !== 0);
+      return !hasAnyNonZero(nv.drawBitmap);
     },
 
     setPenValue: (value, filled = false) => nvRef.current?.setPenValue(value, filled),
@@ -483,6 +477,21 @@ export function createDrawingApi(ctx, {
       }
       return true;
     },
+    // Turn pivot of the drawing ("centre" / "mass" of its drawn voxels) in
+    // world mm, measured on the drawing as it was before the current move —
+    // the frame transformDrawing turns in.
+    getDrawingPivot: (mode) => {
+      const nv = nvRef.current;
+      const back = nv?.back;
+      if (!nv?.drawBitmap || !back?.matRAS) return null;
+      const d = back.dimsRAS || back.dims;
+      const st = nv.__drawMove;
+      const src = st?.lastOut && sameBytes(nv.drawBitmap, st.lastOut) ? st.base : nv.drawBitmap;
+      const r = visiblePivot(src, [d[1], d[2], d[3]], mat4ToRows(back.matRAS), (v) => v !== 0, mode);
+      return r ? r.pivot : null;
+    },
+    getDrawingPivotSignature: (mode, crosshair) => pivotSignature(mode, { crosshair }),
+
     // The adjustment the drawing currently carries, or the identity once the
     // drawing has been changed any other way since.
     getDrawingTransform: () => {
@@ -560,12 +569,6 @@ export function createDrawingApi(ctx, {
         // qform disagrees with its sform by ~150 mm — so make them agree before
         // the drawing leaves the app (see lib/niftiHeader.js).
         harmonizeQformWithSform(bytes);
-        // A base that was moved by hand (volumeApi.setBaseTransform): the
-        // drawing sits on its grid, so it must leave with the adjusted
-        // position in sform, qform AND voxel size — niivue only rewrites the
-        // sform rows.
-        const base = nv.volumes?.[0];
-        if (base?.__manuallyAdjusted) setNiftiAffine(bytes, base.getAffine());
         const compressed = await NVUtilities.compress(bytes, "gzip");
         return new Uint8Array(compressed);
       } catch (err) {

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Switch } from "@/components/ui/switch";
 import {
   Pencil, Brush, Save, Trash2, Undo2, Redo2, Expand, Shrink, Waves,
-  AlignVerticalSpaceAround, Target, Crosshair, Download, Box, Square, Eraser, Scissors, ChevronDown,
+  AlignVerticalSpaceAround, Target, Crosshair, Download, Box, Square, Eraser, Scissors, ChevronDown, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
 import FileUploader from "@/components/FileUploader";
 import { saveBinaryFile } from "@/lib/workspace";
 import { currentDrawingAsFile } from "@/lib/lesions";
-import { SectionLabel } from "@/components/ui/SectionLabel";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ghostBtnCls } from "@/lib/buttonVariants";
 import { BASE_VOLUME } from "@/lib/atlasConfig";
 import { runLesionQc, applyQcFix } from "@/lib/lesionQc";
+import { undoToastOptions } from "@/lib/undoToast";
 import { LesionQcDialog } from "@/components/LesionQcDialog";
 import { OverlayTransformControls } from "@/components/OverlayTransformControls";
 import { IDENTITY_TRANSFORM } from "@/lib/overlayTransform";
@@ -27,6 +30,15 @@ import { IDENTITY_TRANSFORM } from "@/lib/overlayTransform";
  * The 4th "right-drag: erase" indicator in the topbar is managed by
  * Dashboard using the drawingActive state emitted by onDrawingActiveChange.
  */
+// The colours niivue paints labels 1-6 in (its default "$itksnap" draw table),
+// so each label button shows exactly what it draws.
+const PEN_COLOURS = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF"];
+// The same six at half chroma and identical luminance, for the unselected
+// buttons. Fading with opacity would dim the swatch toward the dark panel and
+// drop the dark digits below 4.5:1 (red, magenta); this keeps each digit's
+// contrast the same whether or not its button is selected.
+const PEN_MUTED = ["#CC5C5C", "#A1EEA1", "#3535C1", "#FBFBB5", "#A8F3F3", "#D269D2"];
+
 export const DrawingPanel = ({
   viewerRef, baseName, baseIsMni, crosshair, onToggleCrosshair, onCrosshairOff,
   onSetCrosshair, onSaveDrawing, clearNonce, editingSaveName, editNonce,
@@ -104,12 +116,30 @@ export const DrawingPanel = ({
       const n = await applyQcFix({ viewerRef, lesionId, findingId: finding.id });
       if (!n) { toast.info("Nothing left to remove", { description: "The drawing has already changed there." }); return; }
       toast.success(`Removed ${n.toLocaleString()} voxel${n === 1 ? "" : "s"}`, {
+        ...undoToastOptions(),
         description: finding.label || finding.id,
         action: { label: "Undo", onClick: () => viewerRef.current?.drawUndo?.() },
       });
     } catch (e) {
       toast.error("Couldn't fix this automatically", { description: e?.message });
     }
+  };
+  // Check now (inbox 28 Oct): the same quality check, on demand, besides the
+  // one before Save and the idle one. Shows everything lqtpy says, Notes too.
+  const [qcManual, setQcManual] = useState(null); // { flags, verdict, lesionId } | null
+  const [qcChecking, setQcChecking] = useState(false);
+  const checkDrawing = async () => {
+    const file = await currentDrawingAsFile(viewerRef, "qc_drawing.nii.gz");
+    if (!file) { toast.info("Nothing drawn yet"); return; }
+    setQcChecking(true);
+    const r = await runLesionQc({ file, viewerRef, mni, fileName: file.name });
+    setQcChecking(false);
+    if (!r) {
+      toast.error("The quality check couldn't run", { description: "lqtpy isn't available in this backend, or the check took too long." });
+      return;
+    }
+    if (!r.flags.length) { toast.success("No issues found", { description: r.verdict ? `Overall: ${r.verdict}` : undefined }); return; }
+    setQcManual(r);
   };
   const requestQcConfirmation = (file, actionLabel) => new Promise((resolve) => {
     runLesionQc({ file, viewerRef, mni, fileName: file.name }).then((result) => {
@@ -118,7 +148,7 @@ export const DrawingPanel = ({
       // Download (or the other way round) must not ask the same question twice.
       // lesionId is a hash of the drawing's bytes, so any edit asks again.
       if (acceptedQcIdRef.current === result.lesionId) { resolve(true); return; }
-      setQcPrompt({ flags: result.flags, verdict: result.verdict, lesionId: result.lesionId, actionLabel, resolve });
+      setQcPrompt({ flags: result.flags, verdict: result.verdict, lesionId: result.lesionId, version: result.provenance?.version, actionLabel, resolve });
     });
   });
 
@@ -462,8 +492,8 @@ export const DrawingPanel = ({
   };
 
   const tools = [
-    { id: "pen",   icons: [Pencil, Scissors], label: "Pen/Cutout" },
-    { id: "brush", icons: [Brush, Eraser],  label: "Brush/Eraser" },
+    { id: "pen",   icons: [Pencil, Scissors], label: "Pen / cutout" },
+    { id: "brush", icons: [Brush, Eraser],  label: "Brush / eraser" },
   ];
 
   // Interpolate-All orientation label (0 axial / 1 coronal / 2 sagittal —
@@ -501,12 +531,13 @@ export const DrawingPanel = ({
     setInterpolateMenuOpen(false);
   };
 
-  const num = (val, onChange, testId) => (
+  const num = (val, onChange, testId, label) => (
     <input
       type="number"
       value={val}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+      className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
+      aria-label={label}
       data-testid={testId}
     />
   );
@@ -515,23 +546,23 @@ export const DrawingPanel = ({
     <div ref={rootRef} className="space-y-3" data-testid="drawing-panel">
       <button
         onClick={toggleEnabled}
-        className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-[12px] font-medium uppercase tracking-[0.15em] transition-colors border ${
+        className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-[12.5px] font-medium transition-colors border ${
           enabled
-            ? "bg-primary text-primary-foreground border-primary"
+            ? "bg-panel-active text-foreground border-edge"
             : "bg-transparent text-foreground border-border hover:border-muted-foreground"
         }`}
         data-testid="drawing-toggle"
       >
         <Pencil size={13} />
-        {enabled ? "Drawing · Active" : "Enable Drawing"}
+        {enabled ? "Drawing · active" : "Enable drawing"}
       </button>
 
       {/* Upload a lesion/ROI file directly as the editable drawing — erase or
           continue drawing it. Requires the file's voxel grid to match the base
           scan exactly. (Replaces the old "Upload ROI" section too.) */}
       <FileUploader
-        label="Load Mask File"
-        description=".nii / .nii.gz — loads as an editable drawing (erase or continue)"
+        label="Load a mask file"
+        description=".nii .nii.gz · loads as an editable drawing (erase or continue)"
         accept=".nii,.nii.gz"
         onFile={handleEditLesionFile}
         testId="drawing-edit-lesion-upload"
@@ -540,30 +571,29 @@ export const DrawingPanel = ({
       {/* All controls below are visible whenever the section is open (item 41),
           not only while drawing is active. */}
 
-      {/* Tool selection: Pen (top row) and Brush (bottom row with 2D/3D toggle) */}
-      <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">tool</div>
-        {/* Pen row */}
+      {/* Tool selection: Pen and Brush side by side, then Brush's 2D/3D toggle
+          (one row since the sidebar declutter; it was a row each). */}
+      <div className="flex items-center gap-1">
         {tools.map((t) => {
           const active = enabled && tool === t.id;
           return (
-            <div key={t.id} className="flex items-center gap-1">
+            <React.Fragment key={t.id}>
               <button
                 onClick={() => changeTool(t.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border ${
+                className={`min-w-0 flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium transition-colors border ${
                   active
-                    ? "bg-primary text-primary-foreground border-primary"
+                    ? "bg-panel-active text-foreground border-edge"
                     : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
                 }`}
                 data-testid={`pen-${t.id}`}
               >
-                {React.createElement(t.icons[0], { size: 11 })}
-                <span>{t.label}</span>
-                {React.createElement(t.icons[1], { size: 11, className: "opacity-60" })}
+                {React.createElement(t.icons[0], { size: 11, className: "flex-shrink-0" })}
+                <span className="truncate">{t.label}</span>
+                {React.createElement(t.icons[1], { size: 11, className: "flex-shrink-0 opacity-60" })}
               </button>
-              {/* 2D/3D brush mode toggle — only shown on the Brush row */}
+              {/* 2D/3D brush mode toggle — after the Brush button */}
               {t.id === "brush" && (
-                <div className={`flex border transition-all duration-700 ${
+                <div className={`flex border transition-all duration-700 rounded-lg ${
                   tool === "brush" || flashBrushMode ? "border-border opacity-100" : "border-transparent opacity-30 pointer-events-none"
                 }`}>
                   {["2D", "3D"].map((m) => {
@@ -572,9 +602,9 @@ export const DrawingPanel = ({
                       <button
                         key={m}
                         onClick={() => changeBrushMode(m)}
-                        className={`px-2 py-1.5 text-[10px] font-mono uppercase tracking-[0.1em] transition-colors ${
+                        className={`px-2 py-1.5 cap transition-colors ${
                           active
-                            ? "bg-primary text-primary-foreground"
+                            ? "bg-panel-active text-foreground"
                             : "bg-transparent text-muted-foreground hover:text-foreground"
                         }`}
                         title={m === "3D" ? "3D sphere stamp across all slices" : "2D disc stamp on the current slice"}
@@ -586,7 +616,7 @@ export const DrawingPanel = ({
                   })}
                 </div>
               )}
-            </div>
+            </React.Fragment>
           );
         })}
       </div>
@@ -596,10 +626,9 @@ export const DrawingPanel = ({
       {tool === "brush" && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-              brush radius
-            </span>
-            <span className="font-mono text-[10px] text-foreground tabular-nums">{brushRadius} vox</span>
+            <span className="text-[13px] text-muted-foreground">Brush radius</span>
+            <EditableNumber value={brushRadius} min={1} max={30} integer onCommit={changeBrushRadius} label="Brush radius, voxels"
+              className="font-mono text-[11px] text-foreground tabular-nums">{brushRadius} vox</EditableNumber>
           </div>
           <Slider
             value={[brushRadius]}
@@ -607,6 +636,7 @@ export const DrawingPanel = ({
             max={30}
             step={1}
             onValueChange={(v) => changeBrushRadius(v[0])}
+            aria-label="Brush radius"
             data-testid="brush-radius-slider"
           />
         </div>
@@ -615,19 +645,24 @@ export const DrawingPanel = ({
       {/* Pen value (label color) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">label value</span>
-          <span className="font-mono text-[10px] text-foreground tabular-nums">{penValue}</span>
+          <span className="text-[13px] text-muted-foreground">Label value</span>
+          <span className="font-mono text-[11px] text-foreground tabular-nums">{penValue}</span>
         </div>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-6 gap-1.5">
           {[1, 2, 3, 4, 5, 6].map((v) => (
             <button
               key={v}
               onClick={() => changePenValue(v)}
-              className={`py-1.5 text-[10px] font-mono transition-colors border ${
+              aria-pressed={penValue === v}
+              style={{ "--pen": PEN_COLOURS[v - 1], "--pen-muted": PEN_MUTED[v - 1] }}
+              className={`keep-colours h-7 rounded-md font-mono text-[12px] font-semibold transition-[background-color,box-shadow] ${
+                v === 3 ? "text-white" : "text-[#121110]"
+              } ${
                 penValue === v
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-transparent text-muted-foreground border-border hover:border-muted-foreground"
+                  ? "bg-[color:var(--pen)] shadow-[0_0_0_2px_hsl(var(--card)),0_0_0_4px_hsl(var(--foreground))]"
+                  : "bg-[color:var(--pen-muted)] hover:bg-[color:var(--pen)]"
               }`}
+              title={`Label ${v}`}
               data-testid={`pen-value-${v}`}
             >
               {v}
@@ -637,49 +672,40 @@ export const DrawingPanel = ({
       </div>
 
       {/* Shares the topbar's crosshair toggle — same state, same effect everywhere. */}
-      <label className="flex items-center justify-between cursor-pointer">
-        <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">show crosshair</span>
-        <button
-          onClick={onToggleCrosshair}
-          className={`relative inline-flex h-4 w-8 transition-colors border ${
-            crosshair ? "bg-primary border-primary" : "bg-transparent border-border"
-          }`}
-          data-testid="drawing-crosshair-toggle"
-        >
-          <span
-            className={`inline-block h-3 w-3 transition-transform ${
-              crosshair ? "translate-x-4 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"
-            }`}
-          />
-        </button>
-      </label>
+      <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+        <span className="flex-1">Show crosshair</span>
+        <Switch checked={!!crosshair} onCheckedChange={() => onToggleCrosshair()} label="Show crosshair"
+          testId="drawing-crosshair-toggle" />
+      </div>
 
       {/* Opacity */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">draw opacity</span>
-          <span className="font-mono text-[10px] text-foreground tabular-nums">{Math.round(opacity * 100)}%</span>
+          <span className="text-[13px] text-muted-foreground">Draw opacity</span>
+          <EditableNumber value={opacity * 100} min={0} max={100} integer onCommit={(v) => changeOpacity(v / 100)} label="Draw opacity, %"
+            className="font-mono text-[11px] text-foreground tabular-nums">{Math.round(opacity * 100)}%</EditableNumber>
         </div>
         <Slider
           value={[opacity * 100]}
           max={100}
           step={1}
           onValueChange={(v) => changeOpacity(v[0] / 100)}
+          aria-label="Draw opacity"
           data-testid="draw-opacity-slider"
         />
       </div>
 
-      {/* Spherical ROI — paints a sphere into the SAME drawing, at the current label. */}
-      <div className="space-y-1.5 border-t border-border pt-3" data-testid="draw-sphere">
-        <SectionLabel icon={Target}>add sphere (MNI mm)</SectionLabel>
+      {/* Spherical ROI — paints a sphere into the SAME drawing, at the current
+          label. Folded away until wanted (sidebar declutter). */}
+      <Disclosure title="Add a sphere (MNI mm)" className="border-t border-border" bodyClassName="space-y-1.5" testId="draw-sphere">
         <div className="grid grid-cols-3 gap-1.5">
-          {num(sphere.x, (v) => setSphereField("x", v), "sphere-x")}
-          {num(sphere.y, (v) => setSphereField("y", v), "sphere-y")}
-          {num(sphere.z, (v) => setSphereField("z", v), "sphere-z")}
+          {num(sphere.x, (v) => setSphereField("x", v), "sphere-x", "Sphere x (MNI mm)")}
+          {num(sphere.y, (v) => setSphereField("y", v), "sphere-y", "Sphere y (MNI mm)")}
+          {num(sphere.z, (v) => setSphereField("z", v), "sphere-z", "Sphere z (MNI mm)")}
         </div>
         <button
           onClick={useSphereCrosshair}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+          className="btn w-full flex items-center justify-center gap-1.5"
           data-testid="sphere-use-crosshair"
         >
           <Crosshair size={11} />Use crosshair
@@ -688,19 +714,20 @@ export const DrawingPanel = ({
           <input
             type="number" min="0" step="0.5" value={sphere.r}
             onChange={(e) => setSphereField("r", e.target.value)}
-            className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+            className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
             placeholder="radius (mm)"
+            aria-label="Sphere radius (mm)"
             data-testid="sphere-radius"
           />
           <button
             onClick={addSphere}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] border bg-transparent text-foreground border-border hover:border-muted-foreground"
+            className="btn flex items-center justify-center gap-1.5 px-3"
             data-testid="sphere-add"
           >
             <Target size={11} />Add
           </button>
         </div>
-      </div>
+      </Disclosure>
 
       {/* Interpolate: last-2 (left) vs ALL adjacent same-orientation slices
           (right, item 62) — the right one is a split button: the main part
@@ -713,7 +740,7 @@ export const DrawingPanel = ({
         <button
           onClick={() => viewerRef.current?.interpolateDrawnSlices?.()}
           disabled={!canInterpolate}
-          className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-foreground disabled:hover:border-border"
+          className="btn flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-foreground disabled:hover:border-border"
           data-testid="draw-interpolate"
           title="Fill the gap between the last two slices you drew in the same view (axial/coronal/sagittal)"
         >
@@ -724,19 +751,19 @@ export const DrawingPanel = ({
           <button
             onClick={() => viewerRef.current?.interpolateAllDrawnSlices?.()}
             disabled={!canInterpolateAll}
-            className="min-w-0 flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border border-r-0 bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-foreground disabled:hover:border-border"
+            className="btn min-w-0 flex-1 gap-1.5 rounded-r-none"
             data-testid="draw-interpolate-all"
             title={`Fill between every pair of adjacent drawn slices in the ${orientationLabel} view (Shift+I)`}
           >
             <AlignVerticalSpaceAround size={11} className="shrink-0" />
-            <span className="truncate">{`Interpolate All (${orientationLabel})`}</span>
+            <span className="truncate">{`Interpolate all (${orientationLabel})`}</span>
           </button>
           <button
             onClick={() => setInterpolateMenuOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={interpolateMenuOpen}
-            aria-label="Choose Interpolate All orientation"
-            className="shrink-0 px-1 py-1.5 border transition-colors bg-transparent text-foreground border-border hover:text-foreground hover:border-muted-foreground"
+            aria-label="Choose Interpolate all orientation"
+            className="btn -ml-px w-7 shrink-0 rounded-l-none px-0"
             data-testid="draw-interpolate-all-menu-toggle"
           >
             <ChevronDown size={11} />
@@ -744,15 +771,15 @@ export const DrawingPanel = ({
           {interpolateMenuOpen && (
             <div
               role="menu"
-              aria-label="Interpolate All orientation"
-              className="absolute right-0 top-full z-50 mt-1 w-48 border border-border bg-panel p-1 shadow-lg"
+              aria-label="Interpolate all orientation"
+              className="popover absolute right-0 top-full z-50 mt-1 w-48 p-1"
               data-testid="draw-interpolate-all-menu"
             >
               {/* No separate "Auto" row: every new stroke re-selects the view
                   it was drawn in (recordDrawEntry in NiivueViewer), so the
                   selected row IS the last drawn view unless you've picked
                   another since. Outline = selected; greyed = fewer than two
-                  drawn slices in that view, so Interpolate All can't run. */}
+                  drawn slices in that view, so Interpolate all can't run. */}
               {[
                 { key: "axial", value: 0, label: "Axial" },
                 { key: "coronal", value: 1, label: "Coronal" },
@@ -768,7 +795,7 @@ export const DrawingPanel = ({
                     disabled={!valid}
                     onClick={() => chooseInterpolateOrientation(opt.value)}
                     title={valid ? undefined : `Draw on at least two ${opt.label.toLowerCase()} slices first`}
-                    className={`w-full px-2 py-1.5 text-left text-[10px] uppercase tracking-[0.1em] transition-colors border ${
+                    className={`w-full px-2 py-1.5 text-left text-[12px] font-medium transition-colors border ${
                       active ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"
                     } ${valid ? "hover:bg-panel-hover hover:text-foreground" : "opacity-40 cursor-not-allowed"}`}
                     data-testid={`draw-interpolate-all-opt-${opt.key}`}
@@ -783,25 +810,23 @@ export const DrawingPanel = ({
       </div>
 
       {/* Morphological operations (non-destructive · undoable) */}
-      <div className="space-y-1.5">
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">morphology</div>
-        <div className="grid grid-cols-3 gap-1">
-          <button onClick={() => morph("dilate")} className={ghostBtnCls} data-testid="draw-dilate">
-            <Expand size={11} />Dilate
-          </button>
-          <button onClick={() => morph("erode")} className={ghostBtnCls} data-testid="draw-erode">
-            <Shrink size={11} />Erode
-          </button>
-          <button onClick={() => morph("smooth")} className={ghostBtnCls} data-testid="draw-smooth">
-            <Waves size={11} />Smooth
-          </button>
-        </div>
+      <div className="grid grid-cols-3 gap-1">
+        <button onClick={() => morph("dilate")} className={ghostBtnCls} data-testid="draw-dilate">
+          <Expand size={11} />Dilate
+        </button>
+        <button onClick={() => morph("erode")} className={ghostBtnCls} data-testid="draw-erode">
+          <Shrink size={11} />Erode
+        </button>
+        <button onClick={() => morph("smooth")} className={ghostBtnCls} data-testid="draw-smooth">
+          <Waves size={11} />Smooth
+        </button>
       </div>
 
       {/* Move / turn / resize the drawing itself — redraws its voxels, one Undo per gesture */}
-      <div className="space-y-1.5" data-testid="draw-position">
+      <div data-testid="draw-position">
         <OverlayTransformControls
           layerId="drawing"
+          untouchedLabel="as drawn"
           transform={drawMove}
           onChange={(_id, t, opts) => {
             if (viewerRef.current?.transformDrawing?.(t, { live: !!opts?.live })) setDrawMove(t);
@@ -812,10 +837,10 @@ export const DrawingPanel = ({
 
       {/* Undo / Redo */}
       <div className="grid grid-cols-2 gap-1.5">
-        <button onClick={() => viewerRef.current?.drawUndo()} disabled={!canUndo} className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border" data-testid="drawing-undo" title="Undo (Ctrl+Z)">
+        <button onClick={() => viewerRef.current?.drawUndo()} disabled={!canUndo} className="flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border" data-testid="drawing-undo" title="Undo (Ctrl+Z)">
           <Undo2 size={11} />Undo
         </button>
-        <button onClick={() => viewerRef.current?.drawRedo()} disabled={!canRedo} className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border" data-testid="drawing-redo" title="Redo (Ctrl+Shift+Z)">
+        <button onClick={() => viewerRef.current?.drawRedo()} disabled={!canRedo} className="flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:border-border" data-testid="drawing-redo" title="Redo (Ctrl+Shift+Z)">
           <Redo2 size={11} />Redo
         </button>
       </div>
@@ -827,13 +852,13 @@ export const DrawingPanel = ({
           value={saveName}
           onChange={(e) => setSaveName(e.target.value)}
           placeholder="name for saved mask…"
-          className="w-full bg-panel border border-border text-[11px] text-foreground px-2 py-1.5"
+          className="w-full bg-panel border border-border text-[12px] text-foreground px-2 py-1.5"
           data-testid="drawing-save-name"
         />
         <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => viewerRef.current?.drawClear()}
-            className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-destructive border-border hover:border-destructive"
+            className="btn flex items-center justify-center gap-1.5 !text-destructive"
             data-testid="drawing-clear"
           >
             <Trash2 size={11} />Clear
@@ -841,25 +866,39 @@ export const DrawingPanel = ({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="drawing-save"
           >
             <Save size={11} />
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
-        <button
-          onClick={handleDownloadCurrent}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] uppercase tracking-[0.15em] transition-colors border bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
-          data-testid="drawing-download"
-        >
-          <Download size={11} />Download current drawing
-        </button>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={handleDownloadCurrent}
+            className="flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn"
+            title="Download the current drawing (.nii.gz)"
+            data-testid="drawing-download"
+          >
+            <Download size={11} />Download
+          </button>
+          <button
+            onClick={checkDrawing}
+            disabled={qcChecking}
+            className="flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium btn disabled:opacity-50"
+            title="Check the drawing with lqtpy now: stray specks, skipped slices, parts outside the brain…"
+            data-testid="drawing-qc-check"
+          >
+            <ShieldCheck size={11} />{qcChecking ? "Checking…" : "Check drawing"}
+          </button>
+        </div>
       </div>
 
-      <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-subtle leading-relaxed">
-        draw freehand or add spheres into one mask. Save adds it to the layer list as a named overlay (no download) and clears the canvas for the next; Download is separate.
-      </div>
+      <Disclosure title="Save, Download and spheres" className="border-t border-border" testId="draw-help">
+        <p className="text-[12px] leading-4 text-subtle">
+          Draw freehand or add spheres into one mask. Save adds it to the layer list as a named overlay (no download) and clears the canvas for the next; Download is separate.
+        </p>
+      </Disclosure>
 
       {qcPrompt && (
         <LesionQcDialog
@@ -867,6 +906,7 @@ export const DrawingPanel = ({
           flags={qcPrompt.flags}
           actionLabel={qcPrompt.actionLabel}
           verdict={qcPrompt.verdict}
+          engineVersion={qcPrompt.version}
           onConfirm={() => { acceptedQcIdRef.current = qcPrompt.lesionId; qcPrompt.resolve(true); setQcPrompt(null); }}
           onCancel={() => { qcPrompt.resolve(false); setQcPrompt(null); }}
           // Both of these mean "don't save yet": the save is cancelled exactly
@@ -884,6 +924,18 @@ export const DrawingPanel = ({
             qcPrompt.resolve(false); setQcPrompt(null);
             viewerRef.current?.interpolateAllDrawnSlices?.();
           }}
+        />
+      )}
+      {qcManual && (
+        <LesionQcDialog
+          open
+          readOnly
+          flags={qcManual.flags}
+          verdict={qcManual.verdict}
+          engineVersion={qcManual.provenance?.version}
+          onCancel={() => setQcManual(null)}
+          onGoTo={(mm) => { setQcManual(null); viewerRef.current?.setCrosshairMM?.(mm[0], mm[1], mm[2]); }}
+          onFix={(finding) => { const { lesionId } = qcManual; setQcManual(null); fixFinding(finding, lesionId); }}
         />
       )}
     </div>

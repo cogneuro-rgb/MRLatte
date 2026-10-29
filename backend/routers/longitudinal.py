@@ -7,22 +7,16 @@ router = APIRouter()
 
 @router.get("/longitudinal/available")
 async def longitudinal_available():
-    try:
-        import SimpleITK  # noqa: F401
+    # Looked up, not imported: opening the panel must not put the module in use.
+    if package_present("SimpleITK"):
         return {"available": True}
-    except Exception as e:  # noqa: BLE001
-        return {"available": False, "reason": str(e)}
+    return {"available": False, "reason": SIMPLEITK_MISSING}
 @router.post("/longitudinal/register")
 async def longitudinal_register(
     baseline: UploadFile = File(...), followup: UploadFile = File(...)
 ):
-    try:
-        import SimpleITK  # noqa: F401
-    except Exception:
-        raise HTTPException(
-            status_code=503,
-            detail="SimpleITK not installed on the server.",
-        )
+    if not package_present("SimpleITK"):
+        raise HTTPException(status_code=503, detail=SIMPLEITK_MISSING)
 
     workdir = Path(tempfile.mkdtemp(prefix="nv_long_"))
 
@@ -35,7 +29,10 @@ async def longitudinal_register(
         bpath.write_bytes(await baseline.read())
         fpath.write_bytes(await followup.read())
         out_path = workdir / "difference.nii.gz"
-        metrics = await run_in_threadpool(_run_longitudinal, bpath, fpath, out_path)
+        metrics = await run_in_threadpool(
+            _run_worker_json, LONGITUDINAL_WORKER_SCRIPT,
+            {"baseline": str(bpath), "followup": str(fpath), "out": str(out_path)},
+            workdir, 600)
         return FileResponse(
             path=str(out_path),
             media_type="application/gzip",

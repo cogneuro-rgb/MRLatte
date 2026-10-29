@@ -1,5 +1,7 @@
 import React from "react";
 import { ChevronDown, ChevronRight, ChevronUp, RefreshCw } from "lucide-react";
+import { useCapability, useModulesFor } from "@/hooks/use-modules";
+import { moduleSize, moduleStatus } from "@/lib/modules";
 
 // Error boundary that catches chunk-load failures (and any other render error)
 // inside a SidebarSection. Shows a minimal inline fallback with a Refresh
@@ -23,14 +25,14 @@ class ChunkErrorBoundary extends React.Component {
     if (!this.state.hasError) return this.props.children;
     return (
       <div className="space-y-2 py-2">
-        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-destructive">
+        <p className="cap text-destructive">
           {this.state.isChunkError
             ? "Failed to load panel (network error)"
             : "Something went wrong"}
         </p>
         <button
           onClick={() => this.reset()}
-          className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 cap text-subtle hover:text-foreground transition-colors"
         >
           <RefreshCw size={10} /> Try again
         </button>
@@ -54,6 +56,9 @@ const SidebarSectionsContext = React.createContext(null);
  *   ctx       — pass to <SidebarSectionsContext.Provider value={ctx}>
  *   openCount — how many registered sections are currently open
  *   setAll    — setAll(true|false) opens/closes every registered section
+ *   sections  — every registered section in sidebar order, with what the
+ *               collapsed sidebar's icon rail shows for it: { id, testId,
+ *               title, icon, badge, unavailable, gatePill, isOpen, setOpen }
  */
 export function useSidebarSectionsController() {
   // id -> { isOpen, setOpen }. A ref (not state) because sections mutate their
@@ -61,6 +66,8 @@ export function useSidebarSectionsController() {
   // driven by the openCount below.
   const entriesRef = React.useRef(new Map());
   const [openCount, setOpenCount] = React.useState(0);
+  // Bumped when a section's rail metadata (title, badge, gate) changes.
+  const [metaVersion, setMetaVersion] = React.useState(0);
 
   const recount = React.useCallback(() => {
     let n = 0;
@@ -81,14 +88,29 @@ export function useSidebarSectionsController() {
     recount();
   }, [recount]);
 
+  const describe = React.useCallback((id, meta) => {
+    const e = entriesRef.current.get(id);
+    if (!e) return;
+    const old = e.meta || {};
+    if (Object.keys(meta).every((k) => old[k] === meta[k])) return;
+    e.meta = meta;
+    setMetaVersion((v) => v + 1);
+  }, []);
+
   const setAll = React.useCallback((open) => {
     entriesRef.current.forEach((e) => {
       if (e.isOpen !== open) e.setOpen(open);
     });
   }, []);
 
-  const ctx = React.useMemo(() => ({ register, report }), [register, report]);
-  return { ctx, openCount, setAll };
+  const sections = React.useMemo(
+    () => [...entriesRef.current].map(([id, e]) => ({ id, ...e.meta, isOpen: e.isOpen, setOpen: e.setOpen })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openCount, metaVersion],
+  );
+
+  const ctx = React.useMemo(() => ({ register, report, describe }), [register, report, describe]);
+  return { ctx, openCount, setAll, sections };
 }
 
 export { SidebarSectionsContext };
@@ -102,6 +124,8 @@ export const SidebarSection = ({
   testId,
   defaultOpen = true,
   badge,
+  // Short status shown on the closed row, e.g. "MNI152 · 0.74 mm".
+  summary,
   children,
   // Optional controlled-open mode: when `open` is provided, the parent owns the
   // open/closed state and gets notified via `onOpenChange`. Omit both to keep
@@ -109,7 +133,18 @@ export const SidebarSection = ({
   open: openProp,
   onOpenChange,
   keepMounted = false,
+  // Module capability this section needs (e.g. "lnm"). While it is missing the
+  // heading is greyed out; the section still opens, so its install prompt
+  // (ModuleGate) stays one click away. Unknown while module status loads.
+  capability,
+  // Or the section says itself: false greys the heading, undefined = unknown.
+  // `unavailableHint` is its tooltip then.
+  available,
+  unavailableHint,
 }) => {
+  const has = useCapability(capability || "__none__");
+  const neededModules = useModulesFor(capability || "__none__");
+  const unavailable = available === false || (!!capability && has === false);
   const [openState, setOpenState] = React.useState(defaultOpen);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openState;
@@ -139,52 +174,73 @@ export const SidebarSection = ({
   }, [ctl, id]);
   React.useEffect(() => { ctl?.report(id, open); }, [ctl, id, open]);
 
+  // What a greyed-out section needs, shown as a pill on its row: one
+  // missing module names its size, several are counted.
+  const missing = neededModules.filter((m) => moduleStatus(m) !== "installed");
+  const gatePill = !unavailable ? null
+    : missing.length === 1 ? (moduleSize(missing[0]) === "unknown size" ? "Install" : `Install · ${moduleSize(missing[0])}`)
+    : missing.length > 1 ? `Add ${missing.length} modules`
+    : null;
+
+  React.useEffect(() => {
+    ctl?.describe(id, { testId, title, icon: Icon, badge, unavailable, gatePill });
+  }, [ctl, id, testId, title, Icon, badge, unavailable, gatePill]);
+
   return (
     <div
-      // Item: divider between two sections becomes pure white (dark mode) /
-      // pure black (light mode) ONLY when this section AND the section
-      // directly below it are both open — otherwise it stays the muted
-      // `border-border` gray. Done with pure CSS, no neighbor-tracking JS:
-      // `data-open` records this section's own open state, and
-      // `has-[+[data-open=true]]` (CSS `:has(+ [data-open="true"])`,
-      // Tailwind 3.4+) checks whether the NEXT sibling is also open. The
-      // `[.light_&]` arbitrary variant hooks into the same `.light` class
-      // on <html> that index.css themes off of (this app never toggles a
-      // `.dark` class — dark is the default, unclassed state — so the
-      // built-in `dark:` variant would never fire here).
-      className={`border-b border-border data-[open=true]:has-[+[data-open=true]]:border-white [.light_&]:data-[open=true]:has-[+[data-open=true]]:border-black ${open ? "bg-panel-active" : ""}`}
+      className={`rounded-lg transition-colors ${open ? "my-1 border border-border bg-card" : "border border-transparent"}`}
       data-open={open}
       data-testid={testId}
     >
       <button
         onClick={toggle}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-panel-hover transition-colors"
+        aria-expanded={open}
+        className={`flex h-[38px] w-full items-center gap-2.5 px-2.5 text-left transition-colors ${
+          open ? "rounded-t-lg" : "rounded-md hover:bg-panel-hover"
+        }`}
         data-testid={`${testId}-toggle`}
+        data-unavailable={unavailable || undefined}
+        title={!unavailable ? undefined
+          : available === false ? unavailableHint
+          : `Needs the ${neededModules.map((m) => m.name).join(" / ") || capability} module — open to install it`}
       >
-        <div className="flex items-center gap-2.5">
-          {Icon && <Icon size={13} className="text-muted-foreground" />}
-          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-foreground">
-            {title}
+        {Icon && (
+          <Icon
+            size={16}
+            className={`flex-shrink-0 ${open ? "text-foreground" : "text-muted-foreground"} ${unavailable ? "opacity-50" : ""}`}
+          />
+        )}
+        <span
+          className={`min-w-0 flex-1 truncate text-[13.5px] ${open ? "font-semibold" : "font-medium"} ${
+            unavailable ? "text-muted-foreground" : "text-foreground"
+          }`}
+        >
+          {title}
+        </span>
+        {summary && !open && (
+          <span className="truncate text-[12px] text-subtle">{summary}</span>
+        )}
+        {badge !== undefined && badge !== null && badge !== 0 && (
+          <span className="count" title="Shown now">{badge}</span>
+        )}
+        {gatePill && (
+          <span className="whitespace-nowrap rounded-full border border-edge px-2 text-[11.5px] leading-[18px] text-muted-foreground">
+            {gatePill}
           </span>
-          {badge !== undefined && badge !== null && badge !== 0 && (
-            <span className="ml-1 font-mono text-[9px] text-emerald-500 tabular-nums">
-              {badge}
-            </span>
-          )}
-        </div>
+        )}
         {open ? (
-          <ChevronDown size={12} className="text-muted-foreground" />
+          <ChevronDown size={14} className="flex-shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRight size={12} className="text-muted-foreground" />
+          <ChevronRight size={14} className="flex-shrink-0 text-subtle" />
         )}
       </button>
       {(open || keepMounted) && (
-        <div className={`px-5 pb-4 space-y-3 ${open ? "" : "hidden"}`}>
+        <div className={`space-y-2.5 px-2.5 pb-2 pt-0.5 ${open ? "" : "hidden"}`}>
           {/* Suspense boundary so lazily code-split panels can stream their chunk
               on first open without a top-level fallback flashing the whole UI. */}
           <React.Suspense
             fallback={
-              <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground py-2">
+              <div className="py-2 text-[12px] text-subtle">
                 Loading…
               </div>
             }
@@ -201,10 +257,10 @@ export const SidebarSection = ({
           <button
             type="button"
             onClick={toggle}
-            className="mt-1 w-full flex items-center justify-center gap-1.5 border-t border-border pt-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground hover:bg-panel-hover transition-colors"
+            className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[12px] text-subtle transition-colors hover:bg-panel-hover hover:text-foreground"
             data-testid={`${testId}-close`}
           >
-            <ChevronUp size={11} />
+            <ChevronUp size={12} />
             Close
           </button>
         </div>
@@ -212,5 +268,10 @@ export const SidebarSection = ({
     </div>
   );
 };
+
+/** Small-caps heading over a group of sidebar sections (Volumes, Analysis, Reference). */
+export const SidebarGroup = ({ children }) => (
+  <div className="cap px-2.5 pb-1.5 pt-3.5 text-subtle first:pt-1.5">{children}</div>
+);
 
 export default SidebarSection;

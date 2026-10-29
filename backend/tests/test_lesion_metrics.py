@@ -700,6 +700,33 @@ def test_qc_fix_removes_the_speck_and_nothing_else(synthetic_atlas):
     assert "specks" in body["applied"]
 
 
+@pytest.mark.skipif(not hasattr(getattr(lesion_metrics.lqtpy, "qc", None), "fix"),
+                    reason="lqtpy.qc.fix arrived in lqtpy 0.6.0")
+def test_qc_fix_can_return_the_fixed_mask(synthetic_atlas):
+    """A loaded lesion mask is fixed as a copy (inbox 28 Oct): with
+    `return_fixed` the response also carries the mask itself minus what the
+    fix removes, its own values kept, on its own grid."""
+    import base64, gzip
+    data = _sphere_plus_speck_lesion()
+    data[data > 0] = 2.0
+    lesion_id = _upload(data)
+    r = client.post("/api/lesion/qc/fix", json={
+        "lesion_id": lesion_id, "finding_ids": ["specks"], "return_fixed": True})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    fixed = np.asarray(nib.Nifti1Image.from_bytes(
+        gzip.decompress(base64.b64decode(body["fixed_mask"]))).dataobj)
+    expected = data.copy()
+    expected[_decode_mask(body["removed_mask"])] = 0
+    assert fixed.shape == data.shape
+    assert fixed[2, 2, 2] == 0                      # the speck is gone
+    assert np.array_equal(fixed, expected)          # and nothing else changed
+    assert set(np.unique(fixed)) == {0.0, 2.0}      # values kept, not binarised
+    # Without the flag the response stays as it was.
+    r = client.post("/api/lesion/qc/fix", json={"lesion_id": lesion_id, "finding_ids": ["specks"]})
+    assert "fixed_mask" not in r.json()
+
+
 def test_qc_fix_refuses_findings_it_must_not_fix(synthetic_atlas):
     lesion_id = _upload(_sphere_plus_speck_lesion())
     for ids in (["sparse_slices"], ["holes"], [], ["specks", "hollow"]):

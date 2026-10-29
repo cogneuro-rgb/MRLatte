@@ -8,6 +8,7 @@ import FileUploader from "@/components/FileUploader";
 import { UserLayerList } from "@/components/UserLayerList";
 import { serialUpload } from "@/lib/uploadUtils";
 import { useDragReorder } from "@/hooks/useDragReorder";
+import { useAtlases } from "@/hooks/use-atlases";
 
 /**
  * Atlases sidebar section — the *use* surface for atlases. Installing,
@@ -59,6 +60,10 @@ export function AtlasesSection({
 }) {
   const ids = (standardAtlases || []).map((a) => a.id);
   const dnd = useDragReorder(ids, reorderAtlases);
+  // Each atlas is its own module now, so no one capability says "atlases":
+  // the heading greys only when none is installed (hidden ones count).
+  const { loading: atlasesLoading, ok: atlasesOk, atlases: installedAtlases } = useAtlases();
+  const anyAtlas = atlasesLoading || atlasesOk !== true ? undefined : installedAtlases.length > 0;
 
   // Region search spans every installed atlas, so it needs their label tables
   // whether or not the atlas has been toggled on. Labels are small JSON and
@@ -69,6 +74,7 @@ export function AtlasesSection({
 
   return (
     <SidebarSection title="Atlases" icon={Database} testId="section-atlases" defaultOpen={false}
+      available={anyAtlas} unavailableHint="No atlas is installed — open the Atlas Manager to add one"
       badge={stdAtlasActive + customAtlases.filter((l) => l.visible).length}>
 
       <div className="mb-2 flex items-center gap-1">
@@ -80,7 +86,7 @@ export function AtlasesSection({
         <button
           onClick={() => openAtlasManager?.()}
           title="Install, import, rename or remove atlases"
-          className="flex shrink-0 items-center gap-1 border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          className="flex shrink-0 items-center gap-1 border border-border px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
           data-testid="open-atlas-manager"
         >
           <Settings2 size={12} /> Manage
@@ -88,7 +94,7 @@ export function AtlasesSection({
       </div>
 
       {!standardAtlases?.length && (
-        <div className="mb-2 border border-border px-2 py-3 text-[11px] text-muted-foreground">
+        <div className="mb-2 border border-border px-2 py-3 text-[12px] text-muted-foreground rounded-lg">
           No atlases installed.{" "}
           <button
             onClick={() => openAtlasManager?.("catalog")}
@@ -152,7 +158,7 @@ export function AtlasesSection({
       </div>
 
       <div className="pt-2">
-        <FileUploader label="Quick-load Atlas(es)" description=".nii / .nii.gz / .mgz — view only; use Manage → Import to install one with labels"
+        <FileUploader label="Quick-load atlases" description=".nii .nii.gz .mgz · view only; use Manage → Import to install one with labels"
           testId="upload-atlas-button" multiple
           onFiles={serialUpload((f) => addUserFile(f, "atlas"))}
           onFile={(f) => addUserFile(f, "atlas")} />

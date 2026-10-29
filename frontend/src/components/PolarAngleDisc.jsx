@@ -294,7 +294,7 @@ export const ThresholdFooter = ({
   if (!showFooter) return null;
 
   const mode = thresholdMode === "min" ? "min" : "any";
-  const btn = (active) => `py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors ${activeToggleCls(active)}`;
+  const btn = (active) => `py-1 px-2 text-[11.5px] font-medium border transition-colors ${activeToggleCls(active)}`;
 
   return (
     <div className="w-full flex flex-col gap-1.5 px-2">
@@ -326,7 +326,7 @@ export const ThresholdFooter = ({
                 const n = parseInt(e.target.value, 10);
                 onThresholdMinChange?.(Number.isFinite(n) ? Math.max(1, n) : 1);
               }}
-              className="w-16 bg-panel border border-border text-[10px] text-foreground px-1.5 py-1 font-mono"
+              className="w-16 bg-panel border border-border text-[11px] text-foreground px-1.5 py-1 font-mono"
               data-testid={`${testIdPrefix}-thresh-min-input`}
             />
           )}
@@ -334,7 +334,7 @@ export const ThresholdFooter = ({
       )}
       {summaryText && (
         <div
-          className="font-mono text-[10px] text-muted-foreground leading-snug"
+          className="font-mono text-[11px] text-muted-foreground leading-snug"
           data-testid={`${testIdPrefix}-summary`}
         >
           {summaryText}
@@ -379,7 +379,7 @@ export const PolarAngleDisc = ({
     <div className="flex flex-col items-center gap-2 py-2" data-testid="polar-angle-disc">
       <div className={`relative flex items-center justify-center ${active ? "disc-active" : ""}`}
         style={{ width: size + 56, height: size + 40 }}>
-        <div className="absolute rounded-full"
+        <div className="keep-colours absolute rounded-full"
           style={{
             width: size, height: size, top: 20, left: 28,
             background: gradient,
@@ -410,9 +410,9 @@ export const PolarAngleDisc = ({
           style={{ width: size * 0.45, height: size * 0.45, top: 20 + size * 0.275, left: 28 + size * 0.275 }} />
         <div className="absolute z-10 text-center"
           style={{ top: 20 + size * 0.32, left: 28 + size * 0.225, width: size * 0.55 }}>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">polar</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">angle</div>
-          <div className="font-mono text-[8px] tracking-[0.15em] text-subtle mt-0.5">{colormap}</div>
+          <div className="cap text-subtle">polar</div>
+          <div className="cap text-subtle">angle</div>
+          <div className="font-mono text-[10px] tracking-[0.15em] text-subtle mt-0.5">{colormap}</div>
         </div>
         {ticks.map((t) => {
           const rad = ((t.angle - 90) * Math.PI) / 180;
@@ -422,13 +422,13 @@ export const PolarAngleDisc = ({
             <div key={t.angle}
               className="absolute flex flex-col items-center leading-none"
               style={{ left: cx, top: cy, transform: "translate(-50%, -50%)" }}>
-              <span className="font-mono text-[10px] text-foreground">{t.label}</span>
-              <span className="font-mono text-[8px] text-muted-foreground mt-0.5">{t.deg}</span>
+              <span className="font-mono text-[11px] text-foreground">{t.label}</span>
+              <span className="font-mono text-[10px] text-muted-foreground mt-0.5">{t.deg}</span>
             </div>
           );
         })}
       </div>
-      <div className="font-mono text-[9px] text-subtle uppercase tracking-[0.2em] text-center px-4 leading-relaxed">
+      <div className="cap text-subtle text-center px-4 leading-relaxed">
         LH cortex · right hemifield (0–180°) <br/> RH cortex · left hemifield (180–360°)
       </div>
       <ThresholdFooter
@@ -441,7 +441,7 @@ export const PolarAngleDisc = ({
       />
       <button
         type="button"
-        className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+        className="btn px-2"
         onClick={() => exportPolarAngleDiscPng({
           colormap, arcSegments, summaryText, baseLabel,
           eccenColormap, eccenArcSegments, eccenSummaryText, eccenInverted,
@@ -501,9 +501,9 @@ export const EccentricityBar = ({
   // Dims the bar and suppresses overlay arcs when the eccentricity atlas is not visible in the 3D view.
   const overlaySegments = active && Array.isArray(arcSegments) ? arcSegments : [];
 
-  const invertBtnCls = `py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors ${
+  const invertBtnCls = `py-1 px-2 text-[11.5px] font-medium border transition-colors ${
     inverted
-      ? "bg-primary text-primary-foreground border-primary"
+      ? "bg-panel-active text-foreground border-edge"
       : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
   }`;
 
@@ -517,7 +517,7 @@ export const EccentricityBar = ({
 
   return (
     <div className="flex flex-col gap-2 py-2" data-testid="eccen-legend">
-      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+      <div className="flex items-center justify-between cap text-subtle">
         <span>eccentricity ({colormap})</span>
         <div className="flex items-center gap-1">
           <span>°visual angle</span>
@@ -527,13 +527,13 @@ export const EccentricityBar = ({
             onClick={() => onInvertToggle?.()}
             data-testid="eccen-invert-btn"
           >
-            Invert Color Bar
+            Invert colour bar
           </button>
         </div>
       </div>
       <div className="relative h-3 w-full" data-testid="eccen-bar">
         <div
-          className="absolute inset-0"
+          className="keep-colours absolute inset-0"
           style={{ background: gradient, filter: active ? "none" : "saturate(0.3) brightness(0.5)" }}
         />
         {overlaySegments.map(([s, e], idx) => {
@@ -559,7 +559,7 @@ export const EccentricityBar = ({
       </div>
       {/* Tick labels pinned to their proportional positions (0°=0%, 20°=22%, 40°=44%, 60°=67%).
           Previously used justify-between which spaced them evenly at 0/33/67/100% — incorrect. */}
-      <div className="relative h-4 font-mono text-[10px] text-muted-foreground">
+      <div className="relative h-4 font-mono text-[11px] text-muted-foreground">
         {TICKS.map(({ deg, label }) => (
           <span
             key={deg}

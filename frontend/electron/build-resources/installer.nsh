@@ -115,6 +115,9 @@ FunctionEnd
     !insertmacro APP_ASSOCIATE "gz" "MRLatte.NIfTIGz" "Compressed NIfTI Image (.nii.gz)" "$appExe,0" "Open with MRLatte" "$\"$appExe$\" $\"%1$\""
     WriteRegStr SHELL_CONTEXT "Software\Classes\MRLatte.NIfTIGz\shell\open" "FriendlyAppName" "MRLatte"
   ${EndIf}
+  ; Workspaces are MRLatte's own file type: always associated.
+  !insertmacro APP_ASSOCIATE "mrlatte" "MRLatte.Workspace" "MRLatte Workspace" "$appExe,0" "Open with MRLatte" "$\"$appExe$\" $\"%1$\""
+  WriteRegStr SHELL_CONTEXT "Software\Classes\MRLatte.Workspace\shell\open" "FriendlyAppName" "MRLatte"
   ${If} $ContextMenuState == ${BST_CHECKED}
     !insertmacro MRLatteContextMenu ".nii" ""
     !insertmacro MRLatteContextMenu ".gz" 'System.FileName:"*.nii.gz"'
@@ -134,6 +137,10 @@ FunctionEnd
   ReadRegStr $0 SHELL_CONTEXT "Software\Classes\.gz" ""
   ${If} $0 == "MRLatte.NIfTIGz"
     !insertmacro APP_UNASSOCIATE "gz" "MRLatte.NIfTIGz"
+  ${EndIf}
+  ReadRegStr $0 SHELL_CONTEXT "Software\Classes\.mrlatte" ""
+  ${If} $0 == "MRLatte.Workspace"
+    !insertmacro APP_UNASSOCIATE "mrlatte" "MRLatte.Workspace"
   ${EndIf}
   ; The right-click submenu keys are MRLatte's own (named "MRLatte"), so
   ; removing them can't touch another app's entries. No-op if never added.

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, forwardRef, useImperativeHandle } fro
 import { renderToStaticMarkup } from "react-dom/server";
 import { donutArcPath } from "@/lib/svgArc";
 import { Slider } from "@/components/ui/slider";
+import { EditableNumber } from "@/components/ui/editable-number";
 import { ThresholdFooter } from "./PolarAngleDisc";
 
 // Polar-angle-360 color stops at evenly-spaced angles (matching COLORMAP_STOPS in PolarAngleDisc).
@@ -349,13 +350,13 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
     <div className="flex flex-col gap-1.5">
       {/* Stats bar */}
       {active && selectedCount > 0 && (
-        <div className="font-mono text-[9px] text-muted-foreground text-center leading-tight">
+        <div className="font-mono text-[10.5px] text-muted-foreground text-center leading-tight">
           Total: {totalVx.toLocaleString()} vx&nbsp;&nbsp;|&nbsp;&nbsp;within {maxEcc}°:{" "}
           {withinVx.toLocaleString()} vx
         </div>
       )}
       {(!active || selectedCount === 0) && (
-        <div className="font-mono text-[9px] text-subtle text-center">
+        <div className="font-mono text-[10.5px] text-subtle text-center">
           select a lesion to see VF deficit
         </div>
       )}
@@ -373,16 +374,18 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
 
       {/* Max-eccentricity slider */}
       <div className="flex items-center gap-2 px-1">
-        <span className="font-mono text-[9px] text-subtle uppercase tracking-[0.15em] shrink-0">max ecc</span>
+        <span className="cap text-subtle shrink-0">max ecc</span>
         <Slider
           value={[maxEcc]}
           min={5}
           max={90}
           step={5}
           onValueChange={(v) => setMaxEcc(v[0])}
+          aria-label="Maximum eccentricity"
           className="cursor-pointer flex-1"
         />
-        <span className="font-mono text-[9px] text-muted-foreground tabular-nums w-6 text-right">{maxEcc}°</span>
+        <EditableNumber value={maxEcc} min={5} max={90} integer onCommit={setMaxEcc} label="Maximum eccentricity, degrees"
+          className="font-mono text-[10.5px] text-muted-foreground tabular-nums w-6 text-right">{maxEcc}°</EditableNumber>
       </div>
 
       {/* Threshold control (Any overlap / Min voxels) + affected-ranges summary */}
@@ -399,7 +402,7 @@ export const VisualFieldMap2D = forwardRef(function VisualFieldMap2D({
       <div className="flex justify-center pt-1">
         <button
           type="button"
-          className="py-1 px-2 text-[9px] uppercase tracking-[0.15em] border transition-colors bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground"
+          className="btn px-2"
           onClick={() => exportVisualFieldMap2DPng(svgRef.current, baseLabel || label)}
           data-testid="vfmap-export-btn"
         >

@@ -73,6 +73,18 @@ node tools/scripts/modules.mjs remove <id>   # only removes what this tool itsel
 Nothing is ever downloaded automatically outside of `add`/`setup`. The in-app Module Store
 (Settings → Modules) does the same thing with a UI.
 
+**Atlas modules.** The template, each atlas, the retinotopy maps and the validation surfaces are
+data modules of their own (those with a `group` in `data/modules/manifest.json`), installed and
+removed one at a time in the app's Atlas Manager. The installer ships the template and the seven core
+atlases (`"bundled": true`) and seeds each into the module root once; the rest download from the
+GitHub release tagged `modules-v1` (the manifest's `releaseBase`; `MRLATTE_MODULE_RELEASE_BASE`
+overrides it). After changing an atlas file and its pin in the manifest, rebuild the release assets
+and upload them to that release:
+
+```bash
+python tools/scripts/pack_data_modules.py    # one <id>.zip per data module, in ../MRLatte-build/module-assets
+```
+
 ## Building a Windows installer
 
 Build machine needs internet, a full Python 3.11 (`py -3.11`), Node + yarn, and **`git` on PATH**

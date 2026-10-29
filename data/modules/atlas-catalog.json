@@ -10,6 +10,7 @@
     {
       "catalogId": "aal_neuroparc",
       "atlasId": "aal_neuroparc",
+      "sameAs": "aal",
       "name": "AAL · Whole Brain",
       "short": "AAL",
       "kind": "parcellation",
@@ -130,6 +131,7 @@
     {
       "catalogId": "destrieux_neuroparc",
       "atlasId": "destrieux_neuroparc",
+      "sameAs": "destrieux",
       "name": "Destrieux · aparc.a2009s",
       "short": "Destrieux",
       "kind": "parcellation",
@@ -220,6 +222,7 @@
     {
       "catalogId": "harvard_oxford_cort_neuroparc",
       "atlasId": "harvard_oxford_cort_neuroparc",
+      "sameAs": "harvard_oxford_cort",
       "name": "Harvard-Oxford · Cortical",
       "short": "HO Cort",
       "kind": "parcellation",
@@ -250,6 +253,7 @@
     {
       "catalogId": "harvard_oxford_sub_neuroparc",
       "atlasId": "harvard_oxford_sub_neuroparc",
+      "sameAs": "harvard_oxford_sub",
       "name": "Harvard-Oxford · Subcortical",
       "short": "HO Sub",
       "kind": "parcellation",
@@ -280,6 +284,7 @@
     {
       "catalogId": "jhu_neuroparc",
       "atlasId": "jhu_neuroparc",
+      "sameAs": "jhu_wm",
       "name": "JHU · White Matter",
       "short": "JHU",
       "kind": "tracts",
@@ -310,6 +315,7 @@
     {
       "catalogId": "juelich_neuroparc",
       "atlasId": "juelich_neuroparc",
+      "sameAs": "juelich",
       "name": "Jülich · Cyto/Myeloarchitectonic",
       "short": "Jülich",
       "kind": "parcellation",
@@ -400,6 +406,7 @@
     {
       "catalogId": "yeo7_liberal",
       "atlasId": "yeo7_liberal",
+      "sameAs": "yeo7",
       "name": "Yeo-7 · Functional Networks (liberal)",
       "short": "Yeo-7 lib",
       "kind": "networks",

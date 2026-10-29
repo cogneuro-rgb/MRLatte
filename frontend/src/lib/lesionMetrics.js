@@ -33,6 +33,10 @@ async function readErrorDetail(r) {
 // --------------------------------------------------------------------------- #
 let _capabilitiesPromise = null;
 
+// lqtpy's own release page for a version (inbox 29 Oct: name the engine with a
+// link wherever MRLatte credits it).
+export const lqtpyReleaseUrl = (version) => `https://github.com/rohan3412/LQTpy/releases/tag/v${version}`;
+
 export function getCapabilities({ forceRefresh = false } = {}) {
   if (forceRefresh || !_capabilitiesPromise) {
     _capabilitiesPromise = (async () => {
@@ -129,11 +133,11 @@ export async function fetchQc({ lesionId, mni = true, threshold, context, tier, 
  * @returns {Promise<{voxels_removed: number, applied: string[], skipped: object[], removed_mask: string}>}
  *   `removed_mask` is a base64 gzipped NIfTI on the uploaded drawing's grid.
  */
-export async function fetchQcFix({ lesionId, findingIds, threshold, context }) {
+export async function fetchQcFix({ lesionId, findingIds, threshold, context, returnFixed }) {
   const r = await fetch(`${apiBase}/api/lesion/qc/fix`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lesion_id: lesionId, finding_ids: findingIds, threshold, context }),
+    body: JSON.stringify({ lesion_id: lesionId, finding_ids: findingIds, threshold, context, return_fixed: returnFixed }),
   });
   if (!r.ok) throw new LesionMetricsHttpError(await readErrorDetail(r), r.status);
   return r.json();
